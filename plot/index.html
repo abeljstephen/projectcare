@@ -7099,10 +7099,17 @@
             mostLikely:           Number(t.mostLikely  != null ? t.mostLikely  : (t.M  != null ? t.M  : (t.most_likely || 0))),
             pessimistic:          Number(t.pessimistic != null ? t.pessimistic : (t.P  != null ? t.P  : (t.worst_case  || 0))),
             target:               t.target != null ? Number(t.target) : (t.targetValue != null ? Number(t.targetValue) : undefined),
-            // Carry through scalar results for per-task KPI display after task switch
+            // Carry through scalar results for per-task KPI display after task switch.
+            // Accept both legacy nested format and new flat p10/p50/p90 format.
             targetProbability:    t.targetProbability    || null,
-            percentiles:          t.percentiles          || null,
-            optimizedPercentiles: t.optimizedPercentiles || null,
+            percentiles:          t.percentiles || (
+              (t.p10 != null || t.p50 != null || t.p90 != null)
+                ? { p10: t.p10, p50: t.p50, p90: t.p90 } : null
+            ),
+            optimizedPercentiles: t.optimizedPercentiles || (
+              (t.op10 != null || t.op50 != null || t.op90 != null)
+                ? { p10: t.op10, p50: t.op50, p90: t.op90 } : null
+            ),
             feasibilityScore:     t.feasibilityScore     != null ? t.feasibilityScore : null,
             winningSliders:       t.winningSliders       || null,
             // userSliders: the exact slider values the user gave GPT (UI units). null if not given.

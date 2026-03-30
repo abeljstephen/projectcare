@@ -438,39 +438,27 @@ function handleCallApi(body) {
         var uSliders = (task.sliderValues && typeof task.sliderValues === 'object' &&
                         Object.keys(task.sliderValues).length > 0)
                        ? task.sliderValues : null;
+        // Keep only p10/p50/p90 — full percentile arrays bloat the URL
+        var pct  = res.percentiles           || {};
+        var opct = res.optimizedPercentiles  || {};
+        var tp   = (res.targetProbability && res.targetProbability.value) || {};
         return {
-          task:                 task.task,
-          O:                    task.optimistic,
-          M:                    task.mostLikely,
-          P:                    task.pessimistic,
-          target:               task.targetValue != null ? task.targetValue : null,
-          targetProbability:    (res.targetProbability && res.targetProbability.value) || {},
-          percentiles:          res.percentiles           || {},
-          optimizedPercentiles: res.optimizedPercentiles  || {},
-          feasibilityScore:     res.feasibilityScore      != null ? res.feasibilityScore : null,
-          winningSliders:       winSliders,
-          userSliders:          uSliders,
-          reportUrl:            (function() {
-            try {
-              var tp  = (res.targetProbability && res.targetProbability.value) || {};
-              var pct = res.percentiles || {};
-              var d = {
-                task:          task.task,
-                O:             task.optimistic,
-                M:             task.mostLikely,
-                P:             task.pessimistic,
-                target:        task.targetValue != null ? task.targetValue : null,
-                baselineProb:  tp.original          != null ? tp.original          : null,
-                adjustedProb:  tp.adjusted          != null ? tp.adjusted          : null,
-                optimizedProb: tp.adjustedOptimized != null ? tp.adjustedOptimized : null,
-                p10:           pct.p10 != null ? pct.p10 : null,
-                p50:           pct.p50 != null ? pct.p50 : null,
-                p90:           pct.p90 != null ? pct.p90 : null
-              };
-              return 'https://abeljstephen.github.io/projectcare/report/?data=' +
-                     encodeURIComponent(Utilities.base64Encode(JSON.stringify(d)));
-            } catch(e) { return null; }
-          })()
+          task:              task.task,
+          O:                 task.optimistic,
+          M:                 task.mostLikely,
+          P:                 task.pessimistic,
+          target:            task.targetValue != null ? task.targetValue : null,
+          targetProbability: tp,
+          p10:               pct.p10  != null ? pct.p10  : null,
+          p50:               pct.p50  != null ? pct.p50  : null,
+          p90:               pct.p90  != null ? pct.p90  : null,
+          op10:              opct.p10 != null ? opct.p10 : null,
+          op50:              opct.p50 != null ? opct.p50 : null,
+          op90:              opct.p90 != null ? opct.p90 : null,
+          feasibilityScore:  res.feasibilityScore != null ? res.feasibilityScore : null,
+          winningSliders:    winSliders,
+          userSliders:       uSliders
+          // reportUrl intentionally omitted — GPT surfaces _reportUrl separately
         };
       });
       var sessionPayload = { tasks: slimTasks, portfolio: result._portfolio || null };
