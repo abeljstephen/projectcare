@@ -16,7 +16,7 @@ add_action('rest_api_init', function () {
         ['methods' => 'POST', 'callback' => 'pc_rest_plot_data_save'] + $auth);
     register_rest_route('projectcare/v1', '/plot-data/(?P<token>[a-f0-9]{32,64})',
         ['methods' => 'GET', 'callback' => 'pc_rest_plot_data_read',
-         'permission_callback' => '__return_true']);
+         'permission_callback' => '__return_true']); // token is the bearer — validated inside
 });
 
 /**
@@ -533,33 +533,68 @@ function pc_rest_plot_data_save(WP_REST_Request $req): WP_REST_Response {
 }
 
 // ── PLOT DATA READ ─────────────────────────────────────────────────────────────
-// Public GET — called by plot.html polling loop. Token is the secret.
-// Returns the latest data for a token, or {"status":"not_found"}.
+// GET — called by plot.html / cpm.html polling loop.
+// Token acts as a bearer credential: 32–64 hex chars, max age 2 hours.
+// Expired or unknown tokens return {"status":"not_found"} (no distinguishable error).
+// CORS restricted to GitHub Pages origin only.
+const PC_PLOT_TTL_SECONDS = 7200; // 2 hours
+
 function pc_rest_plot_data_read(WP_REST_Request $req): WP_REST_Response {
     $token = sanitize_text_field($req->get_param('token') ?? '');
+
+    // Validate token format — reject malformed tokens immediately
     if (!preg_match('/^[a-f0-9]{32,64}$/', $token)) {
-        return rest_ensure_response(['status' => 'not_found']);
+        return pc_plot_not_found();
     }
+
+    // Rate-limit the read endpoint — max 60 reads/minute per IP
+    // (prevents token enumeration via rapid-fire polling)
+    $ip       = pc_get_ip();
+    $rl_key   = 'pc_pdr_' . md5($ip);
+    $rl_count = (int) get_transient($rl_key);
+    if ($rl_count >= 60) {
+        return pc_plot_not_found();
+    }
+    set_transient($rl_key, $rl_count + 1, 60);
 
     global $wpdb;
     $table = $wpdb->prefix . 'pc_plot_data';
     $row   = $wpdb->get_row($wpdb->prepare(
-        "SELECT data, saved_at FROM `{$table}` WHERE token = %s LIMIT 1",
+        "SELECT data, saved_at, created_at FROM `{$table}` WHERE token = %s LIMIT 1",
         $token
     ));
 
-    $response = rest_ensure_response(
-        $row
-            ? ['data' => json_decode($row->data, true), 'saved_at' => $row->saved_at]
-            : ['status' => 'not_found']
-    );
+    // Not found
+    if (!$row) {
+        return pc_plot_not_found();
+    }
 
-    // CORS for GitHub Pages polling
+    // TTL check — reject if session is older than PC_PLOT_TTL_SECONDS
+    $age = time() - strtotime($row->created_at);
+    if ($age > PC_PLOT_TTL_SECONDS) {
+        // Clean up expired row
+        $wpdb->delete($table, ['token' => $token], ['%s']);
+        return pc_plot_not_found();
+    }
+
+    $response = rest_ensure_response([
+        'data'     => json_decode($row->data, true),
+        'saved_at' => $row->saved_at,
+    ]);
+
+    // CORS restricted to GitHub Pages only — no wildcard
     $response->header('Access-Control-Allow-Origin', 'https://abeljstephen.github.io');
     $response->header('Access-Control-Allow-Methods', 'GET');
-    $response->header('Cache-Control', 'no-store');
+    $response->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    $response->header('Vary', 'Origin');
 
     return $response;
+}
+
+function pc_plot_not_found(): WP_REST_Response {
+    $r = rest_ensure_response(['status' => 'not_found']);
+    $r->header('Cache-Control', 'no-store');
+    return $r;
 }
 
 // NOTE: GPT proxy removed — GoDaddy blocks outbound SSL to script.google.com.

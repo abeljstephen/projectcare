@@ -15,6 +15,57 @@
  *   action: "check_quota"    — return current quota for a key
  */
 
+// ── GAS-SIDE RATE LIMITING ────────────────────────────────────────────────────
+// Uses CacheService (in-memory, per-instance) as a counter.
+// Limits: 30 call_api per key per minute; 10 validate failures per key per hour.
+var GAS_RATE_LIMITS = {
+  call_api_per_min:       30,
+  validate_fail_per_hour: 10
+};
+
+/**
+ * Increment a rate-limit counter stored in CacheService.
+ * Returns true if limit is exceeded (request should be rejected).
+ * key: cache key, limit: max count, ttl: window in seconds.
+ */
+function gasRateLimitExceeded(cacheKey, limit, ttlSeconds) {
+  try {
+    var cache   = CacheService.getScriptCache();
+    var current = parseInt(cache.get(cacheKey) || '0', 10);
+    if (current >= limit) return true;
+    cache.put(cacheKey, String(current + 1), ttlSeconds);
+    return false;
+  } catch (e) {
+    // If cache is unavailable, fail open (don't block legitimate requests)
+    console.warn('[ProjectCare] Rate limit cache error:', e.message);
+    return false;
+  }
+}
+
+// ── GAS AUDIT LOG ─────────────────────────────────────────────────────────────
+// Lightweight append-only log to Script Properties (last 100 entries, circular).
+// Used independently of WordPress logs so evidence survives if WP is compromised.
+var GAS_AUDIT_MAX = 100;
+
+function gasAuditLog(event, keyPrefix, detail) {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var raw   = props.getProperty('GAS_AUDIT_LOG') || '[]';
+    var log   = JSON.parse(raw);
+    log.push({
+      ts:  new Date().toISOString(),
+      ev:  event,
+      k:   keyPrefix || '',
+      d:   String(detail || '').slice(0, 200)
+    });
+    // Keep only the last GAS_AUDIT_MAX entries
+    if (log.length > GAS_AUDIT_MAX) log = log.slice(-GAS_AUDIT_MAX);
+    props.setProperty('GAS_AUDIT_LOG', JSON.stringify(log));
+  } catch (e) {
+    console.warn('[ProjectCare] Audit log error:', e.message);
+  }
+}
+
 // ── CREDIT COSTS PER OPERATION ────────────────────────────────────────────────
 var CREDIT_COSTS = {
   baseline_only: 1,
@@ -71,17 +122,33 @@ function handleCallApi(body) {
   var key = (body.key || '').trim();
   if (!key) return jsonOut({ error: 'API key is required' });
 
+  // GAS-side rate limit: max 30 call_api per key per minute
+  var keyPrefix = key.slice(0, 8);
+  var rlKey = 'rl_ca_' + key.slice(0, 16);
+  if (gasRateLimitExceeded(rlKey, GAS_RATE_LIMITS.call_api_per_min, 60)) {
+    gasAuditLog('rate_limit', keyPrefix, 'call_api');
+    return jsonOut({ error: 'Too many requests — please wait before retrying.' });
+  }
+
   // Session token — stable for the life of one conversation.
-  // GPT omits it on first call; GAS generates one and returns it.
-  // GPT stores and re-sends it on all subsequent calls so plot.html can live-update.
   var sessionToken = (body.session_token || '').trim();
   if (!/^[a-f0-9]{32,64}$/.test(sessionToken)) {
-    sessionToken = Utilities.getUuid().replace(/-/g, '');  // 32-char lowercase hex
+    sessionToken = Utilities.getUuid().replace(/-/g, '');
   }
 
   // 1. Validate key + get quota from WordPress CRM
   var auth = wpPost('/projectcare/v1/validate', { key: key });
-  if (!auth.valid) return jsonOut({ error: auth.error, upgrade_url: auth.upgrade_url });
+  if (!auth.valid) {
+    // Audit log every failed validation (brute-force detection)
+    var failKey = 'rl_vf_' + key.slice(0, 16);
+    var tooMany = gasRateLimitExceeded(failKey, GAS_RATE_LIMITS.validate_fail_per_hour, 3600);
+    gasAuditLog('auth_fail', keyPrefix, auth.error || 'invalid');
+    if (tooMany) {
+      return jsonOut({ error: 'Too many failed attempts. Please check your API key or contact support.' });
+    }
+    return jsonOut({ error: auth.error, upgrade_url: auth.upgrade_url });
+  }
+  gasAuditLog('call_api_ok', keyPrefix, (body.operationType || 'full_saco'));
 
   // 1b. Branch to slim handler when plan tier is 'slim'.
   //     gas_tier is returned by /validate once WordPress has the column (step 2).
@@ -91,12 +158,17 @@ function handleCallApi(body) {
     return handleCallApiSlim(body, key, auth, sessionToken);
   }
 
-  // 2. Determine credit cost — prefer WP-stored costs over hardcoded fallback
+  // 2. Determine credit cost — GAS canonical values are the ceiling.
+  //    WordPress may return lower costs (promotional pricing) but NEVER higher.
+  //    Minimum enforced cost is always 1 to prevent free-ride attacks.
   var opType = body.operationType || 'full_saco';
   if (!CREDIT_COSTS[opType])
     return jsonOut({ error: 'Unknown operationType: ' + opType + '. Valid values: baseline_only, full_saco, saco_explain' });
+  var canonicalCost = CREDIT_COSTS[opType];
   var liveCosts = (auth.credit_costs && typeof auth.credit_costs === 'object') ? auth.credit_costs : {};
-  var cost = (liveCosts[opType] != null && liveCosts[opType] > 0) ? parseInt(liveCosts[opType], 10) : CREDIT_COSTS[opType];
+  var wpCost = (liveCosts[opType] != null) ? parseInt(liveCosts[opType], 10) : NaN;
+  // Accept WP cost only if: numeric, ≥1 (min floor), ≤ canonical (no upward manipulation)
+  var cost = (!isNaN(wpCost) && wpCost >= 1 && wpCost <= canonicalCost) ? wpCost : canonicalCost;
 
   if (auth.remaining < cost) {
     return jsonOut({
@@ -611,10 +683,11 @@ function handleCallApiSlim(body, key, auth, sessionToken) {
       return jsonOut({ error: 'Task "' + t.task + '": values must satisfy optimistic ≤ mostLikely ≤ pessimistic' });
   }
 
-  // Credit check — prefer WP-stored slim cost over hardcoded fallback
+  // Credit check — slim cost capped at canonical SLIM_CREDIT_COST; minimum 1
   var liveCostsSlim = (auth.credit_costs && typeof auth.credit_costs === 'object') ? auth.credit_costs : {};
-  var slimCost = (liveCostsSlim['slim'] != null && liveCostsSlim['slim'] > 0)
-    ? parseInt(liveCostsSlim['slim'], 10) : SLIM_CREDIT_COST;
+  var wpSlimCost = (liveCostsSlim['slim'] != null) ? parseInt(liveCostsSlim['slim'], 10) : NaN;
+  var slimCost = (!isNaN(wpSlimCost) && wpSlimCost >= 1 && wpSlimCost <= SLIM_CREDIT_COST)
+    ? wpSlimCost : SLIM_CREDIT_COST;
   if (auth.remaining < slimCost) {
     return jsonOut({
       error:       'Insufficient credits — need ' + slimCost + ', have ' + auth.remaining + '.',

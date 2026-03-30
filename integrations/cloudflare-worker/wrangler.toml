@@ -8,3 +8,10 @@ enabled = true
 # Allow up to 120s for subrequests (GAS can take 60-90s for full SACO+CPM)
 [limits]
 cpu_ms = 50
+
+# GAS_URL is a secret — never committed to source.
+# To set it:  wrangler secret put GAS_URL
+# Then paste: https://script.google.com/macros/s/<NEW_DEPLOYMENT_ID>/exec
+# After rotating the GAS deployment ID, re-run wrangler secret put.
+#
+# [vars]       ← do NOT put GAS_URL here; vars are plaintext in wrangler.toml
