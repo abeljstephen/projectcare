@@ -163,8 +163,38 @@
     .btn.primary { background:var(--brand); color:#fff; border-color:var(--brand); }
     .btn.primary:hover { opacity:.88; }
 
-    /* ── Toolbar row ── */
-    .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+    /* ── Tab nav ── */
+    .tab-nav { display:flex; gap:0; border-bottom:2px solid var(--line); margin-bottom:16px; overflow-x:auto; }
+    .tab-btn { padding:9px 18px; font-size:12px; font-weight:600; border:none; border-bottom:2px solid transparent; margin-bottom:-2px; background:none; cursor:pointer; color:var(--muted); white-space:nowrap; font-family:inherit; border-radius:6px 6px 0 0; transition:color .15s; }
+    .tab-btn:hover { color:var(--fg); background:var(--chip); }
+    .tab-btn.active { color:var(--brand); border-bottom-color:var(--brand); }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+
+    /* ── Help tooltip ── */
+    .htip { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; border-radius:50%; background:var(--chip); color:var(--muted); font-size:9px; font-weight:700; cursor:help; margin-left:5px; vertical-align:middle; position:relative; border:1px solid var(--line); flex-shrink:0; }
+    .htip::after { content:attr(data-tip); position:absolute; left:50%; transform:translateX(-50%); top:calc(100% + 7px); background:#1e293b; color:#f1f5f9; font-size:11px; font-weight:400; padding:9px 13px; border-radius:8px; width:260px; white-space:normal; z-index:9999; line-height:1.55; display:none; pointer-events:none; }
+    .htip::before { content:''; position:absolute; left:50%; transform:translateX(-50%); top:calc(100% + 3px); border:4px solid transparent; border-bottom-color:#1e293b; display:none; }
+    .htip:hover::after, .htip:hover::before { display:block; }
+
+    /* ── Alerts / graph integrity ── */
+    .alert { border-radius:8px; padding:9px 13px; font-size:12px; margin-bottom:8px; display:flex; gap:8px; align-items:flex-start; line-height:1.5; }
+    .alert-error { background:#FEF2F2; border:1px solid #FCA5A5; color:#991B1B; }
+    .alert-warn  { background:#FFFBEB; border:1px solid #FDE68A; color:#854D0E; }
+    .alert-info  { background:#EFF6FF; border:1px solid #BFDBFE; color:#1D4ED8; }
+    .alert-ok    { background:#F0FDF4; border:1px solid #BBF7D0; color:#166534; }
+    .alert-icon  { font-size:13px; flex-shrink:0; line-height:1.5; }
+    .alert strong { font-weight:700; }
+
+    /* ── Critical path chain ── */
+    .cp-chain { display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin:10px 0 4px; }
+    .cp-node  { background:#FEE2E2; border:1.5px solid #FECACA; border-radius:6px; padding:4px 10px; font-size:12px; font-weight:600; color:#991B1B; }
+    .cp-arrow { color:#9CA3AF; font-size:13px; }
+
+    /* ── Metric chips ── */
+    .metric-strip { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 0; }
+    .mc { background:var(--chip); border-radius:8px; padding:5px 11px; font-size:11px; color:var(--muted); }
+    .mc strong { color:var(--fg); }
 
     /* ── Error panel ── */
     .error-panel { background:#FEF2F2; border:1px solid #FCA5A5; border-radius:10px; padding:12px 16px; color:#991B1B; font-size:12px; margin-bottom:14px; }
@@ -172,6 +202,15 @@
     /* ── Legend ── */
     .legend-row { display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:var(--muted); align-items:center; margin-top:8px; }
     .leg-dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:4px; vertical-align:middle; }
+
+    /* ── Risk rows (SSI table) ── */
+    .risk-row { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); }
+    .risk-row:last-child { border-bottom:none; }
+    .risk-name { font-size:12px; font-weight:600; min-width:120px; flex-shrink:0; }
+    .risk-bar-track { flex:1; height:8px; background:var(--line); border-radius:4px; overflow:hidden; }
+    .risk-bar-fill { height:8px; border-radius:4px; }
+    .risk-pct { font-size:12px; font-weight:700; font-family:'SF Mono',Consolas,monospace; min-width:38px; text-align:right; }
+    .risk-badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px; white-space:nowrap; }
 
     /* hide results until computed */
     #resultsSection { display:none; }
@@ -216,89 +255,105 @@
   <!-- Results -->
   <div id="resultsSection">
 
-    <!-- KPI strip -->
-    <div class="kpi-strip" id="kpiStrip"></div>
+    <!-- Tab navigation -->
+    <nav class="tab-nav" id="tabNav">
+      <button class="tab-btn active" onclick="showTab('overview')">Overview</button>
+      <button class="tab-btn" onclick="showTab('network')">Network Diagram</button>
+      <button class="tab-btn" onclick="showTab('gantt')">Gantt Chart</button>
+      <button class="tab-btn" onclick="showTab('risk')">Risk Analysis</button>
+      <button class="tab-btn" onclick="showTab('health')">Health Score</button>
+      <span style="font-size:10px;color:var(--muted);margin-left:auto;align-self:center;padding-right:4px;" id="engineMode"></span>
+    </nav>
 
-    <!-- Toolbar -->
-    <div class="toolbar">
-      <button class="btn" onclick="togglePanel('networkPanel')">Network Diagram</button>
-      <button class="btn" onclick="togglePanel('ganttPanel')">Gantt Chart</button>
-      <button class="btn" onclick="togglePanel('tablePanel')">CPM Table</button>
-      <button class="btn" onclick="togglePanel('stochPanel')">Stochastic</button>
-      <button class="btn" onclick="togglePanel('healthPanel')">Health Score</button>
-      <span style="font-size:11px;color:var(--muted);margin-left:auto;" id="engineMode"></span>
-    </div>
-
-    <!-- Network Diagram -->
-    <div id="networkPanel" class="card section">
-      <h2>Network Diagram</h2>
-      <div class="legend-row">
-        <span><span class="leg-dot" style="background:#DC2626;"></span>Critical path</span>
-        <span><span class="leg-dot" style="background:#F59E0B;"></span>Near-critical (float &lt; 10%)</span>
-        <span><span class="leg-dot" style="background:#6EE7B7;"></span>Has float</span>
-        <span><span class="leg-dot" style="background:#6366F1;"></span>Tipping point</span>
-      </div>
-      <div id="networkContainer"></div>
-    </div>
-
-    <!-- Gantt -->
-    <div id="ganttPanel" class="card section">
-      <h2>Gantt Chart</h2>
-      <div id="ganttContainer"><canvas id="ganttCanvas"></canvas></div>
-    </div>
-
-    <!-- CPM Values Table -->
-    <div id="tablePanel" class="card section">
-      <h2>CPM Values</h2>
-      <div class="tbl-wrap">
-        <table id="cpmTable">
-          <thead>
-            <tr>
-              <th>Task</th>
-              <th>Dur</th>
-              <th>ES</th>
-              <th>EF</th>
-              <th>LS</th>
-              <th>LF</th>
-              <th>TF</th>
-              <th>FF</th>
-              <th data-col="if">IF</th>
-              <th data-col="indf">IndF</th>
-              <th data-col="tp">Tipping Pt</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="cpmTableBody"></tbody>
-        </table>
-      </div>
-      <div class="legend-row" style="margin-top:10px;">
-        <span id="cpmTableLegend">TF = Total Float  ·  FF = Free Float</span>
-      </div>
-    </div>
-
-    <!-- Stochastic -->
-    <div id="stochPanel" class="card section">
-      <h2>Stochastic Analysis <span style="font-size:11px;font-weight:400;color:var(--muted);">(500 Monte Carlo iterations)</span></h2>
-      <div class="grid-2">
-        <div>
-          <h2 style="margin-bottom:6px;">S-Curve — Project Duration CDF</h2>
-          <div id="scurveContainer"><canvas id="scurveCanvas"></canvas></div>
-          <div id="stochKpis" class="kpi-strip" style="margin-top:10px;"></div>
+    <!-- Tab: Overview -->
+    <div id="tab-overview" class="tab-panel active">
+      <div class="kpi-strip" id="kpiStrip"></div>
+      <div class="card section" id="graphIntegrityPanel"></div>
+      <div class="card section" id="tablePanel">
+        <h2>CPM Values
+          <span class="htip" data-tip="Forward/backward pass results. ES=Early Start, EF=Early Finish, LS=Late Start, LF=Late Finish. Total Float = how much a task can slip without delaying the project. Zero float = critical path.">?</span>
+        </h2>
+        <div class="tbl-wrap">
+          <table id="cpmTable">
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Dur</th>
+                <th>ES</th>
+                <th>EF</th>
+                <th>LS</th>
+                <th>LF</th>
+                <th>TF <span class="htip" data-tip="Total Float: days this task can slip before delaying the project end. 0 = on critical path.">?</span></th>
+                <th>FF <span class="htip" data-tip="Free Float: days this task can slip before delaying its immediate successor (not the whole project).">?</span></th>
+                <th data-col="if">IF <span class="htip" data-tip="Interfering Float: portion of total float shared with other paths. Using it delays successors even if the project end is unaffected.">?</span></th>
+                <th data-col="indf">IndF <span class="htip" data-tip="Independent Float: slack this task has regardless of how predecessors or successors use their float. Truly free buffer.">?</span></th>
+                <th data-col="tp">Tipping Pt <span class="htip" data-tip="The point at which this task's duration would flip it onto the critical path.">?</span></th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="cpmTableBody"></tbody>
+          </table>
         </div>
-        <div>
-          <h2 style="margin-bottom:6px;">Criticality Index (Tornado)</h2>
-          <div id="tornadoContainer"><canvas id="tornadoCanvas"></canvas></div>
+        <div class="legend-row" style="margin-top:10px;">
+          <span id="cpmTableLegend">TF = Total Float  ·  FF = Free Float</span>
         </div>
       </div>
-      <div id="critIndexTable" style="margin-top:14px;"></div>
     </div>
 
-    <!-- Schedule Health -->
-    <div id="healthPanel" class="card section">
-      <h2>Schedule Health Score</h2>
-      <div class="grid-2">
-        <div class="health-card" id="healthCardMain"></div>
-        <div id="healthFactors"></div>
+    <!-- Tab: Network Diagram -->
+    <div id="tab-network" class="tab-panel">
+      <div class="card section">
+        <h2>Network Diagram
+          <span class="htip" data-tip="Directed acyclic graph of task dependencies. Arrows show Finish-to-Start links. Critical path tasks are red (zero float). Near-critical tasks are amber. Click and drag to rearrange.">?</span>
+        </h2>
+        <div class="legend-row" style="margin-bottom:10px;">
+          <span><span class="leg-dot" style="background:#DC2626;"></span>Critical path</span>
+          <span><span class="leg-dot" style="background:#F59E0B;"></span>Near-critical (float &lt; 10%)</span>
+          <span><span class="leg-dot" style="background:#6EE7B7;"></span>Has float</span>
+          <span><span class="leg-dot" style="background:#6366F1;"></span>Tipping point</span>
+        </div>
+        <div id="networkContainer"></div>
+      </div>
+    </div>
+
+    <!-- Tab: Gantt -->
+    <div id="tab-gantt" class="tab-panel">
+      <div class="card section">
+        <h2>Gantt Chart
+          <span class="htip" data-tip="Horizontal bars show each task's scheduled window (ES→EF). Translucent extension shows available float — the buffer before that task becomes critical.">?</span>
+        </h2>
+        <div id="ganttContainer"><canvas id="ganttCanvas"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Tab: Risk Analysis -->
+    <div id="tab-risk" class="tab-panel">
+      <div class="card section">
+        <h2>S-Curve — Project Duration Distribution
+          <span class="htip" data-tip="500 Monte Carlo simulations, each sampling task durations from their PERT distributions. The curve shows the probability of completing by each date. P50 = 50% chance, P80 = 80% chance.">?</span>
+        </h2>
+        <div id="scurveContainer"><canvas id="scurveCanvas"></canvas></div>
+        <div id="stochKpis" class="kpi-strip" style="margin-top:12px;"></div>
+      </div>
+      <div class="card section" id="ssiPanel">
+        <h2>Schedule Risk — Which tasks drive your deadline?
+          <span class="htip" data-tip="Criticality Index: % of the 500 simulations in which each task ended up on the critical path. 100% = always critical regardless of uncertainty. 0% = never critical. A task can be non-critical deterministically but still highly critical stochastically if it has high variance.">?</span>
+        </h2>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Each bar shows how often that task determined the project deadline across 500 simulations. High = high risk driver even if it has float today.</p>
+        <div id="ssiRows"></div>
+      </div>
+    </div>
+
+    <!-- Tab: Health Score -->
+    <div id="tab-health" class="tab-panel">
+      <div class="card section">
+        <h2>Schedule Health Score
+          <span class="htip" data-tip="Composite score (0–100) based on: fraction of near-critical tasks, merge-point density, network density, criticality spread, and whether any negative float exists. Higher = lower schedule risk.">?</span>
+        </h2>
+        <div class="grid-2">
+          <div class="health-card" id="healthCardMain"></div>
+          <div id="healthFactors"></div>
+        </div>
       </div>
     </div>
 
@@ -310,16 +365,20 @@
 // CPM page main — runs after all deferred scripts load
 // ═══════════════════════════════════════════════════════════════
 
-var _cpmResult   = null;
-var _cpmTasks    = null;
-var _sacoResults = null;
-var _ganttChart  = null;
-var _scurveChart = null;
-var _tornadoChart= null;
-var _network     = null;
+var _cpmResult    = null;
+var _cpmTasks     = null;
+var _sacoResults  = null;
+var _ganttChart   = null;
+var _scurveChart  = null;
+var _tornadoChart = null;
+var _network      = null;
+var _chartsLoaded = false;
 var _projDur     = null;   // for Gantt float scaling
 
 // ── Utility ──────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 function fmt(v, dp) {
   if (v == null || !Number.isFinite(v)) return '—';
   return v.toFixed(dp != null ? dp : 2);
@@ -340,9 +399,28 @@ function showError(msg) {
 function hideError() {
   document.getElementById('errorPanel').style.display = 'none';
 }
-function togglePanel(id) {
-  var el = document.getElementById(id);
-  el.style.display = (el.style.display === 'none') ? '' : 'none';
+function showTab(name) {
+  // Hide all panels, deactivate all buttons
+  document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+  // Show target panel + activate button
+  var panel = document.getElementById('tab-' + name);
+  if (panel) panel.classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(function(b){
+    if (b.textContent.trim().toLowerCase().replace(/\s+/g,'-') === name ||
+        b.getAttribute('onclick') === "showTab('" + name + "')") {
+      b.classList.add('active');
+    }
+  });
+  // Lazy-load charts when their tab is first opened
+  if ((name === 'network' || name === 'gantt' || name === 'risk') && _cpmResult) {
+    if (!_chartsLoaded) {
+      _lazyLoadChartLibs(function() {
+        _chartsLoaded = true;
+        _renderChartPanels(_cpmTasks, _cpmResult);
+      });
+    }
+  }
 }
 function setStatus(text, cls) {
   var b = document.getElementById('statusBadge');
@@ -492,25 +570,37 @@ function renderAll(tasks, result) {
   var health = result.healthScore;
   _projDur   = det.projectDuration;
 
-  // Phase 1: render pure-HTML panels immediately — no external library needed
-  try { renderKpiStrip(det, stoch); }  catch(e) { console.error('[CPM] kpi', e); }
-  try { renderCpmTable(tasks, det); }  catch(e) { console.error('[CPM] table', e); }
-  try { renderHealthScore(health); }   catch(e) { console.error('[CPM] health', e); }
+  // Phase 1: pure-HTML panels — no external library needed
+  try { renderKpiStrip(det, stoch); }         catch(e) { console.error('[CPM] kpi', e); }
+  try { renderGraphIntegrity(det); }          catch(e) { console.error('[CPM] integrity', e); }
+  try { renderCpmTable(tasks, det); }         catch(e) { console.error('[CPM] table', e); }
+  try { renderHealthScore(health); }          catch(e) { console.error('[CPM] health', e); }
+  if (stoch && stoch.status === 'ok') {
+    try { renderSsiRows(tasks, stoch); }      catch(e) { console.error('[CPM] ssi', e); }
+  } else {
+    var rp = document.getElementById('tab-risk');
+    if (rp) rp.innerHTML = '<div class="card section" style="color:var(--muted);font-size:13px;padding:20px;">Stochastic analysis unavailable — run a SACO estimation to get P50/P80/P90 and task risk rankings.</div>';
+  }
 
-  // Phase 2: lazy-load Chart.js + Vis.js, then render chart panels
-  // This way core data is visible even if CDN scripts fail
+  // Phase 2: chart libs loaded on demand when user switches to those tabs
+  // Pre-load them in background so first tab switch is fast
   _lazyLoadChartLibs(function() {
-    try { renderNetworkDiagram(tasks, det); }
-    catch(e) { console.error('[CPM] network', e); document.getElementById('networkContainer').textContent = 'Network diagram unavailable: ' + e.message; }
-    try { renderGantt(tasks, det); }
-    catch(e) { console.error('[CPM] gantt', e); document.getElementById('ganttContainer').textContent = 'Gantt unavailable: ' + e.message; }
-    if (stoch && stoch.status === 'ok') {
-      try { renderStochastic(stoch); }
-      catch(e) { console.error('[CPM] stoch', e); document.getElementById('stochPanel').style.display = 'none'; }
-    } else {
-      document.getElementById('stochPanel').style.display = 'none';
-    }
+    _chartsLoaded = true;
+    _renderChartPanels(tasks, result);
   });
+}
+
+function _renderChartPanels(tasks, result) {
+  var det   = result.deterministic;
+  var stoch = result.stochastic;
+  try { renderNetworkDiagram(tasks, det); }
+  catch(e) { console.error('[CPM] network', e); document.getElementById('networkContainer').textContent = 'Network diagram unavailable: ' + e.message; }
+  try { renderGantt(tasks, det); }
+  catch(e) { console.error('[CPM] gantt', e); document.getElementById('ganttContainer').textContent = 'Gantt unavailable: ' + e.message; }
+  if (stoch && stoch.status === 'ok') {
+    try { renderStochastic(stoch); }
+    catch(e) { console.error('[CPM] stoch', e); }
+  }
 }
 
 // ── Lazy-load Chart.js and Vis.js, call cb when both ready ────
@@ -540,6 +630,104 @@ function _lazyLoadChartLibs(cb) {
   );
 }
 
+// ── Graph Integrity Panel ─────────────────────────────────────
+function renderGraphIntegrity(det) {
+  var panel = document.getElementById('graphIntegrityPanel');
+  if (!panel) return;
+
+  var alerts = [];
+  var gm = det.graphMetrics || {};
+
+  // Validation errors (unknown predecessors, self-references)
+  (det.validationErrors || []).forEach(function(e) {
+    alerts.push({ cls:'alert-error', icon:'✕', html:'<strong>Input error:</strong> ' + esc(e) });
+  });
+
+  // Orphan groups
+  (det.orphanGroups || []).forEach(function(grp) {
+    if (grp.length > 0) {
+      alerts.push({ cls:'alert-warn', icon:'⚠', html:'<strong>Disconnected tasks:</strong> ' + grp.map(esc).join(', ') + ' — these tasks have no path to the project end. They won\'t affect the critical path.' });
+    }
+  });
+
+  // Merge point bias
+  if (det.mergePointBiasWarning) {
+    alerts.push({ cls:'alert-warn', icon:'⚠', html:'<strong>Merge-point bias:</strong> ' + esc(det.mergePointBiasWarning) });
+  }
+
+  // No issues
+  if (alerts.length === 0) {
+    alerts.push({ cls:'alert-ok', icon:'✓', html:'<strong>Schedule integrity OK</strong> — no cycles, no disconnected tasks, no input errors.' });
+  }
+
+  // Build header with critical path chain
+  var cp = det.criticalPath || [];
+  var cpChain = cp.length > 0
+    ? '<div class="cp-chain">' + cp.map(function(id, i) {
+        var name = (det.tasks[id] && det.tasks[id].name) ? det.tasks[id].name : id;
+        return (i > 0 ? '<span class="cp-arrow">→</span>' : '') + '<span class="cp-node">' + esc(name) + '</span>';
+      }).join('') + '</div>'
+    : '';
+
+  // Graph metrics strip
+  var metricStrip = '<div class="metric-strip">' +
+    '<div class="mc"><strong>' + (gm.nodeCount||0) + '</strong><span class="mc-lbl">tasks</span></div>' +
+    '<div class="mc"><strong>' + (gm.edgeCount||0) + '</strong><span class="mc-lbl">dependencies</span></div>' +
+    '<div class="mc"><strong>' + (gm.convergenceCount||0) + '</strong><span class="mc-lbl">merge points ' +
+      '<span class="htip" data-tip="A merge point is a task with 2+ predecessors. Deterministic CPM underestimates duration at merge points because it ignores the probability that ANY predecessor runs late (merge-point bias). The stochastic analysis corrects for this.">?</span></span></div>' +
+    (gm.convergenceCount > 0 ? '<div class="mc" style="color:var(--near);"><strong>' + (gm.convergenceNodes||[]).map(function(id){ return (det.tasks[id]&&det.tasks[id].name)||id; }).join(', ') + '</strong><span class="mc-lbl" style="margin-left:4px;">convergence nodes</span></div>' : '') +
+    '<div class="mc"><strong>' + (det.sources||[]).length + '</strong><span class="mc-lbl">start tasks</span></div>' +
+    '<div class="mc"><strong>' + (det.sinks||[]).length + '</strong><span class="mc-lbl">end tasks</span></div>' +
+    '</div>';
+
+  var html = '<h2 style="margin-bottom:8px;">Schedule Overview</h2>';
+  html += cpChain;
+  html += metricStrip;
+  html += '<div style="margin-top:12px;">';
+  alerts.forEach(function(a) {
+    html += '<div class="alert ' + a.cls + '"><span class="alert-icon">' + a.icon + '</span><span>' + a.html + '</span></div>';
+  });
+  html += '</div>';
+  panel.innerHTML = html;
+}
+
+// ── SSI Risk Rows ────────────────────────────────────────────
+function renderSsiRows(tasks, stoch) {
+  var el = document.getElementById('ssiRows');
+  if (!el) return;
+  var ci  = stoch.criticalityIndex || {};
+  var ssi = stoch.scheduleSignificanceIndex || stoch.ssi || {};
+
+  // Build name lookup from tasks array
+  var nameById = {};
+  tasks.forEach(function(t){ nameById[t.id] = t.task || t.id; });
+  // Also look in tornado entries
+  (stoch.tornado||[]).forEach(function(e){ if (e.name) nameById[e.id] = e.name; });
+
+  var entries = Object.keys(ci).map(function(id){
+    return { id:id, name:nameById[id]||id, ci:ci[id], ssi:ssi[id]||0 };
+  }).sort(function(a,b){ return b.ci - a.ci; });
+
+  if (entries.length === 0) { el.textContent = 'No criticality data.'; return; }
+
+  var html = '';
+  entries.forEach(function(e) {
+    var pct     = (e.ci * 100).toFixed(0);
+    var barColor= e.ci >= 0.70 ? '#FCA5A5' : e.ci >= 0.40 ? '#FDE68A' : '#6EE7B7';
+    var badgeCls= e.ci >= 0.70 ? 'alert-error' : e.ci >= 0.40 ? 'alert-warn' : 'alert-ok';
+    var riskLbl = e.ci >= 0.70 ? 'High' : e.ci >= 0.40 ? 'Medium' : 'Low';
+    var ssiTxt  = e.ssi > 0 ? e.ssi.toFixed(3) : '—';
+    html += '<div class="risk-row">' +
+      '<span class="risk-name">' + esc(e.name) + '</span>' +
+      '<div class="risk-bar-track"><div class="risk-bar-fill" style="width:' + pct + '%;background:' + barColor + ';"></div></div>' +
+      '<span class="risk-pct">' + pct + '%</span>' +
+      '<span class="risk-badge ' + badgeCls + '">' + riskLbl + '</span>' +
+      '<span style="font-size:10px;color:var(--muted);min-width:60px;">SSI ' + ssiTxt + ' <span class="htip" data-tip="Schedule Sensitivity Index = Criticality Index × (task σ / project σ). Combines how often the task is critical with how much its own variability drives the overall project variance.">?</span></span>' +
+      '</div>';
+  });
+  el.innerHTML = html;
+}
+
 // ── KPI strip ─────────────────────────────────────────────────
 function renderKpiStrip(det, stoch) {
   var cp  = det.criticalPath || [];
@@ -553,19 +741,30 @@ function renderKpiStrip(det, stoch) {
     stochP90 = invertAtProb(stoch.sCurve, 0.90);
   }
 
-  var kpis = [
-    { ttl:'Project Duration',   val: fmtDays(dur),          sub: 'PERT-weighted P80',                                    cls: '' },
-    { ttl:'Critical Path',      val: cp.length + ' tasks',  sub: cp.join(' → ').slice(0,60) || '—',                      cls: 'crit' },
-    { ttl:'Total Tasks',        val: Object.keys(det.tasks).length, sub: '',                                              cls: '' },
-    { ttl:'Negative Float',     val: negFloat ? 'YES' : 'No', sub: negFloat ? 'Schedule already behind' : 'On track',   cls: negFloat ? 'crit' : 'safe' },
-  ];
-  if (stochP50 != null) kpis.push({ ttl:'P50 Duration', val: fmtDays(stochP50), sub: '50% chance completes by',          cls: '' });
-  if (stochP80 != null) kpis.push({ ttl:'P80 Duration', val: fmtDays(stochP80), sub: '80% confidence',                   cls: 'warn-kpi' });
-  if (stochP90 != null) kpis.push({ ttl:'P90 Duration', val: fmtDays(stochP90), sub: '90% confidence',                   cls: 'crit' });
+  var tip = {
+    dur:  'Deterministic project duration based on PERT-weighted means (O+4M+P)/6 propagated through the network.',
+    cp:   'Tasks with zero total float. Any delay to any of these tasks delays the project end date by the same amount.',
+    n:    'Total tasks in the schedule network.',
+    neg:  'Negative float means the schedule is already behind — a task\'s late finish is earlier than its early finish.',
+    p50:  '50th percentile from 500 Monte Carlo simulations. Equal chance of finishing earlier or later.',
+    p80:  '80th percentile — a commonly used planning target. 80% of simulations finished by this date.',
+    p90:  '90th percentile — conservative estimate. Only 10% of simulations exceeded this duration.'
+  };
+  function kpi(ttl, val, sub, cls, tipKey) {
+    return '<div class="kpi ' + (cls||'') + '">' +
+      '<div class="ttl">' + ttl + (tipKey ? ' <span class="htip" data-tip="' + tip[tipKey] + '">?</span>' : '') + '</div>' +
+      '<div class="val">' + val + '</div>' +
+      (sub ? '<div class="sub">' + sub + '</div>' : '') +
+      '</div>';
+  }
 
-  var html = kpis.map(function(k){
-    return '<div class="kpi ' + (k.cls||'') + '"><div class="ttl">' + k.ttl + '</div><div class="val">' + k.val + '</div>' + (k.sub ? '<div class="sub">' + k.sub + '</div>' : '') + '</div>';
-  }).join('');
+  var html = '';
+  html += kpi('Project Duration', fmtDays(dur), stochP50 ? 'Deterministic (PERT means)' : 'PERT-weighted', '', 'dur');
+  if (stochP50 != null) html += kpi('P50', fmtDays(stochP50), '50% chance done by', '', 'p50');
+  if (stochP80 != null) html += kpi('P80', fmtDays(stochP80), '80% confidence target', 'warn-kpi', 'p80');
+  if (stochP90 != null) html += kpi('P90', fmtDays(stochP90), '90% conservative', 'crit', 'p90');
+  html += kpi('Critical Path', cp.length + ' tasks', cp.length === Object.keys(det.tasks).length ? 'All tasks critical' : 'of ' + Object.keys(det.tasks).length + ' total', 'crit', 'cp');
+  html += kpi('Negative Float', negFloat ? 'YES' : 'No', negFloat ? 'Schedule already behind' : 'On track', negFloat ? 'crit' : 'safe', 'neg');
   document.getElementById('kpiStrip').innerHTML = html;
 }
 
@@ -586,7 +785,7 @@ function invertAtProb(sCurve, p) {
 // ── Network Diagram (Vis.js) ───────────────────────────────────
 function renderNetworkDiagram(tasks, det) {
   if (typeof vis === 'undefined') {
-    document.getElementById('networkPanel').querySelector('h2').textContent += ' (Vis.js not loaded)';
+    document.getElementById('networkContainer').textContent = 'Network diagram unavailable — Vis.js failed to load.';
     return;
   }
   var taskMap = det.tasks;
@@ -885,66 +1084,12 @@ function renderStochastic(stoch) {
     }).join('');
   }
 
-  // Tornado — criticality index
-  var ci = stoch.criticalityIndex;
-  if (ci) {
-    var ciEntries = Object.entries(ci).sort(function(a,b){ return b[1]-a[1]; }).slice(0,15);
-    var tCtx = document.getElementById('tornadoCanvas').getContext('2d');
-    if (_tornadoChart) { _tornadoChart.destroy(); _tornadoChart = null; }
-
-    var tLabels = ciEntries.map(function(e){ return e[0].length>18?e[0].slice(0,16)+'…':e[0]; });
-    var tData   = ciEntries.map(function(e){ return (e[1]*100).toFixed(1); });
-    var tColors = ciEntries.map(function(e){ return e[1]>=0.7?'#FCA5A5':e[1]>=0.4?'#FDE68A':'#6EE7B7'; });
-
-    _tornadoChart = new Chart(tCtx, {
-      type: 'bar',
-      data: {
-        labels: tLabels,
-        datasets: [{
-          label: 'Criticality Index (%)',
-          data:  tData,
-          backgroundColor: tColors,
-          borderWidth: 0
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: function(c){ return c.parsed.x + '%'; }}}
-        },
-        scales: {
-          x: { title:{display:true,text:'% of simulations on critical path',font:{size:11}}, min:0, max:100, ticks:{font:{size:10}} },
-          y: { ticks:{font:{size:11}} }
-        }
-      }
-    });
-
-    // CI table
-    var ssi = stoch.scheduleSignificanceIndex;
-    var ciHtml = '<h2 style="margin-bottom:8px;">Criticality Index — All Tasks</h2><div class="tbl-wrap"><table><thead><tr><th>Task</th><th>Criticality Index</th><th>SSI</th><th>Risk Level</th></tr></thead><tbody>';
-    ciEntries.forEach(function(e) {
-      var taskId = e[0];
-      var ci_val = e[1];
-      var ssi_val = ssi && ssi[taskId] != null ? ssi[taskId] : null;
-      var risk    = ci_val >= 0.70 ? 'High' : ci_val >= 0.40 ? 'Medium' : 'Low';
-      var riskCls = ci_val >= 0.70 ? 'crit' : ci_val >= 0.40 ? 'near' : 'safe';
-      ciHtml += '<tr><td style="font-weight:500;">' + taskId + '</td>' +
-        '<td>' + pct(ci_val) + '</td>' +
-        '<td>' + (ssi_val != null ? ssi_val.toFixed(3) : '—') + '</td>' +
-        '<td><span class="badge ' + riskCls + '">' + risk + '</span></td></tr>';
-    });
-    ciHtml += '</tbody></table></div>';
-    document.getElementById('critIndexTable').innerHTML = ciHtml;
-  }
 }
 
 // ── Schedule Health Score ─────────────────────────────────────
 function renderHealthScore(health) {
   if (!health || health.score == null) {
-    document.getElementById('healthPanel').style.display = 'none';
+    document.getElementById('tab-health').style.display = 'none';
     return;
   }
   var g = health.grade;
