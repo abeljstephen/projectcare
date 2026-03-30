@@ -373,13 +373,14 @@ function normaliseTasks(raw) {
   return list;
 }
 
-// ── Apply session payload (SACO results from WP poll) ─────────
+// ── Apply session payload (SACO results OR seed tasks from WP poll) ─────────
 window._applyCpmSessionPayload = function(data) {
   if (!data || !data.tasks) return;
-  // Build sacoResults array parallel to _cpmTasks
-  var byId = {};
-  data.tasks.forEach(function(t) { byId[t.id || t.task] = t; });
+
+  // Case 1: _cpmTasks already set (rendered from ?data=) — upgrade with SACO results
   if (_cpmTasks && _cpmTasks.length > 0) {
+    var byId = {};
+    data.tasks.forEach(function(t) { byId[t.id || t.task] = t; });
     var saco = _cpmTasks.map(function(t) {
       var td = byId[t.id] || byId[t.task];
       return td && td.sacoResult ? td.sacoResult : null;
@@ -387,19 +388,39 @@ window._applyCpmSessionPayload = function(data) {
     var hasSaco = saco.some(function(s){ return s != null; });
     if (hasSaco) {
       _sacoResults = saco;
-      document.getElementById('engineMode').textContent = 'SACO-enhanced';
       computeAndRender(_cpmTasks, _sacoResults);
     }
+    return;
+  }
+
+  // Case 2: session-only boot — _cpmTasks is null, bootstrap from session task list
+  var tasks = normaliseTasks(data);
+  if (tasks.length > 0) {
+    _cpmTasks = tasks;
+    var saco2 = tasks.map(function(t) {
+      var td = data.tasks.find(function(d){ return (d.id || d.task) === (t.id || t.task); });
+      return td && td.sacoResult ? td.sacoResult : null;
+    });
+    var hasSaco2 = saco2.some(function(s){ return s != null; });
+    computeAndRender(tasks, hasSaco2 ? saco2 : null);
   }
 };
 
-// ── Session poll (same pattern as plot/) ──────────────────────
+// ── Session poll ──────────────────────────────────────────────
 function startSessionPoll(token) {
   var attempts = 0;
   var maxAttempts = 15;
   var delay = 2500;
   function poll() {
-    if (attempts >= maxAttempts) return;
+    if (attempts >= maxAttempts) {
+      // Exhausted — if still waiting (no tasks rendered), fall back to form
+      if (!_cpmTasks || _cpmTasks.length === 0) {
+        setStatus('Session expired', 'error');
+        document.getElementById('inputSection').style.display = '';
+        prefillExampleTasks();
+      }
+      return;
+    }
     attempts++;
     fetch('https://icarenow.io/wp-json/projectcare/v1/plot-data/' + encodeURIComponent(token))
       .then(function(r){ return r.json(); })
