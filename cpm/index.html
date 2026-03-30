@@ -865,13 +865,20 @@ function renderNetworkDiagram(tasks, det) {
       nm + ' (' + dur + ')\n' +
       ls + '  TF:' + tff + '  ' + lf;
 
+    // Vis.js renders title as DOM element — use a div so line breaks work
+    var tipEl = document.createElement('div');
+    tipEl.style.cssText = 'font-family:Consolas,monospace;font-size:12px;line-height:1.7;padding:6px 10px;';
+    tipEl.innerHTML =
+      '<strong>' + esc(task.task) + '</strong><br>' +
+      'Duration: ' + dur + '<br>' +
+      'ES: ' + es + ' &nbsp; EF: ' + ef + '<br>' +
+      'LS: ' + ls + ' &nbsp; LF: ' + lf + '<br>' +
+      'Total Float: ' + tff;
+
     nodes.add({
       id:          id,
       label:       label,
-      title:       '<b>' + task.task + '</b><br>Duration: ' + dur +
-                   '<br>ES: ' + es + '   EF: ' + ef +
-                   '<br>LS: ' + ls + '   LF: ' + lf +
-                   '<br>Total Float: ' + tff,
+      title:       tipEl,
       color:       { background: bg, border: border, highlight: { background: bg, border: border } },
       font:        { size: 11, color: '#111827', face: 'Consolas,"SF Mono",monospace', multi: false },
       shape:       'box',
@@ -892,35 +899,35 @@ function renderNetworkDiagram(tasks, det) {
       var fromD = taskMap[fromId]  || {};
       var isCritEdge = td.onCriticalPath && fromD.onCriticalPath;
 
-      // ── Forward pass arrow (L→R, solid) ───────────────────────
+      // ── Forward pass arrow (L→R, solid, curves above centre) ──
       edges.add({
-        id:    'fwd_' + (edgeId),
+        id:    'fwd_' + edgeId,
         from:  fromId,
         to:    task.id,
         label: type + (lag ? ' +' + lag : ''),
         font:  { size: 9, color: '#6B7280', align: 'top' },
-        color: { color: isCritEdge ? '#DC2626' : '#9CA3AF', highlight: '#3B82F6' },
+        color: { color: isCritEdge ? '#DC2626' : '#9CA3AF', highlight: '#3B82F6', inherit: false },
         width: isCritEdge ? 2.5 : 1.2,
         arrows: { to: { enabled: true, scaleFactor: 0.7 } },
-        smooth: { type: 'curvedCW', roundness: 0.15 },
+        smooth: { enabled: true, type: 'curvedCW', roundness: 0.35 },
         dashes: false,
-        title: 'Forward pass: EF(' + fromId + ') → ES(' + task.id + ')'
+        title: 'Forward pass  EF(' + fromId + ') \u2192 ES(' + task.id + ')'
       });
 
-      // ── Backward pass arrow (R→L, dashed blue) ────────────────
-      var lsTo   = fmt(td.lateStart,   1);
+      // ── Backward pass arrow (R→L, dashed indigo, curves below) ─
+      var lsTo   = fmt(td.lateStart,    1);
       var lfFrom = fmt(fromD.lateFinish, 1);
       edges.add({
-        id:    'bwd_' + (edgeId),
+        id:    'bwd_' + edgeId,
         from:  task.id,
         to:    fromId,
         font:  { size: 9, color: '#6366F1', align: 'bottom' },
-        color: { color: '#6366F1', highlight: '#6366F1', opacity: 0.6 },
+        color: { color: '#6366F1', highlight: '#6366F1', inherit: false },
         width: 1,
         arrows: { to: { enabled: true, scaleFactor: 0.5 } },
-        smooth: { type: 'curvedCCW', roundness: 0.15 },
-        dashes: [4, 4],
-        title: 'Backward pass: LS(' + task.id + ')=' + lsTo + ' → LF(' + fromId + ')=' + lfFrom
+        smooth: { enabled: true, type: 'curvedCW', roundness: 0.35 },
+        dashes: [5, 4],
+        title: 'Backward pass  LS(' + task.id + ')=' + lsTo + ' \u2192 LF(' + fromId + ')=' + lfFrom
       });
 
       edgeId++;
