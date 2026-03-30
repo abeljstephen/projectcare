@@ -8,6 +8,23 @@ var CPM_STOCHASTIC_DEFAULT_N = 500;
 var CPM_STOCHASTIC_MAX_N     = 1000;
 
 // ─────────────────────────────────────────────
+// Rational approximation to the normal quantile (probit)
+// Used when no SACO CDF is available — lets PERT fallback produce real variance.
+// Accuracy: |error| < 4.5e-4 for p ∈ (0,1)  [Abramowitz & Stegun 26.2.23]
+// ─────────────────────────────────────────────
+function _cpmProbit(p) {
+  if (p <= 0) return -8;
+  if (p >= 1) return  8;
+  var c = [2.515517, 0.802853, 0.010328];
+  var d = [1.432788, 0.189269, 0.001308];
+  function _rat(t) {
+    return t - (c[0] + c[1]*t + c[2]*t*t) / (1 + d[0]*t + d[1]*t*t + d[2]*t*t*t);
+  }
+  if (p < 0.5) return -_rat(Math.sqrt(-2 * Math.log(p)));
+  return _rat(Math.sqrt(-2 * Math.log(1 - p)));
+}
+
+// ─────────────────────────────────────────────
 // Sample a single duration from a task's SACO CDF
 // via probability integral transform: u ~ U(0,1) → invertCdf(cdf, u)
 // ─────────────────────────────────────────────
@@ -38,9 +55,15 @@ function cpmSampleDuration(sacoResult, task, u) {
     if (inv2 && Number.isFinite(inv2.value)) return Math.max(0, inv2.value);
   }
 
-  // 3. PERT mean fallback
+  // 3. PERT normal approximation — samples with variance using probit(u)
+  //    μ = (O + 4M + P) / 6,  σ = (P - O) / 6  (PERT standard deviation)
+  //    result clamped to [O, P] so samples stay within the stated range
   if (task && Number.isFinite(task.optimistic) && Number.isFinite(task.mostLikely) && Number.isFinite(task.pessimistic)) {
-    return (task.optimistic + 4 * task.mostLikely + task.pessimistic) / 6;
+    var mu    = (task.optimistic + 4 * task.mostLikely + task.pessimistic) / 6;
+    var sigma = (task.pessimistic - task.optimistic) / 6;
+    if (sigma < 1e-9) return mu;
+    var s = mu + sigma * _cpmProbit(u);
+    return Math.max(task.optimistic, Math.min(task.pessimistic, s));
   }
 
   return Number.isFinite(Number(task.duration)) ? Number(task.duration) : 0;

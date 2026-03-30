@@ -262,9 +262,9 @@
               <th>LF</th>
               <th>TF</th>
               <th>FF</th>
-              <th>IF</th>
-              <th>IndF</th>
-              <th>Tipping Pt</th>
+              <th data-col="if">IF</th>
+              <th data-col="indf">IndF</th>
+              <th data-col="tp">Tipping Pt</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -272,10 +272,7 @@
         </table>
       </div>
       <div class="legend-row" style="margin-top:10px;">
-        <span>TF = Total Float</span>
-        <span>FF = Free Float</span>
-        <span>IF = Interfering Float</span>
-        <span>IndF = Independent Float</span>
+        <span id="cpmTableLegend">TF = Total Float  ·  FF = Free Float</span>
       </div>
     </div>
 
@@ -779,6 +776,22 @@ function renderCpmTable(tasks, det) {
   var maxFloat = 0;
   Object.values(taskMap).forEach(function(t){ if ((t.totalFloat||0) > maxFloat) maxFloat = t.totalFloat; });
 
+  // Only show advanced columns if they carry real data
+  var showIF   = tasks.some(function(t){ return Math.abs((taskMap[t.id]||{}).interferingFloat||0) > 0.001; });
+  var showIndF = tasks.some(function(t){ return Math.abs((taskMap[t.id]||{}).independentFloat||0) > 0.001; });
+  var showTP   = tasks.some(function(t){ return !!tps[t.id]; });
+
+  // Patch header
+  var thead = document.querySelector('#cpmTable thead tr');
+  if (thead) {
+    thead.querySelectorAll('th[data-col]').forEach(function(th) {
+      var col = th.getAttribute('data-col');
+      if (col === 'if')   th.style.display = showIF   ? '' : 'none';
+      if (col === 'indf') th.style.display = showIndF ? '' : 'none';
+      if (col === 'tp')   th.style.display = showTP   ? '' : 'none';
+    });
+  }
+
   var rows = tasks.map(function(task) {
     var td  = taskMap[task.id] || {};
     var tp  = tps[task.id];
@@ -801,14 +814,23 @@ function renderCpmTable(tasks, det) {
       '<td>' + fmt(td.lateFinish,1)  + '</td>' +
       '<td>' + tfCell + '</td>' +
       '<td>' + fmtDays(td.freeFloat) + '</td>' +
-      '<td>' + fmtDays(td.interferingFloat) + '</td>' +
-      '<td>' + fmtDays(td.independentFloat) + '</td>' +
-      '<td>' + tpTxt + '</td>' +
+      (showIF   ? '<td data-col="if">'   + fmtDays(td.interferingFloat) + '</td>' : '') +
+      (showIndF ? '<td data-col="indf">' + fmtDays(td.independentFloat) + '</td>' : '') +
+      (showTP   ? '<td data-col="tp">'   + tpTxt + '</td>' : '') +
       '<td><span class="badge ' + statusCls + '">' + statusTxt + '</span></td>' +
       '</tr>';
   }).join('');
 
   document.getElementById('cpmTableBody').innerHTML = rows;
+
+  // Update legend below table
+  var legend = document.getElementById('cpmTableLegend');
+  if (legend) {
+    var parts = ['TF = Total Float', 'FF = Free Float'];
+    if (showIF)   parts.push('IF = Interfering Float');
+    if (showIndF) parts.push('IndF = Independent Float');
+    legend.textContent = parts.join('  ·  ');
+  }
 }
 
 // ── Stochastic Panel ──────────────────────────────────────────
@@ -933,11 +955,11 @@ function renderHealthScore(health) {
 
   var f = health.factors || {};
   var factorDefs = [
-    { key:'nearCriticalFraction', label:'Near-critical fraction',   desc:'Fraction of tasks with float < 10% of project duration. Lower = healthier.',   invert:true  },
-    { key:'convergenceDensity',   label:'Convergence density',      desc:'Convergence nodes / total nodes. High = more merge points = more risk.',        invert:true  },
-    { key:'graphDensity',         label:'Graph density',            desc:'Edges / max possible edges. Higher density = more interdependencies.',           invert:true  },
-    { key:'criticalitySpread',    label:'Criticality spread',       desc:'Standard deviation of criticality index. Low spread = many paths equally risky.',invert:true  },
-    { key:'hasNegativeFloat',     label:'Negative float',           desc:'Any task with negative float means the schedule is already late.',               invert:true, binary:true }
+    { key:'nearCriticalFraction', label:'Near-critical tasks',      desc:'% of tasks with float < 10% of project duration. High = little buffer anywhere.',           invert:true  },
+    { key:'convergenceDensity',   label:'Merge-point density',      desc:'% of tasks that are convergence points (multiple predecessors). High = merge-bias risk.',   invert:true  },
+    { key:'graphDensity',         label:'Network density',          desc:'Edges / max possible edges. Higher = more task interdependencies.',                          invert:true  },
+    { key:'criticalitySpread',    label:'Path concentration',       desc:'How concentrated risk is on one path. High = most iterations share the same critical path — little schedule flexibility.', invert:true },
+    { key:'hasNegativeFloat',     label:'Negative float',           desc:'Any task with negative float means the schedule is already behind the deadline.',            invert:true, binary:true }
   ];
   var fHtml = '<h2 style="margin-bottom:10px;">Risk Factors</h2>';
   factorDefs.forEach(function(fd) {
