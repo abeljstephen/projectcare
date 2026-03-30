@@ -1,5 +1,5 @@
 /**
- * PMC Estimator — SACO Orchestrator
+ * ProjectCare — SACO Orchestrator
  * Ported from GAS: core/main/main.gs + core/variable_map/adapter.gs
  *
  * Entry point: PMCSACO.run(task) → full response envelope

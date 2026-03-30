@@ -1,5 +1,5 @@
 /**
- * PMC Estimator — Copula + Reshaping Engine
+ * ProjectCare — Copula + Reshaping Engine
  * Ported from GAS:
  *   core/optimization/matrix-utils.gs
  *   core/optimization/kl-divergence.gs

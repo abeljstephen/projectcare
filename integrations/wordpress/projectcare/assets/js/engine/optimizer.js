@@ -1,5 +1,5 @@
 /**
- * PMC Estimator — SACO Optimizer
+ * ProjectCare — SACO Optimizer
  * Ported from GAS: core/optimization/optimizer.gs + kl-divergence.gs
  *
  * Two-stage optimization:

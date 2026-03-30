@@ -1,5 +1,5 @@
 /**
- * PMC Estimator — Baseline Engine
+ * ProjectCare — Baseline Engine
  * Ported from GAS: core/baseline/*.gs + core/helpers/metrics.gs + core/helpers/validation.gs
  *
  * Covers:
