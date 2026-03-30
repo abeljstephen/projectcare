@@ -462,7 +462,12 @@ function handleCallApi(body) {
         };
       });
       var sessionPayload = { tasks: slimTasks, portfolio: result._portfolio || null };
-      var plotUrl = buildPlotUrl(slimTasks, tasks, sessionToken, result._portfolio || null);
+      // URL payload: bare-bones O/M/P seed only — browser fetches full results via session poll.
+      // Keeps URL under ~800 chars even for 10 tasks.
+      var urlTasks = tasks.map(function(t) {
+        return { task: t.task, O: t.optimistic, M: t.mostLikely, P: t.pessimistic };
+      });
+      var plotUrl = buildPlotUrl(urlTasks, tasks, sessionToken, null);
       result._plotUrl      = plotUrl;
       result._sessionToken = sessionToken;
       // Save slim payload to WordPress for live-update polling (non-fatal)
