@@ -14,11 +14,24 @@
     var sessionToken = params.get('session');
     if (dataParam) {
       try {
-        var decoded = JSON.parse(atob(decodeURIComponent(dataParam)));
+        // Robust base64 decode:
+        // 1. URLSearchParams converts + → space; restore + for standard base64
+        // 2. Also handle URL-safe base64 (- → +, _ → /)
+        // 3. Re-add stripped = padding if needed
+        var b64 = dataParam
+          .replace(/ /g, '+')           // URLSearchParams space-decoded + signs
+          .replace(/-/g, '+')           // URL-safe base64 → standard
+          .replace(/_/g, '/');          // URL-safe base64 → standard
+        // Add padding if stripped
+        var pad = b64.length % 4;
+        if (pad === 2) b64 += '==';
+        else if (pad === 3) b64 += '=';
+        var decoded = JSON.parse(atob(b64));
         window._cpmBootstrap = decoded;
         window._cpmSession   = sessionToken || null;
       } catch(e) {
         console.warn('[CPM] Failed to decode data param', e);
+        window._cpmDecodeError = e.message;
       }
     } else if (!sessionToken) {
       window._cpmNoData = true;
@@ -347,24 +360,25 @@ function setStatus(text, cls) {
   b.style.display = '';
 }
 
-// ── Task normalisation (same as plot/) ───────────────────────
+// ── Task normalisation ────────────────────────────────────────
 function normaliseTasks(raw) {
   var list = [];
   if (!raw) return list;
   var arr = Array.isArray(raw) ? raw : (raw.tasks ? raw.tasks : []);
   arr.forEach(function(t, i) {
     if (!t) return;
+    // Accept "task" or "tasks" (GPT occasionally misspells the key)
+    var taskName = t.task || t.tasks || t.name || t.id || ('Task ' + (i+1));
     var task = {
-      id:          String(t.id || t.task || ('T' + (i+1))),
-      task:        t.task || t.name || t.id || ('Task ' + (i+1)),
-      optimistic:  Number(t.O  || t.optimistic  || t.o  || 1),
-      mostLikely:  Number(t.M  || t.mostLikely  || t.m  || 2),
-      pessimistic: Number(t.P  || t.pessimistic || t.p  || 3),
+      id:           String(t.id || t.task || t.tasks || ('T' + (i+1))),
+      task:         taskName,
+      optimistic:   Number(t.O  || t.optimistic   || t.o  || 1),
+      mostLikely:   Number(t.M  || t.mostLikely   || t.m  || 2),
+      pessimistic:  Number(t.P  || t.pessimistic  || t.p  || 3),
       predecessors: t.predecessors || [],
-      startDate:   t.startDate || null,
-      endDate:     t.endDate   || null
+      startDate:    t.startDate || null,
+      endDate:      t.endDate   || null
     };
-    // normalise predecessors to array of {id, type, lag}
     if (typeof task.predecessors === 'string') {
       task.predecessors = task.predecessors.split(',').map(function(s){return s.trim();}).filter(Boolean);
     }
@@ -982,6 +996,14 @@ function prefillExampleTasks() {
 window.addEventListener('load', function() {
   var bootstrap = window._cpmBootstrap;
   var session   = window._cpmSession;
+
+  // Surface decode errors immediately rather than silently falling to session mode
+  if (window._cpmDecodeError && !bootstrap && !session) {
+    showError('Could not decode ?data= parameter: ' + window._cpmDecodeError);
+    document.getElementById('inputSection').style.display = '';
+    prefillExampleTasks();
+    return;
+  }
 
   if (bootstrap) {
     var tasks = normaliseTasks(bootstrap);

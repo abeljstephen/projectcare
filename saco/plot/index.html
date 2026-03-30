@@ -15,7 +15,14 @@
     var sessionToken = params.get('session');
     if (dataParam) {
       try {
-        var decoded = JSON.parse(atob(decodeURIComponent(dataParam)));
+        var b64 = dataParam
+          .replace(/ /g, '+')
+          .replace(/-/g, '+')
+          .replace(/_/g, '/');
+        var pad = b64.length % 4;
+        if (pad === 2) b64 += '==';
+        else if (pad === 3) b64 += '=';
+        var decoded = JSON.parse(atob(b64));
         window._pmcBootstrap = decoded;
         window._pmcSession   = sessionToken || null;
       } catch(e) {
