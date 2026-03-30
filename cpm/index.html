@@ -108,7 +108,9 @@
     .float-bar { display:inline-block; height:6px; border-radius:3px; background:var(--cdf); vertical-align:middle; margin-left:4px; }
 
     /* ── Network Diagram ── */
-    #networkContainer { width:100%; height:560px; border-radius:10px; overflow:hidden; background:#FAFAFA; border:1px solid var(--line); }
+    #networkContainer { width:100%; height:600px; border-radius:10px; overflow:hidden; background:#FAFAFA; border:1px solid var(--line); cursor:grab; }
+    #networkContainer:active { cursor:grabbing; }
+    .net-toolbar { display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
     .box-legend { display:inline-block; border:2px solid #DC2626; border-radius:6px; font-family:Consolas,"SF Mono",monospace; font-size:11px; background:#FEE2E2; padding:6px 12px; color:#111827; line-height:1.7; margin-bottom:12px; }
     .box-legend .bl-row { border-top:1px solid #FECACA; margin-top:4px; padding-top:4px; font-size:10px; color:#6B7280; }
 
@@ -326,8 +328,15 @@
             <span><span class="leg-dot" style="background:#EDE9FE;border:2px solid #6D28D9;"></span> Tipping point</span>
           </div>
         </div>
+        <div class="net-toolbar">
+          <button class="btn" onclick="_network && _network.fit({animation:{duration:400,easingFunction:'easeInOutQuad'}})">Fit to screen</button>
+          <span style="font-size:10px;color:var(--muted);">Scroll to zoom &nbsp;·&nbsp; Drag to pan &nbsp;·&nbsp; Hover a node for full values</span>
+        </div>
         <div id="networkContainer"></div>
-        <div style="font-size:10px;color:var(--muted);margin-top:6px;">Scroll to zoom · Drag to pan · Hover a node for full values</div>
+        <div class="legend-row" style="margin-top:8px;">
+          <span style="font-size:11px;color:#DC2626;font-weight:600;">── solid red/gray</span><span style="font-size:11px;color:var(--muted);margin-left:2px;">= forward pass (ES/EF propagation, L→R)</span>
+          <span style="font-size:11px;color:#6366F1;font-weight:600;">- - dashed indigo</span><span style="font-size:11px;color:var(--muted);margin-left:2px;">= backward pass (LS/LF propagation, R→L)</span>
+        </div>
       </div>
     </div>
 
@@ -871,6 +880,7 @@ function renderNetworkDiagram(tasks, det) {
     });
   });
 
+  var edgeId = 0;
   tasks.forEach(function(task) {
     var preds = task.predecessors || [];
     preds.forEach(function(pred) {
@@ -878,39 +888,64 @@ function renderNetworkDiagram(tasks, det) {
       var type   = (typeof pred === 'object' && pred.type) ? pred.type : 'FS';
       var lag    = (typeof pred === 'object' && pred.lag)  ? pred.lag  : 0;
       if (!fromId) return;
-      var td   = taskMap[task.id]   || {};
-      var fromD= taskMap[fromId]    || {};
+      var td    = taskMap[task.id] || {};
+      var fromD = taskMap[fromId]  || {};
       var isCritEdge = td.onCriticalPath && fromD.onCriticalPath;
+
+      // ── Forward pass arrow (L→R, solid) ───────────────────────
       edges.add({
-        from: fromId,
-        to:   task.id,
-        label: type + (lag ? ' +'+lag : ''),
-        font:  { size: 9, color: '#6B7280', align:'middle' },
-        color: { color: isCritEdge ? '#DC2626' : '#9CA3AF', highlight: '#DC2626' },
-        width: isCritEdge ? 2.5 : 1,
-        arrows: 'to'
+        id:    'fwd_' + (edgeId),
+        from:  fromId,
+        to:    task.id,
+        label: type + (lag ? ' +' + lag : ''),
+        font:  { size: 9, color: '#6B7280', align: 'top' },
+        color: { color: isCritEdge ? '#DC2626' : '#9CA3AF', highlight: '#3B82F6' },
+        width: isCritEdge ? 2.5 : 1.2,
+        arrows: { to: { enabled: true, scaleFactor: 0.7 } },
+        smooth: { type: 'curvedCW', roundness: 0.15 },
+        dashes: false,
+        title: 'Forward pass: EF(' + fromId + ') → ES(' + task.id + ')'
       });
+
+      // ── Backward pass arrow (R→L, dashed blue) ────────────────
+      var lsTo   = fmt(td.lateStart,   1);
+      var lfFrom = fmt(fromD.lateFinish, 1);
+      edges.add({
+        id:    'bwd_' + (edgeId),
+        from:  task.id,
+        to:    fromId,
+        font:  { size: 9, color: '#6366F1', align: 'bottom' },
+        color: { color: '#6366F1', highlight: '#6366F1', opacity: 0.6 },
+        width: 1,
+        arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+        smooth: { type: 'curvedCCW', roundness: 0.15 },
+        dashes: [4, 4],
+        title: 'Backward pass: LS(' + task.id + ')=' + lsTo + ' → LF(' + fromId + ')=' + lfFrom
+      });
+
+      edgeId++;
     });
   });
 
   var container = document.getElementById('networkContainer');
   var nCount = tasks.length;
-  // Scale spacing with network size
   var nodeSep  = nCount > 15 ? 80  : 110;
   var levelSep = nCount > 15 ? 200 : 240;
   var options = {
-    layout:   { hierarchical: { direction: 'LR', sortMethod: 'directed', nodeSpacing: nodeSep, levelSeparation: levelSep }},
-    physics:  { enabled: false },
-    interaction: { hover: true, navigationButtons: true, keyboard: false, tooltipDelay: 100 },
+    layout:      { hierarchical: { direction: 'LR', sortMethod: 'directed', nodeSpacing: nodeSep, levelSeparation: levelSep }},
+    physics:     { enabled: false },
+    interaction: { hover: true, navigationButtons: true, keyboard: false, tooltipDelay: 100, zoomView: true, dragView: true },
     edges: {
-      smooth:  { type: 'cubicBezier', forceDirection: 'horizontal', roundness: 0.4 },
-      arrows:  { to: { enabled: true, scaleFactor: 0.7 } },
-      font:    { size: 9, color: '#6B7280', align: 'middle' },
-      color:   { inherit: false }
+      font:  { size: 9, color: '#6B7280', align: 'middle' },
+      color: { inherit: false }
     },
     nodes: { widthConstraint: { minimum: 170, maximum: 230 } }
   };
   _network = new vis.Network(container, { nodes: nodes, edges: edges }, options);
+
+  // Fit all nodes into view and center after layout stabilises
+  _network.once('stabilized', function() { _network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } }); });
+  setTimeout(function() { _network.fit(); }, 300);
 }
 
 // ── Gantt Chart (Chart.js horizontal bar) ─────────────────────
