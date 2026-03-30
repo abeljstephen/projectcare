@@ -1,24 +1,24 @@
 <?php
 defined('ABSPATH') || exit;
 
-function pmc_page_users(): void {
+function pc_page_users(): void {
     if (!current_user_can('manage_options')) return;
     $user_id = isset($_GET['user_id']) ? (int) $_GET['user_id'] : 0;
     if ($user_id > 0) {
-        pmc_render_user_detail($user_id);
+        pc_render_user_detail($user_id);
     } else {
-        pmc_render_users_list();
+        pc_render_users_list();
     }
 }
 
-function pmc_render_users_list(): void {
+function pc_render_users_list(): void {
     global $wpdb;
 
     // ── CSV Export ────────────────────────────────────────────────────────────
     if (isset($_GET['export']) && $_GET['export'] === '1' && current_user_can('manage_options')) {
-        $users = pmc_get_all_pmc_users(['orderby' => 'email', 'order' => 'ASC']);
+        $users = pc_get_all_pc_users(['orderby' => 'email', 'order' => 'ASC']);
         header('Content-Type: text/csv');
-        header('Content-Disposition: attachment; filename="pmc-users-' . date('Ymd') . '.csv"');
+        header('Content-Disposition: attachment; filename="projectcare-users-' . date('Ymd') . '.csv"');
         $out = fopen('php://output', 'w');
         fputcsv($out, ['id','email','plan','credits_total','credits_used','credits_remaining','key_status','key_expires','last_estimation','source','created_at']);
         foreach ($users as $u) {
@@ -30,34 +30,34 @@ function pmc_render_users_list(): void {
 
     // ── Bulk action POST ──────────────────────────────────────────────────────
     $bulk_notice = '';
-    if (isset($_POST['pmc_bulk_nonce'], $_POST['bulk_action'], $_POST['user_ids'])) {
-        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_bulk_nonce'])), 'pmc_bulk_users')) {
+    if (isset($_POST['pc_bulk_nonce'], $_POST['bulk_action'], $_POST['user_ids'])) {
+        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_bulk_nonce'])), 'pc_bulk_users')) {
             $action   = sanitize_text_field($_POST['bulk_action']);
             $user_ids = array_map('intval', (array) $_POST['user_ids']);
             $count    = 0;
             foreach ($user_ids as $uid) {
-                $u = pmc_get_user_by_id($uid);
+                $u = pc_get_user_by_id($uid);
                 if (!$u) continue;
                 switch ($action) {
                     case 'extend':
                         $new_exp = date('Y-m-d', strtotime(($u->key_expires ?: 'now') . ' +30 days'));
-                        pmc_update_user($uid, ['key_expires' => $new_exp]);
+                        pc_update_user($uid, ['key_expires' => $new_exp]);
                         break;
                     case 'grant':
-                        pmc_update_user($uid, ['credits_total' => (int) $u->credits_total + 25]);
+                        pc_update_user($uid, ['credits_total' => (int) $u->credits_total + 25]);
                         break;
                     case 'reset':
-                        pmc_update_user($uid, ['credits_used' => 0]);
+                        pc_update_user($uid, ['credits_used' => 0]);
                         break;
                     case 'reactivate':
-                        pmc_update_user($uid, ['key_status' => 'active']);
+                        pc_update_user($uid, ['key_status' => 'active']);
                         break;
                     case 'suspend':
-                        pmc_update_user($uid, ['key_status' => 'suspended']);
+                        pc_update_user($uid, ['key_status' => 'suspended']);
                         break;
                     case 'delete':
-                        $del_user = $wpdb->delete($wpdb->prefix . 'pmc_users',    ['id'      => $uid]);
-                        $del_act  = $wpdb->delete($wpdb->prefix . 'pmc_activity', ['user_id' => $uid]);
+                        $del_user = $wpdb->delete($wpdb->prefix . 'pc_users',    ['id'      => $uid]);
+                        $del_act  = $wpdb->delete($wpdb->prefix . 'pc_activity', ['user_id' => $uid]);
                         if (false === $del_user || false === $del_act) {
                             error_log('pmc bulk delete: DB error for user_id=' . $uid);
                         }
@@ -71,7 +71,7 @@ function pmc_render_users_list(): void {
 
     // ── CSV Import POST ───────────────────────────────────────────────────────
     $import_notice = '';
-    if (isset($_POST['pmc_import_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_import_nonce'])), 'pmc_import_users')) {
+    if (isset($_POST['pc_import_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_import_nonce'])), 'pc_import_users')) {
         if (!empty($_FILES['import_csv']['tmp_name'])) {
             $handle   = fopen($_FILES['import_csv']['tmp_name'], 'r');
             $header   = fgetcsv($handle);
@@ -86,14 +86,14 @@ function pmc_render_users_list(): void {
                     'key_expires'   => sanitize_text_field($row[4] ?? ''),
                     'key_status'    => sanitize_text_field($row[5] ?? 'active'),
                 ];
-                $existing = pmc_get_user_by_email($email);
+                $existing = pc_get_user_by_email($email);
                 if ($existing) {
-                    pmc_update_user((int) $existing->id, $data);
+                    pc_update_user((int) $existing->id, $data);
                     $skipped++;
                 } else {
                     $data['email']  = $email;
                     $data['source'] = 'import';
-                    pmc_create_user($data);
+                    pc_create_user($data);
                     $imported++;
                 }
             }
@@ -128,7 +128,7 @@ function pmc_render_users_list(): void {
     if ($active_from)   $filter_args['active_from']   = $active_from;
     if ($active_to)     $filter_args['active_to']     = $active_to;
 
-    $all_users = pmc_get_all_pmc_users($filter_args);
+    $all_users = pc_get_all_pc_users($filter_args);
 
     // Post-filters (computed fields not in SQL)
     if ($filter_expiry === 'expired') {
@@ -152,9 +152,17 @@ function pmc_render_users_list(): void {
     $total     = count($all_users);
     $users     = array_slice($all_users, ($page_num - 1) * $per_page, $per_page);
     $pages     = max(1, (int) ceil($total / $per_page));
-    $plans     = pmc_get_plans();
-    $kpis      = pmc_get_user_kpis();
+    $plans     = pc_get_plans();
+    $kpis      = pc_get_user_kpis();
     $base_url  = admin_url('admin.php?page=pmc-crm-users');
+
+    // Build per-plan margin data for inline display
+    $margin_data     = pc_get_margin_data();
+    $cost_per_credit = (float) $margin_data['cost_per_credit'];
+    $plan_meta       = [];
+    foreach ($margin_data['plans'] as $pm) {
+        $plan_meta[$pm['slug']] = $pm;
+    }
 
     // Filter params for URL building (no 'page' key — base_url already has it)
     $filter_params = array_filter([
@@ -202,7 +210,7 @@ function pmc_render_users_list(): void {
     <div class="wrap">
 
         <h1 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            PMC Users
+            ProjectCare Users
             <a href="<?php echo esc_url($base_url . '&export=1'); ?>" class="page-title-action">Export CSV</a>
             <button type="button" class="page-title-action" id="pmc-import-toggle">Import CSV</button>
         </h1>
@@ -219,7 +227,7 @@ function pmc_render_users_list(): void {
             <h3 style="margin-top:0">Import Users (CSV)</h3>
             <p style="color:#666;font-size:13px">Columns: email, plan, credits_total, credits_used, key_expires (YYYY-MM-DD), key_status. Existing emails are updated; new emails are created.</p>
             <form method="post" enctype="multipart/form-data" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-                <?php wp_nonce_field('pmc_import_users', 'pmc_import_nonce'); ?>
+                <?php wp_nonce_field('pc_import_users', 'pc_import_nonce'); ?>
                 <input type="file" name="import_csv" accept=".csv">
                 <?php submit_button('Import', 'secondary', '', false); ?>
             </form>
@@ -330,7 +338,7 @@ function pmc_render_users_list(): void {
 
         <!-- Bulk action + table -->
         <form method="post">
-            <?php wp_nonce_field('pmc_bulk_users', 'pmc_bulk_nonce'); ?>
+            <?php wp_nonce_field('pc_bulk_users', 'pc_bulk_nonce'); ?>
 
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
                 <select name="bulk_action">
@@ -352,15 +360,24 @@ function pmc_render_users_list(): void {
                 </span>
             </div>
 
-            <table class="widefat striped" style="border-radius:6px">
+            <div style="overflow-x:auto">
+            <table class="widefat striped" style="border-radius:6px;font-size:12px;min-width:1400px">
                 <thead>
                     <tr>
                         <th style="width:28px"><input type="checkbox" id="pmc-check-all"></th>
                         <th><a href="<?php echo esc_url($sort_url('email')); ?>" style="text-decoration:none;color:inherit">Email<?php echo $sort_ind('email'); ?></a></th>
                         <th><a href="<?php echo esc_url($sort_url('plan')); ?>" style="text-decoration:none;color:inherit">Plan<?php echo $sort_ind('plan'); ?></a></th>
+                        <th>Tier</th>
+                        <th style="text-align:right">Price</th>
+                        <th style="text-align:right">Credits</th>
+                        <th style="text-align:right">Stripe fee</th>
+                        <th style="text-align:right">Net rev</th>
+                        <th style="text-align:right">Rev/credit</th>
+                        <th style="text-align:right">Cost/credit</th>
+                        <th style="text-align:right">Margin</th>
                         <th><a href="<?php echo esc_url($sort_url('key_status')); ?>" style="text-decoration:none;color:inherit">Status<?php echo $sort_ind('key_status'); ?></a></th>
                         <th><a href="<?php echo esc_url($sort_url('key_expires')); ?>" style="text-decoration:none;color:inherit">Expires<?php echo $sort_ind('key_expires'); ?></a></th>
-                        <th><a href="<?php echo esc_url($sort_url('credits_remaining')); ?>" style="text-decoration:none;color:inherit">Credits Remaining<?php echo $sort_ind('credits_remaining'); ?></a></th>
+                        <th><a href="<?php echo esc_url($sort_url('credits_remaining')); ?>" style="text-decoration:none;color:inherit">Credits<?php echo $sort_ind('credits_remaining'); ?></a></th>
                         <th><a href="<?php echo esc_url($sort_url('last_estimation')); ?>" style="text-decoration:none;color:inherit">Last Used<?php echo $sort_ind('last_estimation'); ?></a></th>
                         <th>Source</th>
                         <th><a href="<?php echo esc_url($sort_url('created_at')); ?>" style="text-decoration:none;color:inherit">Joined<?php echo $sort_ind('created_at'); ?></a></th>
@@ -375,10 +392,22 @@ function pmc_render_users_list(): void {
                     $exp_style = '';
                     if ($u->key_expires) {
                         $days_left = (strtotime($u->key_expires) - time()) / 86400;
-                        if ($days_left < 0)   $exp_style = 'color:#b32d2e;font-weight:600';
+                        if ($days_left < 0)      $exp_style = 'color:#b32d2e;font-weight:600';
                         elseif ($days_left < 7)  $exp_style = 'color:#c05600;font-weight:600';
                         elseif ($days_left < 14) $exp_style = 'color:#f0a500';
                     }
+
+                    // Per-user plan pricing & margin
+                    $pm           = $plan_meta[$u->plan] ?? null;
+                    $u_tier       = $pm ? $pm['gas_tier']        : '—';
+                    $u_price      = $pm ? $pm['price']           : 0;
+                    $u_credits    = $pm ? (int) $pm['credits']   : 0;
+                    $u_unlimited  = $pm ? $pm['unlimited']       : false;
+                    $u_stripe     = $pm ? $pm['stripe_fee']      : 0;
+                    $u_net        = $pm ? $pm['net_revenue']     : 0;
+                    $u_rpc        = $pm ? $pm['rev_per_credit']  : 0;
+                    $u_margin     = $pm ? $pm['gross_margin_pct']: null;
+                    $margin_color = $u_margin === null ? '#999' : ($u_margin >= 50 ? '#0a6b0a' : ($u_margin >= 0 ? '#996633' : '#b32d2e'));
                 ?>
                     <tr>
                         <td><input type="checkbox" name="user_ids[]" value="<?php echo esc_attr($u->id); ?>"></td>
@@ -387,13 +416,21 @@ function pmc_render_users_list(): void {
                                 <?php echo esc_html($u->email); ?>
                             </a>
                         </td>
-                        <td><?php echo pmc_plan_badge($u->plan); ?></td>
-                        <td><?php echo pmc_status_badge($u->key_status, $is_expired); ?></td>
-                        <td style="font-size:12px;<?php echo esc_attr($exp_style); ?>"><?php echo esc_html($u->key_expires ?: '—'); ?></td>
-                        <td><?php echo pmc_credits_bar_html((int) $u->credits_used, (int) $u->credits_total); ?></td>
-                        <td style="font-size:12px;color:#555"><?php echo esc_html(pmc_relative_time($u->last_estimation)); ?></td>
-                        <td style="font-size:12px;color:#555"><?php echo esc_html($u->source ?: '—'); ?></td>
-                        <td style="font-size:12px;color:#555"><?php echo esc_html($u->created_at ? substr($u->created_at, 0, 10) : '—'); ?></td>
+                        <td><?php echo pc_plan_badge($u->plan); ?></td>
+                        <td><span style="font-size:11px;background:#f0f0f0;padding:1px 5px;border-radius:3px"><?php echo esc_html($u_tier); ?></span></td>
+                        <td style="text-align:right"><?php echo $u_price > 0 ? '$' . esc_html(number_format($u_price, 2)) : '<span style="color:#999">free</span>'; ?></td>
+                        <td style="text-align:right"><?php echo $u_unlimited ? '<span style="color:#666">∞</span>' : esc_html(number_format($u_credits)); ?></td>
+                        <td style="text-align:right;color:#666"><?php echo $u_price > 0 ? '$' . esc_html($u_stripe) : '—'; ?></td>
+                        <td style="text-align:right"><?php echo $u_price > 0 ? '$' . esc_html($u_net) : '—'; ?></td>
+                        <td style="text-align:right;font-family:monospace"><?php echo (!$u_unlimited && $u_rpc > 0) ? '$' . esc_html($u_rpc) : '<span style="color:#999">—</span>'; ?></td>
+                        <td style="text-align:right;font-family:monospace"><?php echo $cost_per_credit > 0 ? '$' . esc_html(number_format($cost_per_credit, 4)) : '<span style="color:#999">—</span>'; ?></td>
+                        <td style="text-align:right;font-weight:bold;color:<?php echo esc_attr($margin_color); ?>"><?php echo $u_margin !== null ? esc_html($u_margin) . '%' : '—'; ?></td>
+                        <td><?php echo pc_status_badge($u->key_status, $is_expired); ?></td>
+                        <td style="<?php echo esc_attr($exp_style); ?>"><?php echo esc_html($u->key_expires ?: '—'); ?></td>
+                        <td><?php echo pc_credits_bar_html((int) $u->credits_used, (int) $u->credits_total); ?></td>
+                        <td style="color:#555"><?php echo esc_html(pc_relative_time($u->last_estimation)); ?></td>
+                        <td style="color:#555"><?php echo esc_html($u->source ?: '—'); ?></td>
+                        <td style="color:#555"><?php echo esc_html($u->created_at ? substr($u->created_at, 0, 10) : '—'); ?></td>
                         <td>
                             <div style="position:relative;display:inline-block">
                                 <button type="button" class="button button-small pmc-actions-toggle">Actions ▾</button>
@@ -407,17 +444,18 @@ function pmc_render_users_list(): void {
                     </tr>
                 <?php endforeach; ?>
                 <?php if (empty($users)): ?>
-                    <tr><td colspan="10" style="text-align:center;color:#666;padding:28px 0">No users found.</td></tr>
+                    <tr><td colspan="18" style="text-align:center;color:#666;padding:28px 0">No users found.</td></tr>
                 <?php endif; ?>
                 </tbody>
             </table>
+            </div>
         </form>
 
         <!-- Pagination -->
         <?php if ($pages > 1): ?>
         <div style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <span style="color:#666;font-size:13px">Showing <?php echo esc_html($from_n . '–' . $to_n . ' of ' . number_format($total)); ?></span>
-            <?php echo pmc_build_pagination($page_num, $pages, $filter_params, $base_url); ?>
+            <?php echo pc_build_pagination($page_num, $pages, $filter_params, $base_url); ?>
         </div>
         <?php endif; ?>
 
