@@ -267,7 +267,7 @@ improves, with baseline distribution preserved.
 **FIG. 7** — KL divergence safety tether: graphical illustration of
 maximum allowed reshaping (~5%) relative to baseline distribution.
 
-**FIG. 8** — Full user interface of the PMC Estimator implementing SACO,
+**FIG. 8** — Full user interface of the ProjectCare implementing SACO,
 showing PDF/CDF charts, slider panel, target query, and report system.
 
 **FIG. 9** — Metropolis-Hastings MCMC Bayesian baseline extension:
@@ -1592,7 +1592,7 @@ I hereby declare that:
 
 **Inventor:** Abel J. Stephen
 **Date:** March 2, 2026
-**Application:** PMC Estimator / SACO Framework
+**Application:** ProjectCare / SACO Framework
 **Organization:** iCareNOW.io
 
 ---

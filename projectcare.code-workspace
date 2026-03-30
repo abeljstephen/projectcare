@@ -1,7 +1,36 @@
 {
 	"folders": [
 		{
+			"name": "ProjectCare (root)",
 			"path": "."
+		},
+		{
+			"name": "API (Google Apps Script)",
+			"path": "api"
+		},
+		{
+			"name": "Agents",
+			"path": "agents"
+		},
+		{
+			"name": "Engines",
+			"path": "engines"
+		},
+		{
+			"name": "Tools",
+			"path": "tools"
+		},
+		{
+			"name": "Docs",
+			"path": "docs"
+		},
+		{
+			"name": "Report",
+			"path": "report"
+		},
+		{
+			"name": "Plot",
+			"path": "plot"
 		}
 	],
 	"settings": {}

@@ -12,8 +12,10 @@ servers:
 paths:
 
   /macros/s/AKfycbwu2VJv9zMJz3GSb7ijyLqrQzvwweJjS9hP6EFAB9Aao4MNo4vl2zgEil-GcBNACQxp/exec:
+
     post:
-      operationId: callPMCEstimator
+      operationId: callProjectCare
+      x-openai-isConsequential: false
       summary: Call the ProjectCare API
       description: >
         All ProjectCare by iCareNOW operations via the "action" field:

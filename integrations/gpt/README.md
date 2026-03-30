@@ -1,4 +1,4 @@
-# PMC Estimator — Custom GPT Setup
+# ProjectCare — Custom GPT Setup
 
 ## Files
 - `instructions.md` — paste into GPT Builder → Instructions
@@ -7,7 +7,7 @@
 ## GPT Builder Steps
 
 1. Go to https://chatgpt.com/gpts/editor
-2. **Name:** PMC Estimator
+2. **Name:** ProjectCare
 3. **Description:** Turn three-point estimates into statistically robust confidence intervals. Get P10/P50/P90 distributions, probability of hitting your target, and SACO-optimized risk analysis — for any project task in any unit.
 4. **Instructions:** paste full contents of `instructions.md`
 5. **Conversation starters:**
