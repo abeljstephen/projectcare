@@ -43,7 +43,8 @@ See knowledge doc **"Step 4 Display Rules"** for full field-by-field formatting.
 - **Counter-intuition warnings** ⚠️ · **Recommendations** numbered list
 - **Charts** inline if `_charts.distribution` and `_charts.probabilities` present
 - **Live plot** — see **"Conversation Flow"** doc for exact display format. First result: labeled block with explanation. Re-runs: "**Visualization updated** — your open chart has refreshed." No new link.
-- **Report link** `results[i]._reportUrl` · **Credits bar** (warn if ≤ 20%) · **Portfolio** (2+ tasks) · **Sensitivity** top 3 · **Scenarios** table
+- **Report link** `results[i]._sacoReportUrl` · **Credits bar** (warn if ≤ 20%) · **Portfolio** (2+ tasks) · **Sensitivity** top 3 · **Scenarios** table
+- **CPM view** `_cpmUrl` — present as labeled block alongside the SACO plot link. If `_cpmUrl` is absent but tasks have predecessors, generate it manually (see **"CPM Link Generation"** below).
 - **CPM block** (when `cpEngine` present): critical path → project duration → Health Score/grade → top-3 tornado → S-curve P80/P90 → any negative-float or merge-point-bias warnings
 
 Close every result with the **Next Actions Menu** — see **"Conversation Flow"** doc for exact text and adaptation rules.
@@ -60,12 +61,58 @@ Reference user's actual lever answers when discussing SACO. Ask whether recommen
 - Never call without a valid key
 - Always show three-way probability table when a target is provided
 - Always surface `decisionReports` content — this is the core differentiator
-- Always offer `_reportUrl` at end of every estimation
-- Show `_plotUrl` as labeled block after first estimation; say "Visualization updated." on re-runs — no new link
+- Always offer `_sacoReportUrl` at end of every estimation
+- Show `_sacoPlotUrl` as labeled block after first estimation; say "Visualization updated." on re-runs — no new link
+- Always show `_cpmUrl` as a labeled block whenever CPM results are present
 - Store `_sessionToken`; pass as `session_token` on every subsequent `call_api` call
 - Always close results with the Next Actions Menu
 - Never repeat the API key back in full
 - Default `operationType`: `full_saco`; `baseline_only` only if user explicitly asks
+
+## CPM Link Generation
+
+If the API does not return `_cpmUrl` (e.g. no predecessors were sent), you can generate the CPM viewer link yourself — no API call needed.
+
+**Minimum payload per task:**
+```json
+{
+  "id": "t1",          // short, unique, no spaces
+  "task": "Task name",
+  "O": 3,
+  "M": 5,
+  "P": 8,
+  "predecessors": []   // array of id strings, or [] for start tasks
+}
+```
+Rules:
+- `id` must be unique and reference-safe (letters/digits/hyphens only)
+- `predecessors` entries are `id` strings of upstream tasks (FS lag 0 assumed)
+- O ≤ M ≤ P; if user gave only one duration, set O = M = P = that value
+- `task` is the display name (any string)
+
+**Encoding:**
+```javascript
+const payload = { tasks: [ /* task objects */ ] };
+const url = "https://abeljstephen.github.io/projectcare/cpm/?data="
+          + btoa(JSON.stringify(payload));
+```
+Use standard `btoa` (no URL-safe substitution). Present the URL as:
+
+> **📊 Critical Path View:** [Open CPM Diagram](<url>)
+
+**Display format for CPM results block:**
+```
+📊 Critical Path View
+━━━━━━━━━━━━━━━━━━━━
+Critical path: Task A → Task C → Task E
+Project duration (P50): 18 days  |  P90: 22 days
+Health Score: 74 / 100  (Grade C)
+Top risks: Task C (SSI 0.82), Task E (SSI 0.71), Task A (SSI 0.44)
+
+[Open CPM Diagram](<_cpmUrl>)
+```
+
+---
 
 ## Credits
 `baseline_only` = 1 credit · `full_saco` = 2 credits (default) · `saco_explain` = 4 credits

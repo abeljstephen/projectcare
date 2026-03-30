@@ -1,0 +1,10 @@
+name       = "projectcare-proxy"
+main       = "worker.js"
+compatibility_date = "2024-01-01"
+
+[observability]
+enabled = true
+
+# Allow up to 120s for subrequests (GAS can take 60-90s for full SACO+CPM)
+[limits]
+cpu_ms = 50
