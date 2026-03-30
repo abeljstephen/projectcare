@@ -194,8 +194,8 @@ function handleCallApi(body) {
   //    Multi-task chart support is not implemented — charts represent task[0] distribution.
   //    Portfolio-level visualization is surfaced via _portfolio P10/P50/P90 instead.
   if (tasks.length > 0 && result.results && result.results[0]) {
-    result._charts    = buildChartUrls(result.results[0], tasks[0]);
-    result._reportUrl = buildReportUrl(result.results[0], tasks[0]);
+    result._sacoCharts    = buildChartUrls(result.results[0], tasks[0]);
+    result._sacoReportUrl = buildSacoReportUrl(result.results[0], tasks[0]);
   }
 
   // 8. Enrich per-task results: full percentile table, sensitivity, scenario batch, target-advisor.
@@ -318,10 +318,9 @@ function handleCallApi(body) {
           Math.round(rOptProb * (1 - tailPenalty) * 100)));
       }
 
-      // Per-task report URL — all tasks (not just task[0]).
-      // result._reportUrl (top-level) kept for backward compatibility.
+      // Per-task SACO report URL — all tasks.
       if (rInTask) {
-        try { rItem._reportUrl = buildReportUrl(rItem, rInTask); } catch (e) {}
+        try { rItem._sacoReportUrl = buildSacoReportUrl(rItem, rInTask); } catch (e) {}
       }
     }
   }
@@ -458,7 +457,7 @@ function handleCallApi(body) {
           feasibilityScore:  res.feasibilityScore != null ? res.feasibilityScore : null,
           winningSliders:    winSliders,
           userSliders:       uSliders
-          // reportUrl intentionally omitted — GPT surfaces _reportUrl separately
+          // _sacoReportUrl intentionally omitted here — GPT surfaces it from top-level result._sacoReportUrl
         };
       });
       var sessionPayload = { tasks: slimTasks, portfolio: result._portfolio || null };
@@ -467,9 +466,9 @@ function handleCallApi(body) {
       var urlTasks = tasks.map(function(t) {
         return { task: t.task, O: t.optimistic, M: t.mostLikely, P: t.pessimistic };
       });
-      var plotUrl = buildPlotUrl(urlTasks, tasks, sessionToken, null);
-      var cpmUrl  = buildCpmUrl(tasks, sessionToken);
-      result._plotUrl      = plotUrl;
+      var sacoPlotUrl = buildSacoPlotUrl(urlTasks, tasks, sessionToken, null);
+      var cpmUrl      = buildCpmUrl(tasks, sessionToken);
+      result._sacoPlotUrl  = sacoPlotUrl;
       result._cpmUrl       = cpmUrl;
       result._sessionToken = sessionToken;
       // Save slim payload to WordPress for live-update polling (non-fatal)
@@ -479,7 +478,7 @@ function handleCallApi(body) {
         console.error('[ProjectCare API] plot-data save failed:', saveErr.message);
       }
     } catch (plotErr) {
-      console.error('[ProjectCare API] buildPlotUrl error:', plotErr.message);
+      console.error('[ProjectCare API] buildSacoPlotUrl error:', plotErr.message);
       result._sessionToken = sessionToken;
     }
   }
@@ -701,9 +700,9 @@ function handleCallApiSlim(body, key, auth, sessionToken) {
     };
   });
 
-  // Build plot + CPM URLs and save to WP for session polling
-  var plotUrl = buildPlotUrl(slimTasks, tasks, sessionToken, portfolio);
-  var cpmUrl  = buildCpmUrl(tasks, sessionToken);
+  // Build SACO plot + CPM URLs and save to WP for session polling
+  var sacoPlotUrl = buildSacoPlotUrl(slimTasks, tasks, sessionToken, portfolio);
+  var cpmUrl      = buildCpmUrl(tasks, sessionToken);
   try {
     wpPost('/projectcare/v1/plot-data/save', {
       token: sessionToken,
@@ -733,7 +732,7 @@ function handleCallApiSlim(body, key, auth, sessionToken) {
     tier:            'slim',
     results:         taskResults,
     _portfolio:      portfolio,
-    _plotUrl:        plotUrl,
+    _sacoPlotUrl:    sacoPlotUrl,
     _cpmUrl:         cpmUrl,
     _sessionToken:   sessionToken,
     _quota: {
@@ -928,7 +927,7 @@ function buildProbBarChart(res, task) {
   return 'https://quickchart.io/chart?width=500&height=300&c=' + encodeURIComponent(JSON.stringify(cfg));
 }
 
-function buildReportUrl(res, task) {
+function buildSacoReportUrl(res, task) {
   try {
     var tp  = (res.targetProbability && res.targetProbability.value) || {};
     var cdf = (res.baseline && res.baseline.monteCarloSmoothed && res.baseline.monteCarloSmoothed.cdfPoints) || [];
@@ -946,17 +945,17 @@ function buildReportUrl(res, task) {
       p90: cdf.length ? invertCdf(cdf, 0.90) : null
     };
     var encoded = encodeURIComponent(Utilities.base64Encode(JSON.stringify(data)));
-    return 'https://abeljstephen.github.io/projectcare/report/?data=' + encoded;
+    return 'https://abeljstephen.github.io/projectcare/saco/report/?data=' + encoded;
   } catch(e) {
     return null;
   }
 }
 
 
-// Builds the GitHub Pages plot URL.
+// Builds the SACO GitHub Pages plot URL.
 // slimTasks: already-built slim scalar array (one object per task, no arrays).
 // tasks: original task input array (unused here, kept for signature clarity).
-function buildPlotUrl(slimTasks, tasks, token, portfolio) {
+function buildSacoPlotUrl(slimTasks, tasks, token, portfolio) {
   try {
     var slim = {
       schemaVersion: 1,
@@ -964,9 +963,9 @@ function buildPlotUrl(slimTasks, tasks, token, portfolio) {
       portfolio: portfolio || null
     };
     var encoded = encodeURIComponent(Utilities.base64Encode(JSON.stringify(slim)));
-    return 'https://abeljstephen.github.io/projectcare/plot/?data=' + encoded + '&session=' + token;
+    return 'https://abeljstephen.github.io/projectcare/saco/plot/?data=' + encoded + '&session=' + token;
   } catch (e) {
-    return 'https://abeljstephen.github.io/projectcare/plot/?session=' + token;
+    return 'https://abeljstephen.github.io/projectcare/saco/plot/?session=' + token;
   }
 }
 

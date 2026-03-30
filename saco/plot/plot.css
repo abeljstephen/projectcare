@@ -1,0 +1,265 @@
+/* PMC Estimator — Plot Page Styles */
+:root {
+  --base:      #10B981;
+  --adjusted:  #059669;
+  --optimized: #6D28D9;
+  --triangle:  #3B82F6;
+  --pert:      #7C3AED;
+  --surface:   #ffffff;
+  --border:    #e5e7eb;
+  --text:      #111827;
+  --muted:     #6b7280;
+  --amber:     #F59E0B;
+  --red:       #EF4444;
+  --green:     #10B981;
+  --radius:    8px;
+  --shadow:    0 1px 4px rgba(0,0,0,.08);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body.pmc-plot {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: #f3f4f6;
+  padding: 16px;
+}
+
+/* ── HEADER ─────────────────────────────────────────────────────── */
+#pmc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow);
+}
+
+#pmc-task-title { font-size: 17px; font-weight: 700; }
+#pmc-omp        { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.pmc-feasibility-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-green  { background: #d1fae5; color: #065f46; }
+.badge-amber  { background: #fef3c7; color: #92400e; }
+.badge-red    { background: #fee2e2; color: #991b1b; }
+.badge-grey   { background: #f3f4f6; color: var(--muted); }
+
+/* Live indicator */
+#pmc-live-badge {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--muted);
+}
+.live-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #d1d5db;
+}
+.live-dot.active   { background: var(--green); animation: pulse 2s infinite; }
+.live-dot.updating { background: var(--amber); }
+.live-dot.error    { background: var(--red); }
+
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
+
+/* ── CARDS ──────────────────────────────────────────────────────── */
+.pmc-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow);
+}
+.pmc-card h2 {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+/* ── PROBABILITY TRIO ───────────────────────────────────────────── */
+#pmc-prob-trio {
+  display: flex;
+  gap: 0;
+  align-items: stretch;
+}
+.trio-item {
+  flex: 1;
+  text-align: center;
+  padding: 12px 8px;
+}
+.trio-item + .trio-item {
+  border-left: 1px solid var(--border);
+}
+.trio-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.trio-value { font-size: 28px; font-weight: 800; }
+.trio-delta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.trio-value.v-base { color: #6b7280; }
+.trio-value.v-adj  { color: var(--adjusted); }
+.trio-value.v-opt  { color: var(--optimized); }
+.trio-delta.pos { color: var(--green); }
+.trio-delta.neg { color: var(--red); }
+
+/* ── CHART TABS ─────────────────────────────────────────────────── */
+.chart-tabs {
+  display: flex; gap: 4px; margin-bottom: 10px;
+}
+.chart-tab {
+  padding: 4px 12px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #f9fafb;
+  cursor: pointer;
+}
+.chart-tab.active {
+  background: var(--optimized);
+  color: #fff;
+  border-color: var(--optimized);
+}
+
+.series-toggles {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.series-toggle {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 11px; cursor: pointer;
+}
+.series-swatch {
+  width: 12px; height: 3px; border-radius: 2px;
+}
+
+/* ── 2-COL GRID ─────────────────────────────────────────────────── */
+.pmc-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+/* ── PERCENTILE TABLE ───────────────────────────────────────────── */
+#pmc-pct-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+#pmc-pct-table th, #pmc-pct-table td {
+  padding: 5px 8px;
+  text-align: center;
+  border: 1px solid var(--border);
+}
+#pmc-pct-table thead th { background: #f9fafb; font-weight: 600; }
+#pmc-pct-table .row-label { text-align: left; font-weight: 600; color: var(--muted); }
+.pct-better { color: var(--green); font-weight: 600; }
+.pct-worse  { color: var(--red);   font-weight: 600; }
+
+/* ── SLIDER PANEL ───────────────────────────────────────────────── */
+#pmc-slider-panel label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 3px;
+  margin-top: 10px;
+}
+#pmc-slider-panel label:first-of-type { margin-top: 0; }
+#pmc-slider-panel input[type=range] { width: 100%; }
+#pmc-slider-panel .slider-val {
+  font-size: 11px; color: var(--muted); text-align: right;
+}
+.pmc-btn {
+  display: inline-block;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-top: 12px;
+  margin-right: 6px;
+}
+.pmc-btn-primary   { background: var(--optimized); color: #fff; }
+.pmc-btn-secondary { background: #f3f4f6; color: var(--text); border: 1px solid var(--border); }
+.pmc-btn:disabled  { opacity: .5; cursor: not-allowed; }
+
+/* ── SCENARIO TABLE ─────────────────────────────────────────────── */
+#pmc-scenario-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+#pmc-scenario-table th, #pmc-scenario-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+#pmc-scenario-table thead th { font-weight: 600; color: var(--muted); text-align: left; }
+
+/* ── DECISION NARRATIVE ─────────────────────────────────────────── */
+#pmc-recommendations-list { padding-left: 18px; }
+#pmc-recommendations-list li { margin-bottom: 5px; font-size: 13px; }
+#pmc-counter-intuition-list { list-style: none; padding: 0; }
+#pmc-counter-intuition-list li {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 5px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+#pmc-narrative-text {
+  font-size: 12px; color: var(--muted);
+  margin-top: 10px; line-height: 1.6;
+}
+
+/* ── PORTFOLIO BLOCK ────────────────────────────────────────────── */
+#pmc-portfolio-bar {
+  display: flex; gap: 24px; align-items: center;
+}
+.port-stat { text-align: center; }
+.port-stat .port-label { font-size: 11px; color: var(--muted); }
+.port-stat .port-val   { font-size: 22px; font-weight: 700; }
+
+/* ── NEW DATA BANNER ────────────────────────────────────────────── */
+#pmc-update-banner {
+  display: none;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+#pmc-update-banner a { cursor: pointer; color: #1d4ed8; text-decoration: underline; }
+
+/* ── SKELETON / LOADING ─────────────────────────────────────────── */
+#pmc-skeleton {
+  text-align: center; padding: 60px 20px; color: var(--muted);
+}
+
+/* ── FADE ANIMATION ─────────────────────────────────────────────── */
+.pmc-fading { opacity: 0; transition: opacity .3s ease; }
+.pmc-visible { opacity: 1; transition: opacity .3s ease; }
+
+/* ── HIDDEN ─────────────────────────────────────────────────────── */
+.pmc-hidden { display: none !important; }
+
+/* ── RESPONSIVE ─────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .pmc-grid-2 { grid-template-columns: 1fr; }
+  #pmc-prob-trio { flex-direction: column; }
+  .trio-item + .trio-item { border-left: none; border-top: 1px solid var(--border); }
+}
