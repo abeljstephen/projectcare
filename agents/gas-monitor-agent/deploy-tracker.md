@@ -7,7 +7,7 @@
 | Resource     | Used | Limit | % Used | Status |
 |-------------|------|-------|--------|--------|
 | Deployments | 3    | 20     | 15%     | OK      |
-| Versions    | 86   | 100    | 86%     | WATCH   |
+| Versions    | 88   | 100    | 88%     | WATCH   |
 
 ## Rules
 - `clasp push` → updates HEAD only. **No slots consumed. Push freely.**
@@ -18,7 +18,7 @@
 ```
 Found 3 deployments.
 - AKfycbzoO42SACRrzX8N1nnLPTqth4MX4Rgpsce0TIciCWE @HEAD
-- AKfycbwu2VJv9zMJz3GSb7ijyLqrQzvwweJjS9hP6EFAB9Aao4MNo4vl2zgEil-GcBNACQxp @86 - ProjectCare API v1.5.0 — CPM URL builder  ← PRODUCTION API
+- AKfycbwu2VJv9zMJz3GSb7ijyLqrQzvwweJjS9hP6EFAB9Aao4MNo4vl2zgEil-GcBNACQxp @88 - ProjectCare API v1.6.0 — engine-namespaced URLs  ← PRODUCTION API
 - AKfycbxPMikpb1W7qHCYwuIfx1696rU-rsnZka_SRhdSL6x8r8EnhRVbwQ1Kofdjm8jIFcaL @77 - ProjectCare Free v1.0.0 — unified brand launch  ← ADDON
 ```
 
@@ -41,6 +41,8 @@ clasp deploy --deploymentId AKfycbxPMikpb1W7qHCYwuIfx1696rU-rsnZka_SRhdSL6x8r8En
 84 - ProjectCare API v1.4.0 — URL seed only (p10/p50/p90 removed, O/M/P only)
 85 - ProjectCare API v1.5.0 — buildCpmUrl, _cpmUrl in slim+full response
 86 - (deploy snapshot)
+87 - ProjectCare API v1.6.0 — engine-namespaced URLs (saco/plot, saco/report, cpm)
+88 - (deploy snapshot)
 ```
 
 ## Tasks for This Agent
@@ -52,6 +54,7 @@ clasp deploy --deploymentId AKfycbxPMikpb1W7qHCYwuIfx1696rU-rsnZka_SRhdSL6x8r8En
 
 ## History (last 10 checks)
 <!-- Updated automatically by check-limits.sh -->
+- 2026-03-29 — Deployments: 3/20  Versions: 88/100  [OK / WATCH]  API v1.6.0 engine-namespaced URLs, saco/plot + saco/report — API @88, Addon @77
 - 2026-03-29 — Deployments: 3/20  Versions: 85/100  [OK / WATCH]  API v1.5.0 CPM URL builder, cpm/index.html critical path GUI — API @85, Addon @77
 - 2026-03-29 — Deployments: 3/20  Versions: 82/100  [OK / WATCH]  API v1.2.0 dynamic credits, calibration, margin dashboard — API @82, Addon @77
 - 2026-03-29 — Deployments: 3/20  Versions: 81/100  [OK / WATCH]  API v1.1.0 slim/full tier — API @81, Addon @77
