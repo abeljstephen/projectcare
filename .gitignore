@@ -125,3 +125,5 @@ _archive/system-google-cloud-functions-api/*key*.json
 .env.*
 !.env.example
 integrations/wordpress/wp-config.php
+.DS_Store
+**/.DS_Store
