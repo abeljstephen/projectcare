@@ -4,10 +4,10 @@ defined('ABSPATH') || exit;
 /**
  * Look up a promo code (case-insensitive). Returns the row or null.
  */
-function pmc_get_promo(string $code): ?object {
+function pc_get_promo(string $code): ?object {
     global $wpdb;
     $row = $wpdb->get_row($wpdb->prepare(
-        "SELECT * FROM `{$wpdb->prefix}pmc_promo_codes` WHERE UPPER(code) = UPPER(%s) LIMIT 1",
+        "SELECT * FROM `{$wpdb->prefix}pc_promo_codes` WHERE UPPER(code) = UPPER(%s) LIMIT 1",
         $code
     ));
     return $row ?: null;
@@ -17,10 +17,10 @@ function pmc_get_promo(string $code): ?object {
  * Validate a promo code.
  * Returns [valid: bool, error?: string, promo?: object].
  */
-function pmc_validate_promo(string $code): array {
+function pc_validate_promo(string $code): array {
     if (empty($code)) return ['valid' => false, 'error' => 'No promo code provided'];
 
-    $promo = pmc_get_promo($code);
+    $promo = pc_get_promo($code);
     if (!$promo) return ['valid' => false, 'error' => 'Invalid promo code'];
 
     if (!(int) $promo->is_active) {
@@ -39,10 +39,10 @@ function pmc_validate_promo(string $code): array {
 /**
  * Increment the uses_count for a promo code by ID.
  */
-function pmc_use_promo(int $promo_id): void {
+function pc_use_promo(int $promo_id): void {
     global $wpdb;
     $wpdb->query($wpdb->prepare(
-        "UPDATE `{$wpdb->prefix}pmc_promo_codes` SET uses_count = uses_count + 1 WHERE id = %d",
+        "UPDATE `{$wpdb->prefix}pc_promo_codes` SET uses_count = uses_count + 1 WHERE id = %d",
         $promo_id
     ));
 }

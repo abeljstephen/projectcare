@@ -1,14 +1,14 @@
 <?php
 defined('ABSPATH') || exit;
 
-function pmc_page_tools(): void {
+function pc_page_tools(): void {
     if (!current_user_can('manage_options')) return;
 
     $notice = '';
 
     // Export all users
     if (isset($_GET['export_users']) && $_GET['export_users'] === '1') {
-        $users = pmc_get_all_pmc_users();
+        $users = pc_get_all_pc_users();
         header('Content-Type: text/csv');
         header('Content-Disposition: attachment; filename="pmc-users-full-' . date('Ymd') . '.csv"');
         $out = fopen('php://output', 'w');
@@ -24,7 +24,7 @@ function pmc_page_tools(): void {
     if (isset($_GET['export_activity']) && $_GET['export_activity'] === '1') {
         $date_from = sanitize_text_field($_GET['act_from'] ?? date('Y-m-d', strtotime('-30 days')));
         $date_to   = sanitize_text_field($_GET['act_to']   ?? date('Y-m-d'));
-        $rows = pmc_get_activity(['date_from' => $date_from, 'date_to' => $date_to], 100000, 0);
+        $rows = pc_get_activity(['date_from' => $date_from, 'date_to' => $date_to], 100000, 0);
         header('Content-Type: text/csv');
         header('Content-Disposition: attachment; filename="pmc-activity-' . date('Ymd') . '.csv"');
         $out = fopen('php://output', 'w');
@@ -42,7 +42,7 @@ function pmc_page_tools(): void {
         $date_from = sanitize_text_field($_GET['pay_from'] ?? date('Y-m-d', strtotime('-12 months')));
         $date_to   = sanitize_text_field($_GET['pay_to']   ?? date('Y-m-d'));
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM `{$wpdb->prefix}pmc_payments` WHERE DATE(created_at) BETWEEN %s AND %s ORDER BY created_at DESC LIMIT 100000",
+            "SELECT * FROM `{$wpdb->prefix}pc_payments` WHERE DATE(created_at) BETWEEN %s AND %s ORDER BY created_at DESC LIMIT 100000",
             $date_from, $date_to
         )) ?: [];
         header('Content-Type: text/csv');
@@ -58,22 +58,22 @@ function pmc_page_tools(): void {
 
     // Migrate from FluentCRM
     $migration_report = null;
-    if (isset($_POST['pmc_migrate_nonce'])) {
-        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_migrate_nonce'])), 'pmc_migrate_fluentcrm')) {
-            if (pmc_fluentcrm_available()) {
+    if (isset($_POST['pc_migrate_nonce'])) {
+        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_migrate_nonce'])), 'pc_migrate_fluentcrm')) {
+            if (pc_fluentcrm_available()) {
                 global $wpdb;
                 $fc_meta = $wpdb->prefix . 'fc_subscriber_meta';
                 $fc_subs = $wpdb->prefix . 'fc_subscribers';
 
                 $rows = $wpdb->get_results(
                     "SELECT s.email, m.value AS api_key,
-                        MAX(CASE WHEN m2.`key`='pmc_plan' THEN m2.value END) AS plan,
-                        MAX(CASE WHEN m2.`key`='pmc_credits_total' THEN m2.value END) AS credits_total,
-                        MAX(CASE WHEN m2.`key`='pmc_credits_used' THEN m2.value END) AS credits_used,
-                        MAX(CASE WHEN m2.`key`='pmc_key_expires' THEN m2.value END) AS key_expires,
-                        MAX(CASE WHEN m2.`key`='pmc_key_status' THEN m2.value END) AS key_status
+                        MAX(CASE WHEN m2.`key`='pc_plan' THEN m2.value END) AS plan,
+                        MAX(CASE WHEN m2.`key`='pc_credits_total' THEN m2.value END) AS credits_total,
+                        MAX(CASE WHEN m2.`key`='pc_credits_used' THEN m2.value END) AS credits_used,
+                        MAX(CASE WHEN m2.`key`='pc_key_expires' THEN m2.value END) AS key_expires,
+                        MAX(CASE WHEN m2.`key`='pc_key_status' THEN m2.value END) AS key_status
                      FROM `{$fc_subs}` s
-                     INNER JOIN `{$fc_meta}` m  ON m.subscriber_id  = s.id AND m.`key`  = 'pmc_api_key'
+                     INNER JOIN `{$fc_meta}` m  ON m.subscriber_id  = s.id AND m.`key`  = 'pc_api_key'
                      INNER JOIN `{$fc_meta}` m2 ON m2.subscriber_id = s.id
                      GROUP BY s.email, m.value"
                 ) ?: [];
@@ -82,9 +82,9 @@ function pmc_page_tools(): void {
                 foreach ($rows as $row) {
                     $email = strtolower(sanitize_email($row->email));
                     if (!is_email($email)) { $errors++; continue; }
-                    $existing = pmc_get_user_by_email($email);
+                    $existing = pc_get_user_by_email($email);
                     if ($existing) { $skipped++; continue; }
-                    $res = pmc_create_user([
+                    $res = pc_create_user([
                         'email'         => $email,
                         'api_key'       => (string) ($row->api_key ?? ''),
                         'plan'          => (string) ($row->plan ?? 'trial'),
@@ -106,26 +106,26 @@ function pmc_page_tools(): void {
 
     // Prune activity
     $prune_notice = '';
-    if (isset($_POST['pmc_prune_nonce'], $_POST['prune_confirmed']) && (int)$_POST['prune_confirmed'] === 1) {
-        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_prune_nonce'])), 'pmc_prune_activity')) {
+    if (isset($_POST['pc_prune_nonce'], $_POST['prune_confirmed']) && (int)$_POST['prune_confirmed'] === 1) {
+        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_prune_nonce'])), 'pc_prune_activity')) {
             $months = max(1, (int) ($_POST['prune_months'] ?? 13));
-            $deleted = pmc_prune_activity($months * 30);
+            $deleted = pc_prune_activity($months * 30);
             $prune_notice = 'Pruned ' . $deleted . ' activity rows older than ' . $months . ' month(s).';
         }
     }
 
     // Test email
     $email_notice = '';
-    if (isset($_POST['pmc_test_email_nonce'])) {
-        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_test_email_nonce'])), 'pmc_test_email')) {
+    if (isset($_POST['pc_test_email_nonce'])) {
+        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_test_email_nonce'])), 'pc_test_email')) {
             $to_addr = sanitize_email($_POST['test_email_addr'] ?? '');
             $tpl_slug = sanitize_text_field($_POST['test_tpl'] ?? 'trial_issued');
             if (is_email($to_addr)) {
                 $dummy = ['email' => $to_addr, 'key' => 'test-key-abc123', 'plan' => 'Professional',
                     'credits' => '55', 'expiry' => date('Y-m-d', strtotime('+35 days')),
-                    'upgrade_url' => pmc_stripe_link(), 'credits_remaining' => '42', 'credits_total' => '55',
+                    'upgrade_url' => pc_stripe_link(), 'credits_remaining' => '42', 'credits_total' => '55',
                     'site_name' => get_bloginfo('name')];
-                $sent = pmc_send_email($to_addr, $tpl_slug, $dummy);
+                $sent = pc_send_email($to_addr, $tpl_slug, $dummy);
                 $email_notice = $sent ? 'Test email sent to ' . $to_addr : 'Failed to send test email.';
             } else {
                 $email_notice = 'Invalid email address.';
@@ -135,23 +135,23 @@ function pmc_page_tools(): void {
 
     // Ping
     $ping_result = null;
-    if (isset($_POST['pmc_tool_ping_nonce'])) {
-        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_tool_ping_nonce'])), 'pmc_tool_ping')) {
-            $ping_result = pmc_gas_ping();
+    if (isset($_POST['pc_tool_ping_nonce'])) {
+        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_tool_ping_nonce'])), 'pc_tool_ping')) {
+            $ping_result = pc_gas_ping();
         }
     }
 
     // Table row counts
     global $wpdb;
     $table_counts = [];
-    foreach (['pmc_users','pmc_activity','pmc_payments','pmc_plans','pmc_promo_codes','pmc_email_templates','pmc_webhook_log'] as $t) {
+    foreach (['pc_users','pc_activity','pc_payments','pc_plans','pc_promo_codes','pc_email_templates','pc_webhook_log'] as $t) {
         $table_counts[$t] = (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$wpdb->prefix}{$t}`");
     }
 
-    $templates = $wpdb->get_results("SELECT slug, label FROM `{$wpdb->prefix}pmc_email_templates` ORDER BY slug") ?: [];
+    $templates = $wpdb->get_results("SELECT slug, label FROM `{$wpdb->prefix}pc_email_templates` ORDER BY slug") ?: [];
     ?>
     <div class="wrap">
-        <h1>PMC CRM Tools</h1>
+        <h1>ProjectCare CRM Tools</h1>
         <?php if ($notice): ?>
             <div class="notice notice-success is-dismissible"><p><?php echo esc_html($notice); ?></p></div>
         <?php endif; ?>
@@ -168,12 +168,12 @@ function pmc_page_tools(): void {
         <!-- FluentCRM Migration -->
         <div class="pmc-tool">
             <h2>Migrate from FluentCRM</h2>
-            <?php if (!pmc_fluentcrm_available()): ?>
+            <?php if (!pc_fluentcrm_available()): ?>
                 <p style="color:#666">FluentCRM is not active. Migration is unavailable.</p>
             <?php else: ?>
-                <p>Scans <code>fc_subscriber_meta</code> for <code>pmc_api_key</code> entries and imports matching users into <code>wp_pmc_users</code>. Existing emails are skipped.</p>
+                <p>Scans <code>fc_subscriber_meta</code> for <code>pc_api_key</code> entries and imports matching users into <code>wp_pc_users</code>. Existing emails are skipped.</p>
                 <form method="post">
-                    <?php wp_nonce_field('pmc_migrate_fluentcrm', 'pmc_migrate_nonce'); ?>
+                    <?php wp_nonce_field('pc_migrate_fluentcrm', 'pc_migrate_nonce'); ?>
                     <?php submit_button('Run Migration', 'primary', '', false); ?>
                 </form>
                 <?php if ($migration_report !== null): ?>
@@ -189,7 +189,7 @@ function pmc_page_tools(): void {
         <div class="pmc-tool">
             <h2>Prune Activity Log</h2>
             <form method="post">
-                <?php wp_nonce_field('pmc_prune_activity', 'pmc_prune_nonce'); ?>
+                <?php wp_nonce_field('pc_prune_activity', 'pc_prune_nonce'); ?>
                 <p><label>Delete activity events older than
                     <input type="number" name="prune_months" value="13" min="1" style="width:60px"> months
                 </label></p>
@@ -205,7 +205,7 @@ function pmc_page_tools(): void {
         <div class="pmc-tool">
             <h2>Test Email</h2>
             <form method="post">
-                <?php wp_nonce_field('pmc_test_email', 'pmc_test_email_nonce'); ?>
+                <?php wp_nonce_field('pc_test_email', 'pc_test_email_nonce'); ?>
                 <p>
                     <label>Send to: <input type="email" name="test_email_addr" value="<?php echo esc_attr(get_option('admin_email')); ?>" class="regular-text"></label>
                 </p>
@@ -226,7 +226,7 @@ function pmc_page_tools(): void {
         <div class="pmc-tool">
             <h2>Ping GAS</h2>
             <form method="post">
-                <?php wp_nonce_field('pmc_tool_ping', 'pmc_tool_ping_nonce'); ?>
+                <?php wp_nonce_field('pc_tool_ping', 'pc_tool_ping_nonce'); ?>
                 <?php submit_button('Ping GAS Endpoint', 'secondary', '', false); ?>
             </form>
             <?php if ($ping_result !== null): ?>
@@ -242,7 +242,7 @@ function pmc_page_tools(): void {
         <!-- Export users -->
         <div class="pmc-tool">
             <h2>Export All Users CSV</h2>
-            <p>Downloads a CSV of the full <code>wp_pmc_users</code> table including API keys.</p>
+            <p>Downloads a CSV of the full <code>wp_pc_users</code> table including API keys.</p>
             <a href="<?php echo esc_url(add_query_arg(['export_users' => '1'], admin_url('admin.php?page=pmc-crm-tools'))); ?>" class="button">Download Users CSV</a>
         </div>
 
@@ -278,7 +278,7 @@ function pmc_page_tools(): void {
         <!-- Database status -->
         <div class="pmc-tool">
             <h2>Database Status</h2>
-            <p>Plugin version: <strong><?php echo esc_html(PMC_CRM_VERSION); ?></strong></p>
+            <p>Plugin version: <strong><?php echo esc_html(PC_CRM_VERSION); ?></strong></p>
             <table class="widefat" style="max-width:400px">
                 <thead><tr><th>Table</th><th>Rows</th></tr></thead>
                 <tbody>

@@ -1,20 +1,20 @@
 <?php
 defined('ABSPATH') || exit;
 
-function pmc_setting(string $key, string $default = ''): string {
-    return (string) get_option('pmc_' . $key, $default);
+function pc_setting(string $key, string $default = ''): string {
+    return (string) get_option('pc_' . $key, $default);
 }
 
-function pmc_secret(): string      { return pmc_setting('api_secret'); }
-function pmc_stripe_hook(): string { return pmc_setting('stripe_hook_secret'); }
-function pmc_stripe_link(): string { return pmc_setting('stripe_link', 'https://buy.stripe.com/YOUR_LINK'); }
-function pmc_admin_email(): string { return pmc_setting('admin_email', get_option('admin_email')); }
+function pc_secret(): string      { return pc_setting('api_secret'); }
+function pc_stripe_hook(): string { return pc_setting('stripe_hook_secret'); }
+function pc_stripe_link(): string { return pc_setting('stripe_link', 'https://buy.stripe.com/YOUR_LINK'); }
+function pc_admin_email(): string { return pc_setting('admin_email', get_option('admin_email')); }
 
 /**
  * Visual credit usage bar.
  * Example: ████████░░░░░░░░░░░░  40% remaining (12/20 credits)
  */
-function pmc_bar(int $used, int $total): string {
+function pc_bar(int $used, int $total): string {
     if ($total <= 0) return '░░░░░░░░░░░░░░░░░░░░  0% remaining (0/0 credits)';
     $pct      = min(100, (int) round(($used / $total) * 100));
     $filled   = (int) round($pct / 5);
@@ -27,7 +27,7 @@ function pmc_bar(int $used, int $total): string {
 /**
  * Admin tooltip HTML span.
  */
-function pmc_tip(string $text): string {
+function pc_tip(string $text): string {
     return '<span class="pmc-tip" title="' . esc_attr($text) . '" '
         . 'style="cursor:help;color:#2271b1;font-size:11px;margin-left:4px">(?)</span>';
 }
@@ -35,7 +35,7 @@ function pmc_tip(string $text): string {
 /**
  * Verify a Stripe webhook signature using HMAC-SHA256.
  */
-function pmc_verify_stripe(string $payload, string $sig_header, string $secret): bool {
+function pc_verify_stripe(string $payload, string $sig_header, string $secret): bool {
     if (empty($secret) || empty($sig_header)) return false;
     $parts = [];
     foreach (explode(',', $sig_header) as $part) {
@@ -50,8 +50,8 @@ function pmc_verify_stripe(string $payload, string $sig_header, string $secret):
 /**
  * Map a Stripe payment amount (in dollars) to a plan slug.
  */
-function pmc_amount_to_plan(float $amount): string {
-    $plans = pmc_get_plans();
+function pc_amount_to_plan(float $amount): string {
+    $plans = pc_get_plans();
     // Remove trial; sort highest price first
     $paid = array_filter($plans, fn($p) => $p['slug'] !== 'trial');
     usort($paid, fn($a, $b) => $b['price_min_cents'] - $a['price_min_cents']);
@@ -64,8 +64,8 @@ function pmc_amount_to_plan(float $amount): string {
 /**
  * Map a Stripe payment amount (in dollars) to a top-up credit pack size.
  */
-function pmc_amount_to_topup(float $amount): int {
-    foreach (pmc_topup_packs() as $pack) {
+function pc_amount_to_topup(float $amount): int {
+    foreach (pc_topup_packs() as $pack) {
         if ($amount >= $pack['price_min']) return $pack['credits'];
     }
     return 50;
@@ -74,14 +74,14 @@ function pmc_amount_to_topup(float $amount): int {
 /**
  * Send a plain-text admin notification email.
  */
-function pmc_send_admin_email(string $subject, string $message): void {
-    wp_mail(pmc_admin_email(), $subject, $message);
+function pc_send_admin_email(string $subject, string $message): void {
+    wp_mail(pc_admin_email(), $subject, $message);
 }
 
 /**
  * Relative time string.
  */
-function pmc_relative_time(?string $datetime): string {
+function pc_relative_time(?string $datetime): string {
     if (!$datetime) return 'Never';
     $ts = strtotime($datetime);
     if ($ts === false) return 'Never';
@@ -96,7 +96,7 @@ function pmc_relative_time(?string $datetime): string {
 /**
  * Status pill badge HTML.
  */
-function pmc_status_badge(string $status, bool $expired = false): string {
+function pc_status_badge(string $status, bool $expired = false): string {
     if ($expired && $status === 'active') $status = 'expired';
     $styles = [
         'active'     => 'background:#d1fae5;color:#065f46',
@@ -114,7 +114,7 @@ function pmc_status_badge(string $status, bool $expired = false): string {
 /**
  * Plan pill badge HTML.
  */
-function pmc_plan_badge(string $plan): string {
+function pc_plan_badge(string $plan): string {
     $styles = [
         'trial'        => 'background:#dbeafe;color:#1e40af',
         'starter'      => 'background:#d1fae5;color:#065f46',
@@ -130,7 +130,7 @@ function pmc_plan_badge(string $plan): string {
 /**
  * Inline credit progress bar HTML for table cells.
  */
-function pmc_credits_bar_html(int $used, int $total): string {
+function pc_credits_bar_html(int $used, int $total): string {
     if ($total <= 0) return '<span style="color:#999;font-size:12px">—</span>';
     $remaining = max(0, $total - $used);
     $pct       = min(100, (int) round($remaining / $total * 100));
@@ -150,7 +150,7 @@ function pmc_credits_bar_html(int $used, int $total): string {
  * @param array  $params     Query params to preserve (no 'page' key, no 'paged').
  * @param string $base_url   URL with page=pmc-crm-* already included.
  */
-function pmc_build_pagination(int $current, int $total_pages, array $params, string $base_url): string {
+function pc_build_pagination(int $current, int $total_pages, array $params, string $base_url): string {
     if ($total_pages <= 1) return '';
     $links = [];
 

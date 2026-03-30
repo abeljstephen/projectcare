@@ -1,11 +1,11 @@
 <?php
 defined('ABSPATH') || exit;
 
-function pmc_page_help(): void {
+function pc_page_help(): void {
     if (!current_user_can('manage_options')) return;
     ?>
     <div class="wrap">
-        <h1>PMC CRM — Help &amp; Glossary</h1>
+        <h1>ProjectCare CRM — Help &amp; Glossary</h1>
 
         <style>
         .pmc-help h2 { color:#2271b1; border-bottom:2px solid #2271b1; padding-bottom:6px; margin-top:32px; }
@@ -23,7 +23,7 @@ function pmc_page_help(): void {
         <h2>The Credit System</h2>
         <dl>
             <dt>Credit</dt>
-            <dd>The unit of API consumption. Each GAS call to the PMC Estimator deducts one or more credits from the user's balance.</dd>
+            <dd>The unit of API consumption. Each GAS call to the ProjectCare deducts one or more credits from the user's balance.</dd>
 
             <dt>Credits Total</dt>
             <dd>The maximum number of credits on the current plan or top-up. Raise this via the user edit page or by processing a Stripe top-up or renewal.</dd>
@@ -121,7 +121,7 @@ function pmc_page_help(): void {
         <h2>GAS Quota</h2>
         <dl>
             <dt>GAS</dt>
-            <dd>Google Apps Script — the serverless runtime that hosts the PMC Estimator computation engine. Calls from ChatGPT pass through the WordPress REST API and are forwarded to the GAS web app deployment.</dd>
+            <dd>Google Apps Script — the serverless runtime that hosts the ProjectCare computation engine. Calls from ChatGPT pass through the WordPress REST API and are forwarded to the GAS web app deployment.</dd>
 
             <dt>Daily Runtime Quota</dt>
             <dd>Google enforces a per-day cumulative execution time limit:
@@ -133,7 +133,7 @@ function pmc_page_help(): void {
             </dd>
 
             <dt>URL Fetch Quota</dt>
-            <dd>Each outbound HTTP request from GAS counts toward the URL Fetch quota (20,000/day consumer, 100,000/day Workspace). PMC Estimator makes one fetch per call to the WordPress validation endpoint.</dd>
+            <dd>Each outbound HTTP request from GAS counts toward the URL Fetch quota (20,000/day consumer, 100,000/day Workspace). ProjectCare makes one fetch per call to the WordPress validation endpoint.</dd>
 
             <dt>Why runtime is the binding constraint</dt>
             <dd>A full SACO pipeline run takes ~2–6 seconds. At 90 min/day, that limits consumer accounts to roughly 900–2700 calls/day before hitting quota. URL Fetch rarely becomes the bottleneck.</dd>
@@ -174,7 +174,7 @@ function pmc_page_help(): void {
 
         <!-- Stripe Payment Fields -->
         <h2>Stripe Payment Record Fields</h2>
-        <p>Every successful Stripe payment is stored in <code>wp_pmc_payments</code>. The fields below are captured from the webhook payload and viewable on each user's detail page and via the Payments CSV export.</p>
+        <p>Every successful Stripe payment is stored in <code>wp_pc_payments</code>. The fields below are captured from the webhook payload and viewable on each user's detail page and via the Payments CSV export.</p>
         <table class="pmc-ref">
             <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
             <tbody>
@@ -187,7 +187,7 @@ function pmc_page_help(): void {
                 <tr><td><code>stripe_subscription_id</code></td><td>Stripe Subscription ID — the recurring billing contract. Cancelling or modifying a subscription in Stripe references this ID.</td><td><code>sub_1N…</code></td></tr>
                 <tr><td><code>stripe_customer_id</code></td><td>Stripe Customer ID — persists across all payments for this email. Links the user to their full Stripe billing history.</td><td><code>cus_1N…</code></td></tr>
                 <tr><td><code>stripe_price_id</code></td><td>Stripe Price ID — the specific price (SKU) that was billed. Identifies the plan tier and billing interval.</td><td><code>price_1N…</code></td></tr>
-                <tr><td><code>stripe_product_id</code></td><td>Stripe Product ID — the top-level product the price belongs to (e.g., "PMC Estimator Professional").</td><td><code>prod_1N…</code></td></tr>
+                <tr><td><code>stripe_product_id</code></td><td>Stripe Product ID — the top-level product the price belongs to (e.g., "ProjectCare Professional").</td><td><code>prod_1N…</code></td></tr>
                 <tr><td><code>stripe_charge_id</code></td><td>Stripe Charge ID — the actual card charge. Use this for refund operations or dispute evidence.</td><td><code>ch_1N…</code></td></tr>
                 <tr><td><code>billing_reason</code></td><td>Why the invoice was generated. Common values: <code>subscription_create</code>, <code>subscription_cycle</code>, <code>one_time</code>.</td><td><code>subscription_cycle</code></td></tr>
                 <tr><td><code>period_start</code> / <code>period_end</code></td><td>The service period this payment covers (from the invoice line item). Useful for reconciling SaaS revenue with the correct accounting period.</td><td>2026-03-01 → 2026-04-01</td></tr>

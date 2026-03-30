@@ -4,24 +4,24 @@ defined('ABSPATH') || exit;
 /**
  * Returns true if FluentCRM sync is enabled and FluentCRM is present.
  */
-function pmc_fluentcrm_sync_enabled(): bool {
-    return pmc_setting('fluentcrm_sync', '0') === '1' && function_exists('FluentCrmApi');
+function pc_fluentcrm_sync_enabled(): bool {
+    return pc_setting('fluentcrm_sync', '0') === '1' && function_exists('FluentCrmApi');
 }
 
 /**
  * Returns true if FluentCRM is installed and active.
  */
-function pmc_fluentcrm_available(): bool {
+function pc_fluentcrm_available(): bool {
     return function_exists('FluentCrmApi');
 }
 
 /**
  * Upsert a FluentCRM contact from a PMC user object.
- * Mirrors all pmc_* meta fields. Tags applied if provided.
+ * Mirrors all pc_* meta fields. Tags applied if provided.
  * Fully wrapped in try/catch — FluentCRM errors never break the plugin.
  */
-function pmc_fluentcrm_sync_user(object $user, array $tags = []): void {
-    if (!pmc_fluentcrm_sync_enabled()) return;
+function pc_fluentcrm_sync_user(object $user, array $tags = []): void {
+    if (!pc_fluentcrm_sync_enabled()) return;
 
     try {
         $result  = FluentCrmApi('contacts')->createOrUpdate([
@@ -32,16 +32,16 @@ function pmc_fluentcrm_sync_user(object $user, array $tags = []): void {
         if (!$contact || !$contact->id) return;
 
         $meta_fields = [
-            'pmc_api_key'         => $user->api_key,
-            'pmc_plan'            => $user->plan,
-            'pmc_credits_total'   => (string) $user->credits_total,
-            'pmc_credits_used'    => (string) $user->credits_used,
-            'pmc_key_expires'     => (string) ($user->key_expires ?? ''),
-            'pmc_key_status'      => $user->key_status,
-            'pmc_quota_bar'       => pmc_bar((int) $user->credits_used, (int) $user->credits_total),
-            'pmc_last_estimation' => (string) ($user->last_estimation ?? ''),
-            'pmc_stripe_customer' => (string) ($user->stripe_customer_id ?? ''),
-            'pmc_source'          => (string) ($user->source ?? ''),
+            'pc_api_key'         => $user->api_key,
+            'pc_plan'            => $user->plan,
+            'pc_credits_total'   => (string) $user->credits_total,
+            'pc_credits_used'    => (string) $user->credits_used,
+            'pc_key_expires'     => (string) ($user->key_expires ?? ''),
+            'pc_key_status'      => $user->key_status,
+            'pc_quota_bar'       => pc_bar((int) $user->credits_used, (int) $user->credits_total),
+            'pc_last_estimation' => (string) ($user->last_estimation ?? ''),
+            'pc_stripe_customer' => (string) ($user->stripe_customer_id ?? ''),
+            'pc_source'          => (string) ($user->source ?? ''),
         ];
 
         global $wpdb;
@@ -57,7 +57,7 @@ function pmc_fluentcrm_sync_user(object $user, array $tags = []): void {
         }
 
         // Quota tags
-        $remaining = pmc_credits_remaining($user);
+        $remaining = pc_credits_remaining($user);
         $total     = (int) $user->credits_total;
         $contact->detachTags(['quota-ok', 'quota-warning', 'quota-critical', 'quota-exhausted']);
         $pct = $total > 0 ? ($remaining / $total) * 100 : 0;
@@ -74,6 +74,6 @@ function pmc_fluentcrm_sync_user(object $user, array $tags = []): void {
         $contact->attachTags(array_unique(array_filter($attach)));
 
     } catch (\Throwable $e) {
-        error_log('[PMC CRM] FluentCRM sync error: ' . $e->getMessage());
+        error_log('[ProjectCare CRM] FluentCRM sync error: ' . $e->getMessage());
     }
 }

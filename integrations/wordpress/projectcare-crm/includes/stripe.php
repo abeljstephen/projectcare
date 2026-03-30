@@ -4,12 +4,12 @@ defined('ABSPATH') || exit;
 /**
  * Main Stripe webhook handler — verifies signature then dispatches.
  */
-function pmc_stripe_webhook(WP_REST_Request $req): WP_REST_Response {
+function pc_stripe_webhook(WP_REST_Request $req): WP_REST_Response {
     $payload = $req->get_body();
     $sig     = $req->get_header('stripe-signature') ?? '';
 
-    if (!pmc_verify_stripe($payload, $sig, pmc_stripe_hook())) {
-        pmc_log_webhook([
+    if (!pc_verify_stripe($payload, $sig, pc_stripe_hook())) {
+        pc_log_webhook([
             'source'          => 'stripe',
             'event_type'      => 'unknown',
             'event_id'        => '',
@@ -23,9 +23,9 @@ function pmc_stripe_webhook(WP_REST_Request $req): WP_REST_Response {
     }
 
     try {
-        return pmc_stripe_webhook_handle($req, $payload);
+        return pc_stripe_webhook_handle($req, $payload);
     } catch (\Throwable $e) {
-        error_log('[PMC CRM] Webhook fatal: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        error_log('[ProjectCare CRM] Webhook fatal: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
         return rest_ensure_response(['received' => true]);
     }
 }
@@ -33,14 +33,14 @@ function pmc_stripe_webhook(WP_REST_Request $req): WP_REST_Response {
 /**
  * Inner handler — parses event and routes to sub-handlers.
  */
-function pmc_stripe_webhook_handle(WP_REST_Request $req, string $payload): WP_REST_Response {
+function pc_stripe_webhook_handle(WP_REST_Request $req, string $payload): WP_REST_Response {
     $event    = json_decode($payload, true);
     $type     = $event['type'] ?? '';
     $event_id = $event['id']   ?? '';
 
     // Deduplication — reject replayed events within 24 hours
     if ($event_id !== '') {
-        $dedup_key = 'pmc_stripe_' . md5($event_id);
+        $dedup_key = 'pc_stripe_' . md5($event_id);
         if (get_transient($dedup_key) !== false) {
             return rest_ensure_response(['received' => true]);
         }
@@ -48,18 +48,18 @@ function pmc_stripe_webhook_handle(WP_REST_Request $req, string $payload): WP_RE
     }
 
     if ($type === 'checkout.session.completed') {
-        return _pmc_stripe_checkout($event, $event_id, $payload);
+        return _pc_stripe_checkout($event, $event_id, $payload);
     }
 
     if ($type === 'invoice.payment_succeeded') {
-        return _pmc_stripe_renewal($event, $event_id, $payload);
+        return _pc_stripe_renewal($event, $event_id, $payload);
     }
 
     if ($type === 'customer.subscription.deleted') {
-        return _pmc_stripe_cancel($event, $event_id, $payload);
+        return _pc_stripe_cancel($event, $event_id, $payload);
     }
 
-    pmc_log_webhook([
+    pc_log_webhook([
         'source'          => 'stripe',
         'event_type'      => $type,
         'event_id'        => $event_id,
@@ -72,7 +72,7 @@ function pmc_stripe_webhook_handle(WP_REST_Request $req, string $payload): WP_RE
 }
 
 /** Handle checkout.session.completed */
-function _pmc_stripe_checkout(array $event, string $event_id, string $payload): WP_REST_Response {
+function _pc_stripe_checkout(array $event, string $event_id, string $payload): WP_REST_Response {
     $session      = $event['data']['object'];
     $mode         = $session['mode']      ?? 'payment';
     $email        = strtolower($session['customer_details']['email'] ?? '');
@@ -83,7 +83,7 @@ function _pmc_stripe_checkout(array $event, string $event_id, string $payload): 
     $intent       = $session['payment_intent'] ?? 'n/a';
 
     if (empty($email)) {
-        pmc_log_webhook(['source' => 'stripe', 'event_type' => 'checkout.session.completed',
+        pc_log_webhook(['source' => 'stripe', 'event_type' => 'checkout.session.completed',
             'event_id' => $event_id, 'email' => '', 'amount_cents' => $amount_cents,
             'result' => 'skipped', 'error_message' => 'No email in session', 'payload_excerpt' => substr($payload, 0, 200)]);
         return rest_ensure_response(['received' => true]);
@@ -100,8 +100,8 @@ function _pmc_stripe_checkout(array $event, string $event_id, string $payload): 
 
     // TOP-UP (mode === payment)
     if ($mode === 'payment') {
-        $topup_credits = pmc_amount_to_topup($amount);
-        $user          = pmc_get_user_by_email($email);
+        $topup_credits = pc_amount_to_topup($amount);
+        $user          = pc_get_user_by_email($email);
 
         if ($user) {
             $old_total = (int) $user->credits_total;
@@ -109,10 +109,10 @@ function _pmc_stripe_checkout(array $event, string $event_id, string $payload): 
             $new_total = $old_total + $topup_credits;
             $remaining = max(0, $new_total - $used);
 
-            pmc_update_user((int) $user->id, [
+            pc_update_user((int) $user->id, [
                 'credits_total' => $new_total,
             ]);
-            pmc_log_activity([
+            pc_log_activity([
                 'user_id'        => (int) $user->id,
                 'email'          => $email,
                 'action'         => 'stripe_topup',
@@ -123,7 +123,7 @@ function _pmc_stripe_checkout(array $event, string $event_id, string $payload): 
                 'result'         => 'success',
                 'notes'          => '+' . $topup_credits . ' credits via Stripe topup $' . $amount . ' intent=' . $intent,
             ]);
-            pmc_log_payment([
+            pc_log_payment([
                 'user_id'               => (int) $user->id,
                 'email'                 => $email,
                 'stripe_payment_intent' => $intent !== 'n/a' ? $intent : '',
@@ -136,22 +136,22 @@ function _pmc_stripe_checkout(array $event, string $event_id, string $payload): 
                 'coupon_code'           => $session_coupon,
                 'status'                => 'succeeded',
             ]);
-            pmc_send_email($email, 'subscription_issued', [
+            pc_send_email($email, 'subscription_issued', [
                 'email'   => $email,
                 'plan'    => $user->plan,
                 'credits' => $remaining,
                 'expiry'  => $user->key_expires,
                 'key'     => $user->api_key,
             ]);
-            pmc_send_admin_email('PMC Top-Up — ' . $topup_credits . ' credits',
+            pc_send_admin_email('PMC Top-Up — ' . $topup_credits . ' credits',
                 "Email:   {$email}\nCredits: +{$topup_credits}\nAmount:  \${$amount}\nStripe:  {$intent}");
-            pmc_fluentcrm_sync_user(pmc_get_user_by_email($email) ?? $user);
+            pc_fluentcrm_sync_user(pc_get_user_by_email($email) ?? $user);
         } else {
-            pmc_send_admin_email('PMC Top-Up — No Account Found',
+            pc_send_admin_email('PMC Top-Up — No Account Found',
                 "Top-up payment received but no matching account found.\n\nEmail:  {$email}\nAmount: \${$amount}\nStripe: {$intent}\n\nManually apply or refund.");
         }
 
-        pmc_log_webhook(['source' => 'stripe', 'event_type' => 'checkout.session.completed',
+        pc_log_webhook(['source' => 'stripe', 'event_type' => 'checkout.session.completed',
             'event_id' => $event_id, 'email' => $email, 'amount_cents' => $amount_cents,
             'result' => $user ? 'processed' : 'error', 'error_message' => $user ? '' : 'no account found',
             'payload_excerpt' => substr($payload, 0, 200)]);
@@ -159,17 +159,17 @@ function _pmc_stripe_checkout(array $event, string $event_id, string $payload): 
     }
 
     // NEW SUBSCRIPTION
-    $plan   = pmc_amount_to_plan($amount);
-    $config = pmc_get_plan($plan);
+    $plan   = pc_amount_to_plan($amount);
+    $config = pc_get_plan($plan);
     if (!$config) $config = ['credits' => 20, 'days' => 35];
 
     $key    = bin2hex(random_bytes(32));
     $expiry = date('Y-m-d', strtotime('+' . (int) $config['days'] . ' days'));
 
-    $existing = pmc_get_user_by_email($email);
+    $existing = pc_get_user_by_email($email);
     if ($existing) {
         // Supersede old key
-        pmc_update_user((int) $existing->id, [
+        pc_update_user((int) $existing->id, [
             'api_key'                => $key,
             'plan'                   => $plan,
             'credits_total'          => (int) $config['credits'],
@@ -180,13 +180,13 @@ function _pmc_stripe_checkout(array $event, string $event_id, string $payload): 
             'stripe_subscription_id' => $sub_id,
         ]);
         $user_id = (int) $existing->id;
-        pmc_log_activity([
+        pc_log_activity([
             'user_id' => $user_id, 'email' => $email, 'action' => 'stripe_payment',
             'notes'   => 'Prior key superseded by new ' . $plan . ' subscription',
             'result'  => 'success',
         ]);
     } else {
-        $user_id = (int) pmc_create_user([
+        $user_id = (int) pc_create_user([
             'email'                  => $email,
             'api_key'                => $key,
             'plan'                   => $plan,
@@ -197,11 +197,11 @@ function _pmc_stripe_checkout(array $event, string $event_id, string $payload): 
             'stripe_customer_id'     => $stripe_id,
             'stripe_subscription_id' => $sub_id,
             'source'                 => 'stripe',
-            'ip_address'             => pmc_get_ip(),
+            'ip_address'             => pc_get_ip(),
         ]);
     }
 
-    pmc_log_activity([
+    pc_log_activity([
         'user_id'        => $user_id,
         'email'          => $email,
         'action'         => 'stripe_payment',
@@ -212,7 +212,7 @@ function _pmc_stripe_checkout(array $event, string $event_id, string $payload): 
         'result'         => 'success',
         'notes'          => 'Subscribed ' . $plan . ' $' . $amount . ' expires=' . $expiry . ' intent=' . $intent,
     ]);
-    pmc_log_payment([
+    pc_log_payment([
         'user_id'                => $user_id,
         'email'                  => $email,
         'stripe_payment_intent'  => $intent !== 'n/a' ? $intent : '',
@@ -228,20 +228,20 @@ function _pmc_stripe_checkout(array $event, string $event_id, string $payload): 
         'status'                 => 'succeeded',
     ]);
 
-    pmc_send_email($email, 'subscription_issued', [
+    pc_send_email($email, 'subscription_issued', [
         'email'   => $email,
         'key'     => $key,
         'plan'    => ucfirst($plan),
         'credits' => (int) $config['credits'],
         'expiry'  => $expiry,
     ]);
-    pmc_send_admin_email('PMC Subscription — ' . ucfirst($plan),
+    pc_send_admin_email('PMC Subscription — ' . ucfirst($plan),
         "New subscription\n\nEmail:   {$email}\nPlan:    {$plan}\nAmount:  \${$amount}\nCredits: {$config['credits']}\nExpires: {$expiry}\nStripe:  {$intent}");
 
-    $u = pmc_get_user_by_id($user_id);
-    if ($u) pmc_fluentcrm_sync_user($u);
+    $u = pc_get_user_by_id($user_id);
+    if ($u) pc_fluentcrm_sync_user($u);
 
-    pmc_log_webhook(['source' => 'stripe', 'event_type' => 'checkout.session.completed',
+    pc_log_webhook(['source' => 'stripe', 'event_type' => 'checkout.session.completed',
         'event_id' => $event_id, 'email' => $email, 'amount_cents' => $amount_cents,
         'result' => 'processed', 'payload_excerpt' => substr($payload, 0, 200)]);
 
@@ -249,7 +249,7 @@ function _pmc_stripe_checkout(array $event, string $event_id, string $payload): 
 }
 
 /** Handle invoice.payment_succeeded (subscription renewal) */
-function _pmc_stripe_renewal(array $event, string $event_id, string $payload): WP_REST_Response {
+function _pc_stripe_renewal(array $event, string $event_id, string $payload): WP_REST_Response {
     $invoice = $event['data']['object'];
     if (($invoice['billing_reason'] ?? '') !== 'subscription_cycle') {
         return rest_ensure_response(['received' => true]);
@@ -258,8 +258,8 @@ function _pmc_stripe_renewal(array $event, string $event_id, string $payload): W
     $email        = strtolower($invoice['customer_email'] ?? '');
     $amount_cents = (int) ($invoice['amount_paid'] ?? 0);
     $amount       = $amount_cents / 100;
-    $plan         = pmc_amount_to_plan($amount);
-    $config       = pmc_get_plan($plan) ?? ['credits' => 25, 'days' => 35];
+    $plan         = pc_amount_to_plan($amount);
+    $config       = pc_get_plan($plan) ?? ['credits' => 25, 'days' => 35];
     $expiry       = date('Y-m-d', strtotime('+35 days'));
 
     // Extract Stripe IDs from the invoice object
@@ -276,15 +276,15 @@ function _pmc_stripe_renewal(array $event, string $event_id, string $payload): W
     $inv_product_id     = (string) ($invoice['lines']['data'][0]['price']['product'] ?? '');
     $inv_coupon         = (string) ($invoice['discount']['coupon']['id']             ?? '');
 
-    $user = pmc_get_user_by_email($email);
+    $user = pc_get_user_by_email($email);
     if ($user) {
-        pmc_update_user((int) $user->id, [
+        pc_update_user((int) $user->id, [
             'credits_total' => (int) $config['credits'],
             'credits_used'  => 0,
             'key_expires'   => $expiry,
             'key_status'    => 'active',
         ]);
-        pmc_log_activity([
+        pc_log_activity([
             'user_id'        => (int) $user->id,
             'email'          => $email,
             'action'         => 'stripe_renew',
@@ -294,7 +294,7 @@ function _pmc_stripe_renewal(array $event, string $event_id, string $payload): W
             'result'         => 'success',
             'notes'          => 'Renewed ' . $plan . ' $' . $amount . ' new_expiry=' . $expiry,
         ]);
-        pmc_log_payment([
+        pc_log_payment([
             'user_id'                => (int) $user->id,
             'email'                  => $email,
             'stripe_payment_intent'  => $inv_payment_intent,
@@ -314,20 +314,20 @@ function _pmc_stripe_renewal(array $event, string $event_id, string $payload): W
             'coupon_code'            => $inv_coupon,
             'status'                 => 'succeeded',
         ]);
-        delete_transient('pmc_warned_' . md5($email));
+        delete_transient('pc_warned_' . md5($email));
 
-        pmc_send_email($email, 'renewal', [
+        pc_send_email($email, 'renewal', [
             'email'   => $email,
             'plan'    => ucfirst($plan),
             'credits' => (int) $config['credits'],
             'expiry'  => $expiry,
         ]);
 
-        $u = pmc_get_user_by_id((int) $user->id);
-        if ($u) pmc_fluentcrm_sync_user($u);
+        $u = pc_get_user_by_id((int) $user->id);
+        if ($u) pc_fluentcrm_sync_user($u);
     }
 
-    pmc_log_webhook(['source' => 'stripe', 'event_type' => 'invoice.payment_succeeded',
+    pc_log_webhook(['source' => 'stripe', 'event_type' => 'invoice.payment_succeeded',
         'event_id' => $event_id, 'email' => $email, 'amount_cents' => $amount_cents,
         'result' => $user ? 'processed' : 'skipped', 'error_message' => $user ? '' : 'no account',
         'payload_excerpt' => substr($payload, 0, 200)]);
@@ -336,23 +336,23 @@ function _pmc_stripe_renewal(array $event, string $event_id, string $payload): W
 }
 
 /** Handle customer.subscription.deleted (cancellation) */
-function _pmc_stripe_cancel(array $event, string $event_id, string $payload): WP_REST_Response {
+function _pc_stripe_cancel(array $event, string $event_id, string $payload): WP_REST_Response {
     $email = strtolower($event['data']['object']['customer_email'] ?? '');
-    $user  = $email ? pmc_get_user_by_email($email) : null;
+    $user  = $email ? pc_get_user_by_email($email) : null;
 
     if ($user) {
-        pmc_update_user((int) $user->id, ['key_status' => 'cancelled']);
-        pmc_log_activity([
+        pc_update_user((int) $user->id, ['key_status' => 'cancelled']);
+        pc_log_activity([
             'user_id' => (int) $user->id,
             'email'   => $email,
             'action'  => 'stripe_cancel',
             'result'  => 'success',
             'notes'   => 'Subscription cancelled via Stripe webhook',
         ]);
-        pmc_fluentcrm_sync_user(pmc_get_user_by_id((int) $user->id) ?? $user);
+        pc_fluentcrm_sync_user(pc_get_user_by_id((int) $user->id) ?? $user);
     }
 
-    pmc_log_webhook(['source' => 'stripe', 'event_type' => 'customer.subscription.deleted',
+    pc_log_webhook(['source' => 'stripe', 'event_type' => 'customer.subscription.deleted',
         'event_id' => $event_id, 'email' => $email, 'amount_cents' => 0,
         'result' => $user ? 'processed' : 'skipped', 'payload_excerpt' => substr($payload, 0, 200)]);
 
@@ -362,9 +362,9 @@ function _pmc_stripe_cancel(array $event, string $event_id, string $payload): WP
 /**
  * Insert a row into the payments table — full Stripe financial audit trail.
  */
-function pmc_log_payment(array $data): void {
+function pc_log_payment(array $data): void {
     global $wpdb;
-    $result = $wpdb->insert($wpdb->prefix . 'pmc_payments', [
+    $result = $wpdb->insert($wpdb->prefix . 'pc_payments', [
         'user_id'                => isset($data['user_id'])                ? (int)    $data['user_id']                : null,
         'email'                  => (string) ($data['email']               ?? ''),
         'stripe_payment_intent'  => (string) ($data['stripe_payment_intent']  ?? ''),
@@ -386,16 +386,16 @@ function pmc_log_payment(array $data): void {
         'created_at'             => current_time('mysql'),
     ]);
     if (false === $result) {
-        error_log('pmc_log_payment: DB insert failed for email=' . ($data['email'] ?? ''));
+        error_log('pc_log_payment: DB insert failed for email=' . ($data['email'] ?? ''));
     }
 }
 
 /**
  * Insert a row into the webhook log.
  */
-function pmc_log_webhook(array $data): void {
+function pc_log_webhook(array $data): void {
     global $wpdb;
-    $result = $wpdb->insert($wpdb->prefix . 'pmc_webhook_log', [
+    $result = $wpdb->insert($wpdb->prefix . 'pc_webhook_log', [
         'source'          => (string) ($data['source']          ?? 'stripe'),
         'event_type'      => (string) ($data['event_type']      ?? ''),
         'event_id'        => (string) ($data['event_id']        ?? ''),
@@ -407,6 +407,6 @@ function pmc_log_webhook(array $data): void {
         'created_at'      => current_time('mysql'),
     ]);
     if (false === $result) {
-        error_log('pmc_log_webhook: DB insert failed for event=' . ($data['event_type'] ?? ''));
+        error_log('pc_log_webhook: DB insert failed for event=' . ($data['event_type'] ?? ''));
     }
 }

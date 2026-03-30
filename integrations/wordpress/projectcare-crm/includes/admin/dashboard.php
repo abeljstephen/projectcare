@@ -1,26 +1,26 @@
 <?php
 defined('ABSPATH') || exit;
 
-function pmc_page_dashboard(): void {
+function pc_page_dashboard(): void {
     if (!current_user_can('manage_options')) return;
 
     // Handle quick actions (extend / grant credits)
-    if (isset($_POST['pmc_quick_uid'], $_POST['pmc_quick_nonce'], $_POST['pmc_quick_action'])) {
-        $uid    = (int) $_POST['pmc_quick_uid'];
-        $action = sanitize_text_field($_POST['pmc_quick_action']);
-        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_quick_nonce'])), 'pmc_quick_action_' . $uid)) {
-            $user = pmc_get_user_by_id($uid);
+    if (isset($_POST['pc_quick_uid'], $_POST['pc_quick_nonce'], $_POST['pc_quick_action'])) {
+        $uid    = (int) $_POST['pc_quick_uid'];
+        $action = sanitize_text_field($_POST['pc_quick_action']);
+        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_quick_nonce'])), 'pc_quick_action_' . $uid)) {
+            $user = pc_get_user_by_id($uid);
             if ($user) {
                 if ($action === 'extend10') {
                     $new_exp = date('Y-m-d', strtotime(($user->key_expires ?: 'now') . ' +10 days'));
-                    pmc_update_user($uid, ['key_expires' => $new_exp, 'key_status' => 'active']);
-                    pmc_log_activity(['user_id' => $uid, 'email' => $user->email,
+                    pc_update_user($uid, ['key_expires' => $new_exp, 'key_status' => 'active']);
+                    pc_log_activity(['user_id' => $uid, 'email' => $user->email,
                         'action' => 'manual_grant', 'result' => 'success',
                         'notes' => 'Dashboard quick-extend +10 days. New expiry: ' . $new_exp]);
                 } elseif ($action === 'grant20') {
                     $new_total = (int) $user->credits_total + 20;
-                    pmc_update_user($uid, ['credits_total' => $new_total]);
-                    pmc_log_activity(['user_id' => $uid, 'email' => $user->email,
+                    pc_update_user($uid, ['credits_total' => $new_total]);
+                    pc_log_activity(['user_id' => $uid, 'email' => $user->email,
                         'action' => 'manual_grant', 'result' => 'success',
                         'credits_cost' => -20, 'credits_before' => (int)$user->credits_total, 'credits_after' => $new_total,
                         'notes' => 'Dashboard quick-grant +20 credits']);
@@ -30,20 +30,20 @@ function pmc_page_dashboard(): void {
     }
 
     $today     = date('Y-m-d');
-    $today_stats = pmc_get_calls_in_window($today, $today);
-    $total_users  = pmc_get_user_count();
-    $active_users = pmc_get_user_count('active');
-    $expired      = pmc_get_user_count('expired') + pmc_get_user_count('cancelled');
+    $today_stats = pc_get_calls_in_window($today, $today);
+    $total_users  = pc_get_user_count();
+    $active_users = pc_get_user_count('active');
+    $expired      = pc_get_user_count('expired') + pc_get_user_count('cancelled');
 
     // Count trials (plan=trial + active)
     global $wpdb;
     $trials_active = (int) $wpdb->get_var(
-        "SELECT COUNT(*) FROM `{$wpdb->prefix}pmc_users` WHERE plan='trial' AND key_status='active'"
+        "SELECT COUNT(*) FROM `{$wpdb->prefix}pc_users` WHERE plan='trial' AND key_status='active'"
     );
 
-    $expiring_soon = pmc_get_all_pmc_users(['expiring_days' => 7]);
-    $low_credit    = pmc_get_all_pmc_users(['low_credits_pct' => 10]);
-    $recent_activity = pmc_get_activity([], 20);
+    $expiring_soon = pc_get_all_pc_users(['expiring_days' => 7]);
+    $low_credit    = pc_get_all_pc_users(['low_credits_pct' => 10]);
+    $recent_activity = pc_get_activity([], 20);
 
     $failed_today = $today_stats['failed_calls'];
     $calls_today  = $today_stats['total_calls'];
@@ -53,35 +53,35 @@ function pmc_page_dashboard(): void {
 
     // Credits consumed today
     $credits_today = (int) $wpdb->get_var($wpdb->prepare(
-        "SELECT COALESCE(SUM(credits_cost),0) FROM `{$wpdb->prefix}pmc_activity`
+        "SELECT COALESCE(SUM(credits_cost),0) FROM `{$wpdb->prefix}pc_activity`
          WHERE action='deduct' AND DATE(created_at)=%s",
         $today
     ));
 
     // Revenue KPIs from payments table
     $rev_today = (int) $wpdb->get_var($wpdb->prepare(
-        "SELECT COALESCE(SUM(amount_cents),0) FROM `{$wpdb->prefix}pmc_payments` WHERE DATE(created_at)=%s AND status='succeeded'",
+        "SELECT COALESCE(SUM(amount_cents),0) FROM `{$wpdb->prefix}pc_payments` WHERE DATE(created_at)=%s AND status='succeeded'",
         $today
     ));
     $rev_month = (int) $wpdb->get_var($wpdb->prepare(
-        "SELECT COALESCE(SUM(amount_cents),0) FROM `{$wpdb->prefix}pmc_payments` WHERE DATE_FORMAT(created_at,'%%Y-%%m')=%s AND status='succeeded'",
+        "SELECT COALESCE(SUM(amount_cents),0) FROM `{$wpdb->prefix}pc_payments` WHERE DATE_FORMAT(created_at,'%%Y-%%m')=%s AND status='succeeded'",
         date('Y-m')
     ));
     $rev_total = (int) $wpdb->get_var(
-        "SELECT COALESCE(SUM(amount_cents),0) FROM `{$wpdb->prefix}pmc_payments` WHERE status='succeeded'"
+        "SELECT COALESCE(SUM(amount_cents),0) FROM `{$wpdb->prefix}pc_payments` WHERE status='succeeded'"
     );
     ?>
     <div class="wrap">
-        <h1>PMC CRM — Dashboard</h1>
+        <h1>ProjectCare CRM — Dashboard</h1>
         <?php if (isset($_GET['updated'])): ?>
             <div class="notice notice-success is-dismissible"><p>Saved.</p></div>
         <?php endif; ?>
 
         <?php
-        // Migration banner: if own table empty but FluentCRM has pmc_api_key data
-        if ($total_users === 0 && pmc_fluentcrm_available()) {
+        // Migration banner: if own table empty but FluentCRM has pc_api_key data
+        if ($total_users === 0 && pc_fluentcrm_available()) {
             $fc_count = (int) $wpdb->get_var(
-                "SELECT COUNT(DISTINCT subscriber_id) FROM `{$wpdb->prefix}fc_subscriber_meta` WHERE `key`='pmc_api_key'"
+                "SELECT COUNT(DISTINCT subscriber_id) FROM `{$wpdb->prefix}fc_subscriber_meta` WHERE `key`='pc_api_key'"
             );
             if ($fc_count > 0): ?>
                 <div class="notice notice-warning">
@@ -143,9 +143,9 @@ function pmc_page_dashboard(): void {
                             <td><?php echo esc_html($days_left); ?></td>
                             <td>
                                 <form method="post" style="display:inline">
-                                    <?php wp_nonce_field('pmc_quick_action_' . $u->id, 'pmc_quick_nonce'); ?>
-                                    <input type="hidden" name="pmc_quick_uid"    value="<?php echo esc_attr($u->id); ?>">
-                                    <input type="hidden" name="pmc_quick_action" value="extend10">
+                                    <?php wp_nonce_field('pc_quick_action_' . $u->id, 'pc_quick_nonce'); ?>
+                                    <input type="hidden" name="pc_quick_uid"    value="<?php echo esc_attr($u->id); ?>">
+                                    <input type="hidden" name="pc_quick_action" value="extend10">
                                     <button type="submit" class="button button-small">Extend +10 Days</button>
                                 </form>
                             </td>
@@ -170,9 +170,9 @@ function pmc_page_dashboard(): void {
                             <td><?php echo esc_html($u->credits_total); ?></td>
                             <td>
                                 <form method="post" style="display:inline">
-                                    <?php wp_nonce_field('pmc_quick_action_' . $u->id, 'pmc_quick_nonce'); ?>
-                                    <input type="hidden" name="pmc_quick_uid"    value="<?php echo esc_attr($u->id); ?>">
-                                    <input type="hidden" name="pmc_quick_action" value="grant20">
+                                    <?php wp_nonce_field('pc_quick_action_' . $u->id, 'pc_quick_nonce'); ?>
+                                    <input type="hidden" name="pc_quick_uid"    value="<?php echo esc_attr($u->id); ?>">
+                                    <input type="hidden" name="pc_quick_action" value="grant20">
                                     <button type="submit" class="button button-small">Grant +20 Credits</button>
                                 </form>
                             </td>

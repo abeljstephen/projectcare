@@ -1,11 +1,11 @@
 <?php
 defined('ABSPATH') || exit;
 
-function pmc_page_stripe_log(): void {
+function pc_page_stripe_log(): void {
     if (!current_user_can('manage_options')) return;
 
     global $wpdb;
-    $table = $wpdb->prefix . 'pmc_webhook_log';
+    $table = $wpdb->prefix . 'pc_webhook_log';
 
     $date_from   = sanitize_text_field($_GET['date_from']   ?? date('Y-m-d', strtotime('-30 days')));
     $date_to     = sanitize_text_field($_GET['date_to']     ?? date('Y-m-d'));

@@ -1,29 +1,29 @@
 <?php
 defined('ABSPATH') || exit;
 
-function pmc_get_user_by_email(string $email): ?object {
+function pc_get_user_by_email(string $email): ?object {
     global $wpdb;
     $row = $wpdb->get_row($wpdb->prepare(
-        "SELECT * FROM `{$wpdb->prefix}pmc_users` WHERE email = %s LIMIT 1",
+        "SELECT * FROM `{$wpdb->prefix}pc_users` WHERE email = %s LIMIT 1",
         strtolower($email)
     ));
     return $row ?: null;
 }
 
-function pmc_get_user_by_key(string $key): ?object {
+function pc_get_user_by_key(string $key): ?object {
     if (empty($key)) return null;
     global $wpdb;
     $row = $wpdb->get_row($wpdb->prepare(
-        "SELECT * FROM `{$wpdb->prefix}pmc_users` WHERE api_key = %s LIMIT 1",
+        "SELECT * FROM `{$wpdb->prefix}pc_users` WHERE api_key = %s LIMIT 1",
         $key
     ));
     return $row ?: null;
 }
 
-function pmc_get_user_by_id(int $id): ?object {
+function pc_get_user_by_id(int $id): ?object {
     global $wpdb;
     $row = $wpdb->get_row($wpdb->prepare(
-        "SELECT * FROM `{$wpdb->prefix}pmc_users` WHERE id = %d LIMIT 1",
+        "SELECT * FROM `{$wpdb->prefix}pc_users` WHERE id = %d LIMIT 1",
         $id
     ));
     return $row ?: null;
@@ -33,11 +33,11 @@ function pmc_get_user_by_id(int $id): ?object {
  * Insert a new PMC user. $data keys match table columns.
  * Returns new row ID on success, false on failure.
  */
-function pmc_create_user(array $data): int|false {
+function pc_create_user(array $data): int|false {
     global $wpdb;
     $data['created_at'] = current_time('mysql');
     $data['updated_at'] = current_time('mysql');
-    $result = $wpdb->insert($wpdb->prefix . 'pmc_users', $data);
+    $result = $wpdb->insert($wpdb->prefix . 'pc_users', $data);
     if ($result === false) return false;
     return (int) $wpdb->insert_id;
 }
@@ -46,11 +46,11 @@ function pmc_create_user(array $data): int|false {
  * Update specified columns for a user by ID.
  * Always sets updated_at to now.
  */
-function pmc_update_user(int $id, array $data): bool {
+function pc_update_user(int $id, array $data): bool {
     global $wpdb;
     $data['updated_at'] = current_time('mysql');
     $result = $wpdb->update(
-        $wpdb->prefix . 'pmc_users',
+        $wpdb->prefix . 'pc_users',
         $data,
         ['id' => $id]
     );
@@ -75,9 +75,9 @@ function pmc_update_user(int $id, array $data): bool {
  *
  * Returns each row plus SQL-computed 'credits_remaining'.
  */
-function pmc_get_all_pmc_users(array $filters = []): array {
+function pc_get_all_pc_users(array $filters = []): array {
     global $wpdb;
-    $table = $wpdb->prefix . 'pmc_users';
+    $table = $wpdb->prefix . 'pc_users';
     $where = ['1=1'];
     $vals  = [];
 
@@ -158,9 +158,9 @@ function pmc_get_all_pmc_users(array $filters = []): array {
 /**
  * Count users by key_status, or all users if $status is empty.
  */
-function pmc_get_user_count(string $status = ''): int {
+function pc_get_user_count(string $status = ''): int {
     global $wpdb;
-    $table = $wpdb->prefix . 'pmc_users';
+    $table = $wpdb->prefix . 'pc_users';
     if ($status !== '') {
         return (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM `{$table}` WHERE key_status = %s",
@@ -173,9 +173,9 @@ function pmc_get_user_count(string $status = ''): int {
 /**
  * Return overall user KPIs (not affected by list filters).
  */
-function pmc_get_user_kpis(): array {
+function pc_get_user_kpis(): array {
     global $wpdb;
-    $t = $wpdb->prefix . 'pmc_users';
+    $t = $wpdb->prefix . 'pc_users';
     return [
         'total'      => (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$t}`"),
         'active'     => (int) $wpdb->get_var("SELECT COUNT(*) FROM `{$t}` WHERE key_status='active' AND (key_expires IS NULL OR key_expires >= CURDATE())"),
@@ -187,6 +187,6 @@ function pmc_get_user_kpis(): array {
 /**
  * Remaining credits for a user object.
  */
-function pmc_credits_remaining(object $user): int {
+function pc_credits_remaining(object $user): int {
     return max(0, (int) $user->credits_total - (int) $user->credits_used);
 }

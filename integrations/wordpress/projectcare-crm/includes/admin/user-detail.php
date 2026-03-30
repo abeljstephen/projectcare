@@ -1,10 +1,10 @@
 <?php
 defined('ABSPATH') || exit;
 
-function pmc_render_user_detail(int $user_id): void {
+function pc_render_user_detail(int $user_id): void {
     if (!current_user_can('manage_options')) return;
 
-    $user = pmc_get_user_by_id($user_id);
+    $user = pc_get_user_by_id($user_id);
     if (!$user) {
         echo '<div class="wrap"><p>User not found.</p><a href="' . esc_url(admin_url('admin.php?page=pmc-crm-users')) . '">&larr; Back to Users</a></div>';
         return;
@@ -20,28 +20,28 @@ function pmc_render_user_detail(int $user_id): void {
     $self_url = admin_url('admin.php?page=pmc-crm-users&user_id=' . $user_id . '&return_url=' . urlencode($return_url));
 
     // ── Main edit form ────────────────────────────────────────────────────────
-    if (isset($_POST['pmc_edit_nonce'])) {
-        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_edit_nonce'])), 'pmc_edit_user_' . $user_id)) {
-            pmc_update_user($user_id, [
-                'plan'          => sanitize_text_field($_POST['pmc_plan']          ?? $user->plan),
-                'credits_total' => (int) ($_POST['pmc_credits_total'] ?? $user->credits_total),
-                'credits_used'  => (int) ($_POST['pmc_credits_used']  ?? $user->credits_used),
-                'key_expires'   => sanitize_text_field($_POST['pmc_key_expires']  ?? $user->key_expires),
-                'key_status'    => sanitize_text_field($_POST['pmc_key_status']   ?? $user->key_status),
-                'notes'         => sanitize_textarea_field($_POST['pmc_notes'] ?? ''),
+    if (isset($_POST['pc_edit_nonce'])) {
+        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_edit_nonce'])), 'pc_edit_user_' . $user_id)) {
+            pc_update_user($user_id, [
+                'plan'          => sanitize_text_field($_POST['pc_plan']          ?? $user->plan),
+                'credits_total' => (int) ($_POST['pc_credits_total'] ?? $user->credits_total),
+                'credits_used'  => (int) ($_POST['pc_credits_used']  ?? $user->credits_used),
+                'key_expires'   => sanitize_text_field($_POST['pc_key_expires']  ?? $user->key_expires),
+                'key_status'    => sanitize_text_field($_POST['pc_key_status']   ?? $user->key_status),
+                'notes'         => sanitize_textarea_field($_POST['pc_notes'] ?? ''),
             ]);
-            pmc_log_activity(['user_id' => $user_id, 'email' => $user->email,
+            pc_log_activity(['user_id' => $user_id, 'email' => $user->email,
                 'action' => 'admin_edit', 'result' => 'success', 'notes' => 'Admin edited user profile']);
-            $user       = pmc_get_user_by_id($user_id);
+            $user       = pc_get_user_by_id($user_id);
             $notice     = 'User updated.';
             $active_tab = 'edit';
         }
     }
 
     // ── Quick actions ─────────────────────────────────────────────────────────
-    if (isset($_POST['pmc_quick_nonce'], $_POST['pmc_action'])) {
-        $action = sanitize_text_field($_POST['pmc_action']);
-        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_quick_nonce'])), 'pmc_quick_action_' . $user_id)) {
+    if (isset($_POST['pc_quick_nonce'], $_POST['pc_action'])) {
+        $action = sanitize_text_field($_POST['pc_action']);
+        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_quick_nonce'])), 'pc_quick_action_' . $user_id)) {
             switch ($action) {
                 case 'reset':
                     $reset_updates = ['credits_used' => 0, 'key_status' => 'active'];
@@ -49,8 +49,8 @@ function pmc_render_user_detail(int $user_id): void {
                     if (!$reset_exp_ts || $reset_exp_ts < time()) {
                         $reset_updates['key_expires'] = date('Y-m-d', strtotime('+30 days'));
                     }
-                    pmc_update_user($user_id, $reset_updates);
-                    pmc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'admin_edit',
+                    pc_update_user($user_id, $reset_updates);
+                    pc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'admin_edit',
                         'result' => 'success', 'notes' => 'Reset usage + activated'
                             . (isset($reset_updates['key_expires']) ? ' + extended to ' . $reset_updates['key_expires'] : '')]);
                     $notice = 'Usage reset and key activated.'
@@ -58,15 +58,15 @@ function pmc_render_user_detail(int $user_id): void {
                     break;
                 case 'extend7':
                     $new_exp = date('Y-m-d', strtotime(($user->key_expires ?: 'now') . ' +7 days'));
-                    pmc_update_user($user_id, ['key_expires' => $new_exp, 'key_status' => 'active']);
-                    pmc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'manual_grant',
+                    pc_update_user($user_id, ['key_expires' => $new_exp, 'key_status' => 'active']);
+                    pc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'manual_grant',
                         'result' => 'success', 'notes' => 'Extended +7 days. New expiry: ' . $new_exp]);
                     $notice = 'Extended +7 days. New expiry: ' . $new_exp;
                     break;
                 case 'extend30':
                     $new_exp = date('Y-m-d', strtotime(($user->key_expires ?: 'now') . ' +30 days'));
-                    pmc_update_user($user_id, ['key_expires' => $new_exp, 'key_status' => 'active']);
-                    pmc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'manual_grant',
+                    pc_update_user($user_id, ['key_expires' => $new_exp, 'key_status' => 'active']);
+                    pc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'manual_grant',
                         'result' => 'success', 'notes' => 'Extended +30 days. New expiry: ' . $new_exp]);
                     $notice = 'Extended +30 days. New expiry: ' . $new_exp;
                     break;
@@ -75,8 +75,8 @@ function pmc_render_user_detail(int $user_id): void {
                 case 'grant50':
                     $amt       = (int) substr($action, 5);
                     $new_total = (int) $user->credits_total + $amt;
-                    pmc_update_user($user_id, ['credits_total' => $new_total]);
-                    pmc_log_activity(['user_id' => $user_id, 'email' => $user->email,
+                    pc_update_user($user_id, ['credits_total' => $new_total]);
+                    pc_log_activity(['user_id' => $user_id, 'email' => $user->email,
                         'action' => 'manual_grant', 'credits_cost' => -$amt,
                         'credits_before' => (int) $user->credits_total, 'credits_after' => $new_total,
                         'result' => 'success', 'notes' => 'Manual grant +' . $amt . ' credits']);
@@ -88,8 +88,8 @@ function pmc_render_user_detail(int $user_id): void {
                     if (!$exp_ts || $exp_ts < time()) {
                         $act_updates['key_expires'] = date('Y-m-d', strtotime('+30 days'));
                     }
-                    pmc_update_user($user_id, $act_updates);
-                    pmc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'admin_edit',
+                    pc_update_user($user_id, $act_updates);
+                    pc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'admin_edit',
                         'result' => 'success', 'notes' => 'Admin activated key'
                             . (isset($act_updates['key_expires']) ? ' + extended to ' . $act_updates['key_expires'] : '')]);
                     $notice = isset($act_updates['key_expires'])
@@ -97,14 +97,14 @@ function pmc_render_user_detail(int $user_id): void {
                         : 'Key activated.';
                     break;
                 case 'deactivate':
-                    pmc_update_user($user_id, ['key_status' => 'inactive']);
-                    pmc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'admin_edit',
+                    pc_update_user($user_id, ['key_status' => 'inactive']);
+                    pc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'admin_edit',
                         'result' => 'success', 'notes' => 'Admin deactivated key']);
                     $notice = 'Key deactivated.';
                     break;
                 case 'suspend':
-                    pmc_update_user($user_id, ['key_status' => 'suspended']);
-                    pmc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'suspension',
+                    pc_update_user($user_id, ['key_status' => 'suspended']);
+                    pc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'suspension',
                         'result' => 'success', 'notes' => 'Admin suspended key']);
                     $notice = 'Key suspended.';
                     break;
@@ -115,10 +115,10 @@ function pmc_render_user_detail(int $user_id): void {
                     if (!$regen_exp_ts || $regen_exp_ts < time()) {
                         $regen_updates['key_expires'] = date('Y-m-d', strtotime('+30 days'));
                     }
-                    pmc_update_user($user_id, $regen_updates);
-                    pmc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'key_regen',
+                    pc_update_user($user_id, $regen_updates);
+                    pc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'key_regen',
                         'result' => 'success', 'notes' => 'Admin regenerated API key']);
-                    pmc_send_email($user->email, 'key_regen', [
+                    pc_send_email($user->email, 'key_regen', [
                         'email'  => $user->email,
                         'key'    => $new_key,
                         'plan'   => $user->plan,
@@ -127,31 +127,31 @@ function pmc_render_user_detail(int $user_id): void {
                     $notice = 'Key regenerated and email sent.';
                     break;
             }
-            $user = pmc_get_user_by_id($user_id);
+            $user = pc_get_user_by_id($user_id);
         }
     }
 
     // ── Send email ────────────────────────────────────────────────────────────
-    if (isset($_POST['pmc_send_email_nonce'])) {
-        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_send_email_nonce'])), 'pmc_send_email_' . $user_id)) {
-            $tpl_slug = sanitize_text_field($_POST['pmc_email_template'] ?? '');
+    if (isset($_POST['pc_send_email_nonce'])) {
+        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_send_email_nonce'])), 'pc_send_email_' . $user_id)) {
+            $tpl_slug = sanitize_text_field($_POST['pc_email_template'] ?? '');
             if ($tpl_slug === 'custom') {
-                $subj = sanitize_text_field($_POST['pmc_custom_subject'] ?? 'PMC Notification');
-                $body = wp_kses_post($_POST['pmc_custom_body'] ?? '');
+                $subj = sanitize_text_field($_POST['pc_custom_subject'] ?? 'PMC Notification');
+                $body = wp_kses_post($_POST['pc_custom_body'] ?? '');
                 $sent = wp_mail($user->email, $subj, $body, ['Content-Type: text/html; charset=UTF-8']);
-                pmc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'email_sent',
+                pc_log_activity(['user_id' => $user_id, 'email' => $user->email, 'action' => 'email_sent',
                     'result' => $sent ? 'success' : 'fail', 'notes' => 'Admin custom email: ' . mb_substr($subj, 0, 80)]);
             } else {
-                $sent = pmc_send_email($user->email, $tpl_slug, [
+                $sent = pc_send_email($user->email, $tpl_slug, [
                     'email'             => $user->email,
                     'key'               => $user->api_key,
                     'plan'              => $user->plan,
-                    'credits'           => pmc_credits_remaining($user),
+                    'credits'           => pc_credits_remaining($user),
                     'expiry'            => $user->key_expires,
-                    'credits_remaining' => pmc_credits_remaining($user),
+                    'credits_remaining' => pc_credits_remaining($user),
                     'credits_total'     => $user->credits_total,
                     'site_name'         => get_bloginfo('name'),
-                    'upgrade_url'       => pmc_stripe_link(),
+                    'upgrade_url'       => pc_stripe_link(),
                 ]);
             }
             $notice     = $sent ? 'Email sent.' : 'Email failed to send.';
@@ -160,25 +160,25 @@ function pmc_render_user_detail(int $user_id): void {
     }
 
     // ── Reload fresh data ─────────────────────────────────────────────────────
-    $user = pmc_get_user_by_id($user_id);
+    $user = pc_get_user_by_id($user_id);
     if (!$user) return;
 
-    $remaining  = pmc_credits_remaining($user);
+    $remaining  = pc_credits_remaining($user);
     $total_c    = (int) $user->credits_total;
     $is_expired = $user->key_expires && strtotime($user->key_expires) < time();
-    $plans      = pmc_get_plans();
+    $plans      = pc_get_plans();
 
     global $wpdb;
     $tpl_rows = $wpdb->get_results(
-        "SELECT slug, label FROM `{$wpdb->prefix}pmc_email_templates` ORDER BY slug"
+        "SELECT slug, label FROM `{$wpdb->prefix}pc_email_templates` ORDER BY slug"
     ) ?: [];
 
-    $activity    = pmc_get_activity(['user_id' => $user_id], 50);
-    $act_count   = pmc_get_activity_count(['user_id' => $user_id]);
-    $est_count   = pmc_get_activity_count(['user_id' => $user_id, 'action' => 'deduct']);
+    $activity    = pc_get_activity(['user_id' => $user_id], 50);
+    $act_count   = pc_get_activity_count(['user_id' => $user_id]);
+    $est_count   = pc_get_activity_count(['user_id' => $user_id, 'action' => 'deduct']);
 
     $payments = $wpdb->get_results($wpdb->prepare(
-        "SELECT * FROM `{$wpdb->prefix}pmc_payments` WHERE user_id=%d OR email=%s ORDER BY created_at DESC LIMIT 50",
+        "SELECT * FROM `{$wpdb->prefix}pc_payments` WHERE user_id=%d OR email=%s ORDER BY created_at DESC LIMIT 50",
         $user_id, $user->email
     )) ?: [];
 
@@ -209,8 +209,8 @@ function pmc_render_user_detail(int $user_id): void {
         <!-- Header -->
         <div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:4px">
             <h1 style="margin:0"><?php echo esc_html($user->email); ?></h1>
-            <?php echo pmc_plan_badge($user->plan); ?>
-            <?php echo pmc_status_badge($user->key_status, $is_expired); ?>
+            <?php echo pc_plan_badge($user->plan); ?>
+            <?php echo pc_status_badge($user->key_status, $is_expired); ?>
         </div>
         <p style="margin-top:6px">
             <a href="<?php echo esc_url($return_url); ?>" style="color:#2271b1;text-decoration:none">&larr; Back to Users</a>
@@ -252,7 +252,7 @@ function pmc_render_user_detail(int $user_id): void {
                         <div style="font-size:11px;color:#666">key expiry</div>
                     </div>
                     <div style="text-align:center">
-                        <div style="font-size:14px;font-weight:600;color:#374151"><?php echo esc_html(pmc_relative_time($user->last_estimation)); ?></div>
+                        <div style="font-size:14px;font-weight:600;color:#374151"><?php echo esc_html(pc_relative_time($user->last_estimation)); ?></div>
                         <div style="font-size:11px;color:#666">last active</div>
                     </div>
                     <div style="text-align:center">
@@ -319,8 +319,8 @@ function pmc_render_user_detail(int $user_id): void {
                             <code id="pmc-key-full" style="font-size:12px;word-break:break-all;display:none"><?php echo esc_html($user->api_key); ?></code>
                         </p>
                         <form method="post">
-                            <?php wp_nonce_field('pmc_quick_action_' . $user_id, 'pmc_quick_nonce'); ?>
-                            <input type="hidden" name="pmc_action" value="regen_key">
+                            <?php wp_nonce_field('pc_quick_action_' . $user_id, 'pc_quick_nonce'); ?>
+                            <input type="hidden" name="pc_action" value="regen_key">
                             <button type="submit" class="button" onclick="return confirm('Regenerate key? The old key stops working immediately.')">Regenerate Key + Email User</button>
                         </form>
                     </div>
@@ -346,8 +346,8 @@ function pmc_render_user_detail(int $user_id): void {
                             $onclick = $danger ? ' onclick="return confirm(\'Are you sure?\')"' : '';
                         ?>
                         <form method="post" style="display:inline">
-                            <?php wp_nonce_field('pmc_quick_action_' . $user_id, 'pmc_quick_nonce'); ?>
-                            <input type="hidden" name="pmc_action" value="<?php echo esc_attr($act); ?>">
+                            <?php wp_nonce_field('pc_quick_action_' . $user_id, 'pc_quick_nonce'); ?>
+                            <input type="hidden" name="pc_action" value="<?php echo esc_attr($act); ?>">
                             <button type="submit" class="button<?php echo $danger ? ' button-link-delete' : ''; ?>"<?php echo $onclick; ?>><?php echo esc_html($lbl); ?></button>
                         </form>
                         <?php endforeach; ?>
@@ -361,12 +361,12 @@ function pmc_render_user_detail(int $user_id): void {
                 <div style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:20px;max-width:600px">
                     <h2 style="margin-top:0;font-size:14px;font-weight:600">Edit User</h2>
                     <form method="post">
-                        <?php wp_nonce_field('pmc_edit_user_' . $user_id, 'pmc_edit_nonce'); ?>
+                        <?php wp_nonce_field('pc_edit_user_' . $user_id, 'pc_edit_nonce'); ?>
                         <table class="form-table" role="presentation">
                             <tr>
                                 <th><label for="f_plan">Plan</label></th>
                                 <td>
-                                    <select name="pmc_plan" id="f_plan">
+                                    <select name="pc_plan" id="f_plan">
                                         <?php foreach ($plans as $p): ?>
                                             <option value="<?php echo esc_attr($p['slug']); ?>" <?php selected($user->plan, $p['slug']); ?>>
                                                 <?php echo esc_html($p['label']); ?>
@@ -377,23 +377,23 @@ function pmc_render_user_detail(int $user_id): void {
                             </tr>
                             <tr>
                                 <th><label for="f_total">Credits Total</label></th>
-                                <td><input type="number" id="f_total" name="pmc_credits_total" value="<?php echo esc_attr($user->credits_total); ?>" min="0" class="small-text"></td>
+                                <td><input type="number" id="f_total" name="pc_credits_total" value="<?php echo esc_attr($user->credits_total); ?>" min="0" class="small-text"></td>
                             </tr>
                             <tr>
                                 <th><label for="f_used">Credits Used</label></th>
                                 <td>
-                                    <input type="number" id="f_used" name="pmc_credits_used" value="<?php echo esc_attr($user->credits_used); ?>" min="0" class="small-text">
+                                    <input type="number" id="f_used" name="pc_credits_used" value="<?php echo esc_attr($user->credits_used); ?>" min="0" class="small-text">
                                     <p class="description">Set to 0 to fully reset usage.</p>
                                 </td>
                             </tr>
                             <tr>
                                 <th><label for="f_expires">Key Expires</label></th>
-                                <td><input type="date" id="f_expires" name="pmc_key_expires" value="<?php echo esc_attr($user->key_expires ?? ''); ?>"></td>
+                                <td><input type="date" id="f_expires" name="pc_key_expires" value="<?php echo esc_attr($user->key_expires ?? ''); ?>"></td>
                             </tr>
                             <tr>
                                 <th><label for="f_status">Key Status</label></th>
                                 <td>
-                                    <select name="pmc_key_status" id="f_status">
+                                    <select name="pc_key_status" id="f_status">
                                         <?php foreach (['active','inactive','expired','suspended','cancelled','superseded'] as $st): ?>
                                             <option value="<?php echo esc_attr($st); ?>" <?php selected($user->key_status, $st); ?>><?php echo esc_html(ucfirst($st)); ?></option>
                                         <?php endforeach; ?>
@@ -402,7 +402,7 @@ function pmc_render_user_detail(int $user_id): void {
                             </tr>
                             <tr>
                                 <th><label for="f_notes">Admin Notes</label></th>
-                                <td><textarea id="f_notes" name="pmc_notes" rows="4" cols="50"><?php echo esc_textarea($user->notes ?? ''); ?></textarea></td>
+                                <td><textarea id="f_notes" name="pc_notes" rows="4" cols="50"><?php echo esc_textarea($user->notes ?? ''); ?></textarea></td>
                             </tr>
                         </table>
                         <?php submit_button('Save Changes', 'primary', '', false); ?>
@@ -544,10 +544,10 @@ function pmc_render_user_detail(int $user_id): void {
                 <div style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:20px;max-width:560px">
                     <h2 style="margin-top:0;font-size:14px;font-weight:600">Send Email to <?php echo esc_html($user->email); ?></h2>
                     <form method="post">
-                        <?php wp_nonce_field('pmc_send_email_' . $user_id, 'pmc_send_email_nonce'); ?>
+                        <?php wp_nonce_field('pc_send_email_' . $user_id, 'pc_send_email_nonce'); ?>
                         <p>
                             <label style="font-size:13px">Template<br>
-                                <select name="pmc_email_template" id="pmc-email-tpl" style="margin-top:4px;width:100%"
+                                <select name="pc_email_template" id="pmc-email-tpl" style="margin-top:4px;width:100%"
                                     onchange="document.getElementById('pmc-custom-fields').style.display = this.value==='custom' ? 'block' : 'none'">
                                     <?php foreach ($tpl_rows as $t): ?>
                                         <option value="<?php echo esc_attr($t->slug); ?>"><?php echo esc_html($t->label . ' (' . $t->slug . ')'); ?></option>
@@ -557,8 +557,8 @@ function pmc_render_user_detail(int $user_id): void {
                             </label>
                         </p>
                         <div id="pmc-custom-fields" style="display:none">
-                            <p><label style="font-size:13px">Subject<br><input type="text" name="pmc_custom_subject" class="regular-text" value="PMC Notification" style="margin-top:4px"></label></p>
-                            <p><label style="font-size:13px">Body (HTML)<br><textarea name="pmc_custom_body" rows="7" class="large-text" style="margin-top:4px"></textarea></label></p>
+                            <p><label style="font-size:13px">Subject<br><input type="text" name="pc_custom_subject" class="regular-text" value="PMC Notification" style="margin-top:4px"></label></p>
+                            <p><label style="font-size:13px">Body (HTML)<br><textarea name="pc_custom_body" rows="7" class="large-text" style="margin-top:4px"></textarea></label></p>
                         </div>
                         <?php submit_button('Send Email', 'primary', '', false); ?>
                     </form>

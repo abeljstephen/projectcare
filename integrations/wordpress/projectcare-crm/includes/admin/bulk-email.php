@@ -1,7 +1,7 @@
 <?php
 defined('ABSPATH') || exit;
 
-function pmc_page_bulk_email(): void {
+function pc_page_bulk_email(): void {
     if (!current_user_can('manage_options')) return;
 
     global $wpdb;
@@ -11,8 +11,8 @@ function pmc_page_bulk_email(): void {
     $fail_count = 0;
 
     // ── Send POST ─────────────────────────────────────────────────────────────
-    if (isset($_POST['pmc_bulk_email_nonce'])) {
-        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_bulk_email_nonce'])), 'pmc_bulk_email_send')) {
+    if (isset($_POST['pc_bulk_email_nonce'])) {
+        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_bulk_email_nonce'])), 'pc_bulk_email_send')) {
             $raw_ids  = sanitize_text_field($_POST['user_ids_list'] ?? '');
             $tpl_slug = sanitize_text_field($_POST['bulk_tpl'] ?? '');
             $user_ids = array_filter(array_map('intval', explode(',', $raw_ids)));
@@ -23,20 +23,20 @@ function pmc_page_bulk_email(): void {
                 $notice = 'Select a template.';
             } else {
                 foreach ($user_ids as $uid) {
-                    $u = pmc_get_user_by_id($uid);
+                    $u = pc_get_user_by_id($uid);
                     if (!$u) continue;
                     $vars = [
                         'email'             => $u->email,
                         'key'               => $u->api_key,
                         'plan'              => $u->plan,
-                        'credits'           => pmc_credits_remaining($u),
-                        'credits_remaining' => pmc_credits_remaining($u),
+                        'credits'           => pc_credits_remaining($u),
+                        'credits_remaining' => pc_credits_remaining($u),
                         'credits_total'     => $u->credits_total,
                         'expiry'            => $u->key_expires,
-                        'upgrade_url'       => pmc_stripe_link(),
+                        'upgrade_url'       => pc_stripe_link(),
                         'site_name'         => get_bloginfo('name'),
                     ];
-                    $ok = pmc_send_email($u->email, $tpl_slug, $vars);
+                    $ok = pc_send_email($u->email, $tpl_slug, $vars);
                     if ($ok) { $sent_count++; } else { $fail_count++; }
                 }
                 $notice = "Sent: {$sent_count} succeeded, {$fail_count} failed.";
@@ -49,12 +49,12 @@ function pmc_page_bulk_email(): void {
     $user_ids = array_unique(array_filter(array_map('intval', explode(',', $raw_ids))));
     $users    = [];
     foreach ($user_ids as $uid) {
-        $u = pmc_get_user_by_id($uid);
+        $u = pc_get_user_by_id($uid);
         if ($u) $users[] = $u;
     }
 
     $templates = $wpdb->get_results(
-        "SELECT slug, label FROM `{$wpdb->prefix}pmc_email_templates` WHERE is_active=1 ORDER BY label"
+        "SELECT slug, label FROM `{$wpdb->prefix}pc_email_templates` WHERE is_active=1 ORDER BY label"
     ) ?: [];
 
     $back_url = admin_url('admin.php?page=pmc-crm-users');
@@ -89,8 +89,8 @@ function pmc_page_bulk_email(): void {
                     ?>
                         <tr>
                             <td><?php echo esc_html($u->email); ?></td>
-                            <td><?php echo pmc_plan_badge($u->plan); ?></td>
-                            <td><?php echo pmc_status_badge($u->key_status, $is_exp); ?></td>
+                            <td><?php echo pc_plan_badge($u->plan); ?></td>
+                            <td><?php echo pc_status_badge($u->key_status, $is_exp); ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
@@ -101,7 +101,7 @@ function pmc_page_bulk_email(): void {
             <div style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:16px">
                 <h2 style="margin-top:0;font-size:14px;font-weight:600">Compose</h2>
                 <form method="post">
-                    <?php wp_nonce_field('pmc_bulk_email_send', 'pmc_bulk_email_nonce'); ?>
+                    <?php wp_nonce_field('pc_bulk_email_send', 'pc_bulk_email_nonce'); ?>
                     <input type="hidden" name="user_ids_list" value="<?php echo esc_attr(implode(',', array_column($users, 'id'))); ?>">
 
                     <p>

@@ -1,7 +1,7 @@
 <?php
 defined('ABSPATH') || exit;
 
-function pmc_page_activity(): void {
+function pc_page_activity(): void {
     if (!current_user_can('manage_options')) return;
 
     // Filters
@@ -22,7 +22,7 @@ function pmc_page_activity(): void {
 
     // CSV export
     if (isset($_GET['export']) && $_GET['export'] === '1') {
-        $all_rows = pmc_get_activity($filters, 100000, 0);
+        $all_rows = pc_get_activity($filters, 100000, 0);
         header('Content-Type: text/csv');
         header('Content-Disposition: attachment; filename="pmc-activity-' . date('Ymd') . '.csv"');
         $out = fopen('php://output', 'w');
@@ -42,13 +42,13 @@ function pmc_page_activity(): void {
         exit;
     }
 
-    $total  = pmc_get_activity_count($filters);
-    $rows   = pmc_get_activity($filters, $per_page, ($page_num - 1) * $per_page);
+    $total  = pc_get_activity_count($filters);
+    $rows   = pc_get_activity($filters, $per_page, ($page_num - 1) * $per_page);
     $pages  = max(1, (int) ceil($total / $per_page));
 
     // Summary totals
     global $wpdb;
-    $table  = $wpdb->prefix . 'pmc_activity';
+    $table  = $wpdb->prefix . 'pc_activity';
     $sum_credits = (int) $wpdb->get_var($wpdb->prepare(
         "SELECT COALESCE(SUM(credits_cost),0) FROM `{$table}` WHERE created_at BETWEEN %s AND %s",
         $date_from . ' 00:00:00', $date_to . ' 23:59:59'

@@ -9,7 +9,7 @@ defined('ABSPATH') || exit;
  * has_sliders, feasibility_avg, geo_country, geo_region, ip_address,
  * result, notes.
  */
-function pmc_log_activity(array $data): void {
+function pc_log_activity(array $data): void {
     global $wpdb;
     $row = [
         'user_id'         => (int)    ($data['user_id']         ?? 0),
@@ -26,14 +26,14 @@ function pmc_log_activity(array $data): void {
         'feasibility_avg' => round((float) ($data['feasibility_avg'] ?? 0), 2),
         'geo_country'     => substr((string) ($data['geo_country'] ?? ''), 0, 8),
         'geo_region'      => substr((string) ($data['geo_region']  ?? ''), 0, 64),
-        'ip_address'      => (string) ($data['ip_address']      ?? pmc_get_ip()),
+        'ip_address'      => (string) ($data['ip_address']      ?? pc_get_ip()),
         'result'          => (string) ($data['result']          ?? 'success'),
         'notes'           => isset($data['notes']) ? (string) $data['notes'] : null,
         'created_at'      => current_time('mysql'),
     ];
-    $result = $wpdb->insert($wpdb->prefix . 'pmc_activity', $row);
+    $result = $wpdb->insert($wpdb->prefix . 'pc_activity', $row);
     if (false === $result) {
-        error_log('pmc_log_activity: DB insert failed for action=' . $row['action']);
+        error_log('pc_log_activity: DB insert failed for action=' . $row['action']);
     }
 }
 
@@ -42,10 +42,10 @@ function pmc_log_activity(array $data): void {
  *
  * Supported filters: user_id, email, action, result, date_from, date_to, ip_address.
  */
-function pmc_get_activity(array $filters = [], int $limit = 50, int $offset = 0): array {
+function pc_get_activity(array $filters = [], int $limit = 50, int $offset = 0): array {
     global $wpdb;
-    $table = $wpdb->prefix . 'pmc_activity';
-    [$where, $vals] = _pmc_activity_where($filters);
+    $table = $wpdb->prefix . 'pc_activity';
+    [$where, $vals] = _pc_activity_where($filters);
 
     $sql = "SELECT * FROM `{$table}` WHERE " . implode(' AND ', $where)
         . " ORDER BY created_at DESC LIMIT %d OFFSET %d";
@@ -58,10 +58,10 @@ function pmc_get_activity(array $filters = [], int $limit = 50, int $offset = 0)
 /**
  * Count activity rows matching filters.
  */
-function pmc_get_activity_count(array $filters = []): int {
+function pc_get_activity_count(array $filters = []): int {
     global $wpdb;
-    $table = $wpdb->prefix . 'pmc_activity';
-    [$where, $vals] = _pmc_activity_where($filters);
+    $table = $wpdb->prefix . 'pc_activity';
+    [$where, $vals] = _pc_activity_where($filters);
     $sql = "SELECT COUNT(*) FROM `{$table}` WHERE " . implode(' AND ', $where);
     if (!empty($vals)) {
         return (int) $wpdb->get_var($wpdb->prepare($sql, ...$vals));
@@ -70,7 +70,7 @@ function pmc_get_activity_count(array $filters = []): int {
 }
 
 /** Build WHERE clauses for activity queries (internal helper). */
-function _pmc_activity_where(array $filters): array {
+function _pc_activity_where(array $filters): array {
     $where = ['1=1'];
     $vals  = [];
     if (!empty($filters['user_id'])) {
@@ -112,9 +112,9 @@ function _pmc_activity_where(array $filters): array {
  * Returns: total_calls, total_duration_ms, avg_duration_ms, failed_calls,
  *          unique_users, credits_consumed, calls_by_day, calls_by_hour, top_users.
  */
-function pmc_get_calls_in_window(string $from_date, string $to_date): array {
+function pc_get_calls_in_window(string $from_date, string $to_date): array {
     global $wpdb;
-    $table = $wpdb->prefix . 'pmc_activity';
+    $table = $wpdb->prefix . 'pc_activity';
     $from  = $from_date . ' 00:00:00';
     $to    = $to_date . ' 23:59:59';
 
@@ -179,9 +179,9 @@ function pmc_get_calls_in_window(string $from_date, string $to_date): array {
  * Return daily stats for chart rendering.
  * Returns array of [date, calls, duration_ms, credits].
  */
-function pmc_get_daily_stats(int $days_back = 30): array {
+function pc_get_daily_stats(int $days_back = 30): array {
     global $wpdb;
-    $table = $wpdb->prefix . 'pmc_activity';
+    $table = $wpdb->prefix . 'pc_activity';
     $from  = date('Y-m-d', strtotime("-{$days_back} days")) . ' 00:00:00';
     $to    = date('Y-m-d') . ' 23:59:59';
 
@@ -213,9 +213,9 @@ function pmc_get_daily_stats(int $days_back = 30): array {
  * Return the peak day (most calls) in a date range.
  * Returns [date, count].
  */
-function pmc_get_peak_day(string $from, string $to): array {
+function pc_get_peak_day(string $from, string $to): array {
     global $wpdb;
-    $table = $wpdb->prefix . 'pmc_activity';
+    $table = $wpdb->prefix . 'pc_activity';
     $row = $wpdb->get_row($wpdb->prepare(
         "SELECT DATE(created_at) AS date, COUNT(*) AS cnt
          FROM `{$table}`
@@ -232,9 +232,9 @@ function pmc_get_peak_day(string $from, string $to): array {
  * Count validate actions with no corresponding deduct in the past N minutes.
  * Proxy for GAS execution errors.
  */
-function pmc_get_failed_unmatched_validates(int $minutes = 60): int {
+function pc_get_failed_unmatched_validates(int $minutes = 60): int {
     global $wpdb;
-    $table = $wpdb->prefix . 'pmc_activity';
+    $table = $wpdb->prefix . 'pc_activity';
     $since = date('Y-m-d H:i:s', strtotime("-{$minutes} minutes"));
     return (int) $wpdb->get_var($wpdb->prepare(
         "SELECT COUNT(*) FROM `{$table}`
@@ -246,9 +246,9 @@ function pmc_get_failed_unmatched_validates(int $minutes = 60): int {
 /**
  * Delete activity rows older than N days. Returns count deleted.
  */
-function pmc_prune_activity(int $older_than_days): int {
+function pc_prune_activity(int $older_than_days): int {
     global $wpdb;
-    $table    = $wpdb->prefix . 'pmc_activity';
+    $table    = $wpdb->prefix . 'pc_activity';
     $cutoff   = date('Y-m-d H:i:s', strtotime("-{$older_than_days} days"));
     $affected = $wpdb->query($wpdb->prepare(
         "DELETE FROM `{$table}` WHERE created_at < %s",

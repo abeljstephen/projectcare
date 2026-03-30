@@ -1,16 +1,16 @@
 <?php
 defined('ABSPATH') || exit;
 
-function pmc_page_promos(): void {
+function pc_page_promos(): void {
     if (!current_user_can('manage_options')) return;
 
     global $wpdb;
-    $table  = $wpdb->prefix . 'pmc_promo_codes';
+    $table  = $wpdb->prefix . 'pc_promo_codes';
     $notice = '';
 
     // Create promo
-    if (isset($_POST['pmc_create_promo_nonce'])) {
-        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_create_promo_nonce'])), 'pmc_create_promo')) {
+    if (isset($_POST['pc_create_promo_nonce'])) {
+        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_create_promo_nonce'])), 'pc_create_promo')) {
             $code = strtoupper(sanitize_text_field($_POST['promo_code'] ?? ''));
             if (empty($code)) $code = strtoupper(bin2hex(random_bytes(4)));
             $db_result = $wpdb->insert($table, [
@@ -24,39 +24,39 @@ function pmc_page_promos(): void {
                 'notes'         => sanitize_textarea_field($_POST['promo_notes'] ?? ''),
             ]);
             if (false === $db_result) {
-                error_log('pmc_create_promo: DB insert failed for code=' . $code);
+                error_log('pc_create_promo: DB insert failed for code=' . $code);
             }
             $notice = 'Promo code created: ' . $code;
         }
     }
 
     // Toggle active
-    if (isset($_POST['pmc_toggle_nonce'], $_POST['promo_id'])) {
+    if (isset($_POST['pc_toggle_nonce'], $_POST['promo_id'])) {
         $pid = (int) $_POST['promo_id'];
-        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_toggle_nonce'])), 'pmc_toggle_promo_' . $pid)) {
+        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_toggle_nonce'])), 'pc_toggle_promo_' . $pid)) {
             $current    = (int) $wpdb->get_var($wpdb->prepare("SELECT is_active FROM `{$table}` WHERE id=%d", $pid));
             $db_result  = $wpdb->update($table, ['is_active' => $current ? 0 : 1], ['id' => $pid]);
             if (false === $db_result) {
-                error_log('pmc_toggle_promo: DB update failed for id=' . $pid);
+                error_log('pc_toggle_promo: DB update failed for id=' . $pid);
             }
             $notice = 'Promo code ' . ($current ? 'deactivated' : 'activated') . '.';
         }
     }
 
     // Delete
-    if (isset($_POST['pmc_delete_nonce'], $_POST['promo_id'])) {
+    if (isset($_POST['pc_delete_nonce'], $_POST['promo_id'])) {
         $pid = (int) $_POST['promo_id'];
-        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pmc_delete_nonce'])), 'pmc_delete_promo_' . $pid)) {
+        if (wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_delete_nonce'])), 'pc_delete_promo_' . $pid)) {
             $db_result = $wpdb->delete($table, ['id' => $pid]);
             if (false === $db_result) {
-                error_log('pmc_delete_promo: DB delete failed for id=' . $pid);
+                error_log('pc_delete_promo: DB delete failed for id=' . $pid);
             }
             $notice = 'Promo code deleted.';
         }
     }
 
     $promos = $wpdb->get_results("SELECT * FROM `{$table}` ORDER BY created_at DESC") ?: [];
-    $plans  = pmc_get_plans();
+    $plans  = pc_get_plans();
     ?>
     <div class="wrap">
         <h1>Promo Codes</h1>
@@ -68,13 +68,13 @@ function pmc_page_promos(): void {
         <div style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:16px;margin-bottom:20px">
             <h2 style="margin-top:0;font-size:15px">Create Promo Code</h2>
             <form method="post">
-                <?php wp_nonce_field('pmc_create_promo', 'pmc_create_promo_nonce'); ?>
+                <?php wp_nonce_field('pc_create_promo', 'pc_create_promo_nonce'); ?>
                 <table class="form-table" role="presentation">
                     <tr>
                         <th><label for="promo_code">Code</label></th>
                         <td>
                             <input type="text" id="promo_code" name="promo_code" placeholder="Leave blank to auto-generate" style="width:180px;text-transform:uppercase">
-                            <?php echo pmc_tip('Leave blank to auto-generate a random 8-character code'); ?>
+                            <?php echo pc_tip('Leave blank to auto-generate a random 8-character code'); ?>
                         </td>
                     </tr>
                     <tr>
@@ -90,18 +90,18 @@ function pmc_page_promos(): void {
                                     <option value="<?php echo esc_attr($p['slug']); ?>"><?php echo esc_html($p['label']); ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <?php echo pmc_tip('Override the plan assigned when this code is used'); ?>
+                            <?php echo pc_tip('Override the plan assigned when this code is used'); ?>
                         </td>
                     </tr>
                     <tr>
                         <th><label>Days Override</label></th>
                         <td><input type="number" name="days_override" value="0" min="0" class="small-text">
-                        <?php echo pmc_tip('Override trial/subscription duration. 0 = no override'); ?></td>
+                        <?php echo pc_tip('Override trial/subscription duration. 0 = no override'); ?></td>
                     </tr>
                     <tr>
                         <th><label>Max Uses</label></th>
                         <td><input type="number" name="max_uses" value="" min="1" class="small-text" placeholder="Unlimited">
-                        <?php echo pmc_tip('Leave blank for unlimited uses'); ?></td>
+                        <?php echo pc_tip('Leave blank for unlimited uses'); ?></td>
                     </tr>
                     <tr>
                         <th><label>Expires At</label></th>
@@ -138,12 +138,12 @@ function pmc_page_promos(): void {
                     </td>
                     <td>
                         <form method="post" style="display:inline">
-                            <?php wp_nonce_field('pmc_toggle_promo_' . $promo->id, 'pmc_toggle_nonce'); ?>
+                            <?php wp_nonce_field('pc_toggle_promo_' . $promo->id, 'pc_toggle_nonce'); ?>
                             <input type="hidden" name="promo_id" value="<?php echo esc_attr($promo->id); ?>">
                             <button type="submit" class="button button-small"><?php echo (int)$promo->is_active ? 'Deactivate' : 'Activate'; ?></button>
                         </form>
                         <form method="post" style="display:inline">
-                            <?php wp_nonce_field('pmc_delete_promo_' . $promo->id, 'pmc_delete_nonce'); ?>
+                            <?php wp_nonce_field('pc_delete_promo_' . $promo->id, 'pc_delete_nonce'); ?>
                             <input type="hidden" name="promo_id" value="<?php echo esc_attr($promo->id); ?>">
                             <button type="submit" class="button button-small" onclick="return confirm('Delete this promo code?')">Delete</button>
                         </form>
@@ -153,7 +153,7 @@ function pmc_page_promos(): void {
                 <?php
                 global $wpdb;
                 $uses = $wpdb->get_results($wpdb->prepare(
-                    "SELECT created_at, email, result FROM `{$wpdb->prefix}pmc_activity`
+                    "SELECT created_at, email, result FROM `{$wpdb->prefix}pc_activity`
                      WHERE action='trial_request' AND notes LIKE %s ORDER BY created_at DESC LIMIT 10",
                     '%promo=' . $wpdb->esc_like($promo->code) . '%'
                 )) ?: [];
