@@ -7,7 +7,7 @@
 | Resource     | Used | Limit | % Used | Status |
 |-------------|------|-------|--------|--------|
 | Deployments | 3    | 20     | 15%     | OK      |
-| Versions    | 85   | 100    | 85%     | WATCH   |
+| Versions    | 86   | 100    | 86%     | WATCH   |
 
 ## Rules
 - `clasp push` → updates HEAD only. **No slots consumed. Push freely.**
@@ -18,7 +18,7 @@
 ```
 Found 3 deployments.
 - AKfycbzoO42SACRrzX8N1nnLPTqth4MX4Rgpsce0TIciCWE @HEAD
-- AKfycbwu2VJv9zMJz3GSb7ijyLqrQzvwweJjS9hP6EFAB9Aao4MNo4vl2zgEil-GcBNACQxp @81 - ProjectCare API v1.1.0 — slim/full GAS tier  ← PRODUCTION API
+- AKfycbwu2VJv9zMJz3GSb7ijyLqrQzvwweJjS9hP6EFAB9Aao4MNo4vl2zgEil-GcBNACQxp @86 - ProjectCare API v1.5.0 — CPM URL builder  ← PRODUCTION API
 - AKfycbxPMikpb1W7qHCYwuIfx1696rU-rsnZka_SRhdSL6x8r8EnhRVbwQ1Kofdjm8jIFcaL @77 - ProjectCare Free v1.0.0 — unified brand launch  ← ADDON
 ```
 
@@ -40,6 +40,7 @@ clasp deploy --deploymentId AKfycbxPMikpb1W7qHCYwuIfx1696rU-rsnZka_SRhdSL6x8r8En
 83 - ProjectCare API v1.3.0 — slim URL seed-only payload (fix truncation)
 84 - ProjectCare API v1.4.0 — URL seed only (p10/p50/p90 removed, O/M/P only)
 85 - ProjectCare API v1.5.0 — buildCpmUrl, _cpmUrl in slim+full response
+86 - (deploy snapshot)
 ```
 
 ## Tasks for This Agent
