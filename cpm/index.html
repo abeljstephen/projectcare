@@ -40,22 +40,16 @@
   })();
   </script>
 
-  <!-- Chart.js for Gantt + S-curve + Tornado (synchronous — must be ready before boot) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
-  <!-- Vis.js network diagram (synchronous) -->
-  <script src="https://unpkg.com/vis-network@9.1.9/dist/vis-network.min.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/vis-network@9.1.9/dist/dist/vis-network.min.css" />
-
-  <!-- SACO helpers (provides invertCdf used by CPM engine) -->
+  <!-- CPM engine deps — synchronous, must be ready before boot -->
   <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/helpers/rng.js"></script>
   <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/helpers/metrics.js"></script>
-
-  <!-- CPM browser engine — load order: graph → engine → stochastic → adapter -->
   <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/graph.js"></script>
   <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/cpm-engine.js"></script>
   <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/stochastic-cpm.js"></script>
   <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/cpm-adapter.js"></script>
+
+  <!-- Chart.js + Vis.js loaded lazily AFTER core results render -->
+  <link rel="stylesheet" href="https://unpkg.com/vis-network@9.1.9/dist/dist/vis-network.min.css" />
 
   <style>
     :root {
@@ -501,17 +495,52 @@ function renderAll(tasks, result) {
   var health = result.healthScore;
   _projDur   = det.projectDuration;
 
-  // Each panel wrapped so one crash can't blank the whole page
-  try { renderKpiStrip(det, stoch); }      catch(e) { console.error('[CPM] kpi', e); }
-  try { renderNetworkDiagram(tasks, det); } catch(e) { console.error('[CPM] network', e); document.getElementById('networkContainer').textContent = 'Network diagram unavailable: ' + e.message; }
-  try { renderGantt(tasks, det); }          catch(e) { console.error('[CPM] gantt', e);   document.getElementById('ganttContainer').textContent   = 'Gantt unavailable: ' + e.message; }
-  try { renderCpmTable(tasks, det); }       catch(e) { console.error('[CPM] table', e); }
-  if (stoch && stoch.status === 'ok') {
-    try { renderStochastic(stoch); }        catch(e) { console.error('[CPM] stoch', e);   document.getElementById('stochPanel').style.display = 'none'; }
-  } else {
-    document.getElementById('stochPanel').style.display = 'none';
+  // Phase 1: render pure-HTML panels immediately — no external library needed
+  try { renderKpiStrip(det, stoch); }  catch(e) { console.error('[CPM] kpi', e); }
+  try { renderCpmTable(tasks, det); }  catch(e) { console.error('[CPM] table', e); }
+  try { renderHealthScore(health); }   catch(e) { console.error('[CPM] health', e); }
+
+  // Phase 2: lazy-load Chart.js + Vis.js, then render chart panels
+  // This way core data is visible even if CDN scripts fail
+  _lazyLoadChartLibs(function() {
+    try { renderNetworkDiagram(tasks, det); }
+    catch(e) { console.error('[CPM] network', e); document.getElementById('networkContainer').textContent = 'Network diagram unavailable: ' + e.message; }
+    try { renderGantt(tasks, det); }
+    catch(e) { console.error('[CPM] gantt', e); document.getElementById('ganttContainer').textContent = 'Gantt unavailable: ' + e.message; }
+    if (stoch && stoch.status === 'ok') {
+      try { renderStochastic(stoch); }
+      catch(e) { console.error('[CPM] stoch', e); document.getElementById('stochPanel').style.display = 'none'; }
+    } else {
+      document.getElementById('stochPanel').style.display = 'none';
+    }
+  });
+}
+
+// ── Lazy-load Chart.js and Vis.js, call cb when both ready ────
+function _lazyLoadChartLibs(cb) {
+  var needed = 2;
+  var done = 0;
+  function tick() { if (++done === needed) cb(); }
+
+  function loadScript(src, check, onload) {
+    if (typeof check !== 'undefined') { onload(); return; }
+    var s = document.createElement('script');
+    s.src = src;
+    s.onload = onload;
+    s.onerror = function() { console.warn('[CPM] failed to load', src); onload(); };
+    document.head.appendChild(s);
   }
-  try { renderHealthScore(health); }        catch(e) { console.error('[CPM] health', e); }
+
+  loadScript(
+    'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
+    window.Chart,
+    tick
+  );
+  loadScript(
+    'https://unpkg.com/vis-network@9.1.9/dist/vis-network.min.js',
+    window.vis,
+    tick
+  );
 }
 
 // ── KPI strip ─────────────────────────────────────────────────
