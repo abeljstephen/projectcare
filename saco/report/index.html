@@ -8,76 +8,78 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
+      background: #F9FAFB;
+      color: #111827;
       min-height: 100vh;
       padding: 2rem 1rem;
     }
     .container { max-width: 760px; margin: 0 auto; }
     .header { text-align: center; margin-bottom: 2rem; }
-    .header h1 { font-size: 1.5rem; font-weight: 700; color: #f8fafc; letter-spacing: -0.02em; }
-    .header .subtitle { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; }
+    .header h1 { font-size: 1.5rem; font-weight: 700; color: #111827; letter-spacing: -0.02em; }
+    .header .subtitle { font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem; }
     .task-section { margin-bottom: 1.5rem; }
     .task-number {
       font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.1em; color: #475569; margin-bottom: 0.5rem;
+      letter-spacing: 0.1em; color: #9CA3AF; margin-bottom: 0.5rem;
     }
     .card {
-      background: #1e293b; border: 1px solid #334155;
+      background: #FFFFFF; border: 1px solid #E5E7EB;
       border-radius: 12px; padding: 1.25rem; margin-bottom: 0.75rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
     }
     .card h2 {
       font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.08em; color: #64748b; margin-bottom: 0.875rem;
+      letter-spacing: 0.08em; color: #6B7280; margin-bottom: 0.875rem;
     }
-    .task-name { font-size: 1.15rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem; }
+    .task-name { font-size: 1.15rem; font-weight: 700; color: #111827; margin-bottom: 0.5rem; }
     .omp-row { display: flex; gap: 0.75rem; margin-top: 0.75rem; }
     .omp-cell {
-      flex: 1; background: #0f172a; border-radius: 8px;
+      flex: 1; background: #F3F4F6; border-radius: 8px;
       padding: 0.75rem; text-align: center;
     }
     .omp-cell .label {
       font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.06em; color: #64748b; margin-bottom: 0.25rem;
+      letter-spacing: 0.06em; color: #6B7280; margin-bottom: 0.25rem;
     }
-    .omp-cell .value { font-size: 1.05rem; font-weight: 700; color: #f1f5f9; }
-    .target-row { margin-top: 0.6rem; font-size: 0.82rem; color: #94a3b8; }
-    .target-row strong { color: #cbd5e1; }
+    .omp-cell .value { font-size: 1.05rem; font-weight: 700; color: #111827; }
+    .target-row { margin-top: 0.6rem; font-size: 0.82rem; color: #6B7280; }
+    .target-row strong { color: #374151; }
     .prob-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; }
-    .prob-cell { background: #0f172a; border-radius: 8px; padding: 0.875rem 1rem; text-align: center; }
+    .prob-cell { background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 0.875rem 1rem; text-align: center; }
     .prob-cell .p-label {
       font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.06em; color: #64748b; margin-bottom: 0.25rem;
+      letter-spacing: 0.06em; color: #6B7280; margin-bottom: 0.25rem;
     }
     .prob-cell .p-value { font-size: 1.3rem; font-weight: 800; }
-    .prob-cell .p-desc { font-size: 0.67rem; color: #475569; margin-top: 0.2rem; }
-    .color-baseline { color: #94a3b8; }
-    .color-adjusted { color: #10b981; }
-    .color-optimized { color: #3b82f6; }
+    .prob-cell .p-desc { font-size: 0.67rem; color: #9CA3AF; margin-top: 0.2rem; }
+    .color-baseline { color: #6B7280; }
+    .color-adjusted { color: #059669; }
+    .color-optimized { color: #2563EB; }
     .percentile-row { display: flex; gap: 0.75rem; }
     .pct-cell {
-      flex: 1; background: #0f172a; border-radius: 8px;
+      flex: 1; background: #F3F4F6; border-radius: 8px;
       padding: 0.75rem; text-align: center;
     }
     .pct-cell .p-label {
       font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.06em; color: #64748b; margin-bottom: 0.25rem;
+      letter-spacing: 0.06em; color: #6B7280; margin-bottom: 0.25rem;
     }
-    .pct-cell .p-value { font-size: 1.05rem; font-weight: 700; color: #f1f5f9; }
-    .divider { border: none; border-top: 1px solid #1e293b; margin: 1.5rem 0; }
-    .error-box { text-align: center; padding: 3rem 1rem; color: #64748b; }
-    .error-box h2 { font-size: 1rem; color: #94a3b8; margin-bottom: 0.5rem; }
+    .pct-cell .p-value { font-size: 1.05rem; font-weight: 700; color: #111827; }
+    .divider { border: none; border-top: 1px solid #E5E7EB; margin: 1.5rem 0; }
+    .error-box { text-align: center; padding: 3rem 1rem; color: #6B7280; }
+    .error-box h2 { font-size: 1rem; color: #374151; margin-bottom: 0.5rem; }
     .error-box p { font-size: 0.85rem; }
-    .footer { text-align: center; margin-top: 2rem; font-size: 0.75rem; color: #334155; }
-    .footer a { color: #475569; text-decoration: none; }
-    .footer a:hover { color: #64748b; }
+    .footer { text-align: center; margin-top: 2rem; font-size: 0.75rem; color: #9CA3AF; }
+    .footer a { color: #6B7280; text-decoration: none; }
+    .footer a:hover { color: #374151; }
     .summary-bar {
-      background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+      background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 12px;
       padding: 1rem 1.25rem; margin-bottom: 1.5rem;
       display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
     }
-    .summary-bar .s-item { font-size: 0.8rem; color: #94a3b8; }
-    .summary-bar .s-item strong { color: #f1f5f9; font-size: 0.9rem; }
+    .summary-bar .s-item { font-size: 0.8rem; color: #6B7280; }
+    .summary-bar .s-item strong { color: #111827; font-size: 0.9rem; }
   </style>
 </head>
 <body>

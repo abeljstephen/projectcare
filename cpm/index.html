@@ -475,7 +475,7 @@ function computeAndRender(tasks, sacoResults) {
       }
 
       renderAll(tasks, result);
-      document.getElementById('resultsSection').style.display = '';
+      document.getElementById('resultsSection').style.display = 'block';
       setStatus(sacoResults ? 'SACO-enhanced' : 'PERT mode', '');
       document.getElementById('engineMode').textContent = sacoResults ? 'SACO distributions' : 'PERT fallback — run full estimation for SACO-enhanced results';
 
