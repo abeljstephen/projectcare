@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ProjectCare by iCareNOW — Report</title>
+  <title>ProjectCare by iCareNOW — SACO Report</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -13,168 +13,86 @@
       min-height: 100vh;
       padding: 2rem 1rem;
     }
-    .container { max-width: 700px; margin: 0 auto; }
-    .header {
-      text-align: center;
-      margin-bottom: 2rem;
-    }
-    .header h1 {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: #f8fafc;
-      letter-spacing: -0.02em;
-    }
-    .header .subtitle {
-      font-size: 0.85rem;
-      color: #64748b;
-      margin-top: 0.25rem;
+    .container { max-width: 760px; margin: 0 auto; }
+    .header { text-align: center; margin-bottom: 2rem; }
+    .header h1 { font-size: 1.5rem; font-weight: 700; color: #f8fafc; letter-spacing: -0.02em; }
+    .header .subtitle { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; }
+    .task-section { margin-bottom: 1.5rem; }
+    .task-number {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: #475569; margin-bottom: 0.5rem;
     }
     .card {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 12px;
-      padding: 1.5rem;
-      margin-bottom: 1rem;
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 12px; padding: 1.25rem; margin-bottom: 0.75rem;
     }
     .card h2 {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #64748b;
-      margin-bottom: 1rem;
+      font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #64748b; margin-bottom: 0.875rem;
     }
-    .task-name {
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: #f1f5f9;
-      margin-bottom: 0.5rem;
-    }
-    .omp-row {
-      display: flex;
-      gap: 1rem;
-      margin-top: 0.75rem;
-    }
+    .task-name { font-size: 1.15rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem; }
+    .omp-row { display: flex; gap: 0.75rem; margin-top: 0.75rem; }
     .omp-cell {
-      flex: 1;
-      background: #0f172a;
-      border-radius: 8px;
-      padding: 0.75rem;
-      text-align: center;
+      flex: 1; background: #0f172a; border-radius: 8px;
+      padding: 0.75rem; text-align: center;
     }
     .omp-cell .label {
-      font-size: 0.7rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #64748b;
-      margin-bottom: 0.25rem;
+      font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: #64748b; margin-bottom: 0.25rem;
     }
-    .omp-cell .value {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: #f1f5f9;
-    }
-    .target-row {
-      margin-top: 0.75rem;
-      font-size: 0.85rem;
-      color: #94a3b8;
-    }
+    .omp-cell .value { font-size: 1.05rem; font-weight: 700; color: #f1f5f9; }
+    .target-row { margin-top: 0.6rem; font-size: 0.82rem; color: #94a3b8; }
     .target-row strong { color: #cbd5e1; }
-    .prob-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 0.75rem;
-    }
-    .prob-cell {
-      background: #0f172a;
-      border-radius: 8px;
-      padding: 0.875rem 1rem;
-      text-align: center;
-    }
+    .prob-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; }
+    .prob-cell { background: #0f172a; border-radius: 8px; padding: 0.875rem 1rem; text-align: center; }
     .prob-cell .p-label {
-      font-size: 0.7rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #64748b;
-      margin-bottom: 0.25rem;
+      font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: #64748b; margin-bottom: 0.25rem;
     }
-    .prob-cell .p-value {
-      font-size: 1.3rem;
-      font-weight: 800;
-    }
-    .prob-cell .p-desc {
-      font-size: 0.68rem;
-      color: #475569;
-      margin-top: 0.2rem;
-    }
+    .prob-cell .p-value { font-size: 1.3rem; font-weight: 800; }
+    .prob-cell .p-desc { font-size: 0.67rem; color: #475569; margin-top: 0.2rem; }
     .color-baseline { color: #94a3b8; }
     .color-adjusted { color: #10b981; }
     .color-optimized { color: #3b82f6; }
-    .percentile-row {
-      display: flex;
-      gap: 0.75rem;
-    }
+    .percentile-row { display: flex; gap: 0.75rem; }
     .pct-cell {
-      flex: 1;
-      background: #0f172a;
-      border-radius: 8px;
-      padding: 0.75rem;
-      text-align: center;
+      flex: 1; background: #0f172a; border-radius: 8px;
+      padding: 0.75rem; text-align: center;
     }
     .pct-cell .p-label {
-      font-size: 0.7rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #64748b;
-      margin-bottom: 0.25rem;
+      font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: #64748b; margin-bottom: 0.25rem;
     }
-    .pct-cell .p-value {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: #f1f5f9;
-    }
-    .error-box {
-      text-align: center;
-      padding: 3rem 1rem;
-      color: #64748b;
-    }
+    .pct-cell .p-value { font-size: 1.05rem; font-weight: 700; color: #f1f5f9; }
+    .divider { border: none; border-top: 1px solid #1e293b; margin: 1.5rem 0; }
+    .error-box { text-align: center; padding: 3rem 1rem; color: #64748b; }
     .error-box h2 { font-size: 1rem; color: #94a3b8; margin-bottom: 0.5rem; }
     .error-box p { font-size: 0.85rem; }
-    .footer {
-      text-align: center;
-      margin-top: 2rem;
-      font-size: 0.75rem;
-      color: #334155;
-    }
+    .footer { text-align: center; margin-top: 2rem; font-size: 0.75rem; color: #334155; }
     .footer a { color: #475569; text-decoration: none; }
     .footer a:hover { color: #64748b; }
-    .pill {
-      display: inline-block;
-      font-size: 0.7rem;
-      font-weight: 600;
-      padding: 0.2em 0.6em;
-      border-radius: 999px;
-      background: #1e3a5f;
-      color: #60a5fa;
-      margin-left: 0.4rem;
-      vertical-align: middle;
+    .summary-bar {
+      background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+      padding: 1rem 1.25rem; margin-bottom: 1.5rem;
+      display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center;
     }
+    .summary-bar .s-item { font-size: 0.8rem; color: #94a3b8; }
+    .summary-bar .s-item strong { color: #f1f5f9; font-size: 0.9rem; }
   </style>
 </head>
 <body>
 <div class="container">
   <div class="header">
     <h1>ProjectCare by iCareNOW</h1>
-    <div class="subtitle">iCareNOW &mdash; Probability-Based Estimation Report</div>
+    <div class="subtitle">SACO Probability-Based Estimation Report</div>
   </div>
   <div id="report-root"></div>
   <div class="footer">
     <a href="https://icarenow.io" target="_blank" rel="noopener">icarenow.io</a>
     &nbsp;&middot;&nbsp;
-    <a href="/projectcare/saco/plot/" id="plot-link">Open Interactive Chart</a>
+    <a href="/projectcare/saco/plot/" id="plot-link">Open Interactive Plot</a>
+    &nbsp;&middot;&nbsp;
+    <a href="/projectcare/cpm/" id="cpm-link">Critical Path View</a>
   </div>
 </div>
 
@@ -183,96 +101,75 @@
   var root = document.getElementById('report-root');
 
   function fmt(v) {
-    if (v == null) return '—';
+    if (v == null || v === '') return '—';
     return Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
   }
-
   function fmtPct(v) {
     if (v == null) return '—';
     return (Number(v) * 100).toFixed(1) + '%';
   }
-
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function getParam(name) {
+    return new URLSearchParams(window.location.search).get(name) || null;
+  }
   function decode(str) {
     try {
-      // URL-decoded base64
-      var b64 = decodeURIComponent(str);
-      // atob handles standard base64; Google's Utilities.base64Encode uses standard base64
-      return JSON.parse(atob(b64));
+      return JSON.parse(atob(decodeURIComponent(str)));
     } catch(e) {
-      // Try without decodeURIComponent
       try { return JSON.parse(atob(str)); } catch(e2) { return null; }
     }
   }
 
-  function getParam(name) {
-    var m = new URLSearchParams(window.location.search).get(name);
-    return m || null;
-  }
+  function renderTask(t, idx, total) {
+    var html = '<div class="task-section">';
+    if (total > 1) {
+      html += '<div class="task-number">Task ' + (idx + 1) + ' of ' + total + '</div>';
+    }
 
-  function render(data) {
-    var html = '';
-
-    // Task header
+    // Task header card
     html += '<div class="card">';
-    html += '<h2>Task</h2>';
-    html += '<div class="task-name">' + esc(data.task || 'Unnamed Task') + '</div>';
+    html += '<div class="task-name">' + esc(t.task || 'Unnamed Task') + '</div>';
     html += '<div class="omp-row">';
-    html += omp('O', 'Optimistic',  data.O);
-    html += omp('M', 'Most Likely', data.M);
-    html += omp('P', 'Pessimistic', data.P);
+    html += omp('Optimistic',  t.O);
+    html += omp('Most Likely', t.M);
+    html += omp('Pessimistic', t.P);
     html += '</div>';
-    if (data.target != null) {
-      html += '<div class="target-row">Target: <strong>' + fmt(data.target) + '</strong></div>';
+    if (t.target != null) {
+      html += '<div class="target-row">Target: <strong>' + fmt(t.target) + '</strong></div>';
     }
     html += '</div>';
 
-    // Probabilities
-    if (data.baselineProb != null || data.adjustedProb != null || data.optimizedProb != null) {
+    // Probability card
+    if (t.baselineProb != null || t.adjustedProb != null || t.optimizedProb != null) {
       html += '<div class="card">';
       html += '<h2>P(Result &le; Target)</h2>';
       html += '<div class="prob-grid">';
-      if (data.baselineProb != null) {
-        html += probCell('Your Estimate', data.baselineProb, 'color-baseline', 'Baseline');
-      }
-      if (data.adjustedProb != null) {
-        html += probCell('Manual SACO', data.adjustedProb, 'color-adjusted', 'Your Conditions');
-      }
-      if (data.optimizedProb != null) {
-        html += probCell('SACO Optimized', data.optimizedProb, 'color-optimized', 'Recommended');
-      }
-      html += '</div>';
-      html += '</div>';
+      if (t.baselineProb  != null) html += probCell('Your Estimate',   t.baselineProb,  'color-baseline', 'Baseline');
+      if (t.adjustedProb  != null) html += probCell('Your Conditions', t.adjustedProb,  'color-adjusted', 'Manual SACO');
+      if (t.optimizedProb != null) html += probCell('Recommended',     t.optimizedProb, 'color-optimized','SACO Optimized');
+      html += '</div></div>';
     }
 
-    // Percentiles
-    if (data.p10 != null || data.p50 != null || data.p90 != null) {
+    // Confidence intervals card
+    if (t.p10 != null || t.p50 != null || t.p90 != null) {
       html += '<div class="card">';
       html += '<h2>Confidence Intervals</h2>';
       html += '<div class="percentile-row">';
-      html += pctCell('P10', data.p10, 'Best case (90% chance of beating)');
-      html += pctCell('P50', data.p50, 'Median estimate');
-      html += pctCell('P90', data.p90, 'Worst case (10% chance of exceeding)');
-      html += '</div>';
-      html += '</div>';
+      html += pctCell('P10', t.p10, 'Best case');
+      html += pctCell('P50', t.p50, 'Median');
+      html += pctCell('P90', t.p90, 'Conservative');
+      html += '</div></div>';
     }
 
-    root.innerHTML = html;
-
-    // Update plot link if session is available
-    var sess = getParam('session');
-    if (sess) {
-      var pl = document.getElementById('plot-link');
-      if (pl) pl.href = '/projectcare/saco/plot/?session=' + encodeURIComponent(sess);
-    }
+    html += '</div>'; // task-section
+    return html;
   }
 
-  function omp(letter, label, val) {
-    return '<div class="omp-cell">' +
-      '<div class="label">' + label + '</div>' +
-      '<div class="value">' + fmt(val) + '</div>' +
-      '</div>';
+  function omp(label, val) {
+    return '<div class="omp-cell"><div class="label">' + label + '</div><div class="value">' + fmt(val) + '</div></div>';
   }
-
   function probCell(label, prob, colorClass, desc) {
     return '<div class="prob-cell">' +
       '<div class="p-label">' + esc(label) + '</div>' +
@@ -280,29 +177,73 @@
       '<div class="p-desc">' + esc(desc) + '</div>' +
       '</div>';
   }
-
-  function pctCell(label, val, desc) {
+  function pctCell(label, val) {
     return '<div class="pct-cell">' +
       '<div class="p-label">' + esc(label) + '</div>' +
       '<div class="p-value">' + fmt(val) + '</div>' +
       '</div>';
   }
 
-  function esc(s) {
-    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-
   function showError(msg) {
     root.innerHTML = '<div class="error-box"><h2>Report unavailable</h2><p>' + esc(msg) + '</p></div>';
+  }
+
+  function renderAll(payload) {
+    // Support both new {tasks:[...]} format and legacy single-task object
+    var tasks;
+    if (Array.isArray(payload.tasks)) {
+      tasks = payload.tasks;
+    } else if (payload.task) {
+      tasks = [payload];  // legacy single-task
+    } else {
+      showError('No task data found in report payload.');
+      return;
+    }
+
+    if (tasks.length === 0) { showError('Report contains no tasks.'); return; }
+
+    // Summary bar for multi-task
+    var html = '';
+    if (tasks.length > 1) {
+      html += '<div class="summary-bar">';
+      html += '<div class="s-item"><strong>' + tasks.length + '</strong> tasks</div>';
+      var tasksWithP50 = tasks.filter(function(t){ return t.p50 != null; });
+      if (tasksWithP50.length > 0) {
+        var totalP50 = tasksWithP50.reduce(function(s, t){ return s + Number(t.p50); }, 0);
+        html += '<div class="s-item">Sum P50: <strong>' + totalP50.toFixed(1) + '</strong></div>';
+      }
+      var tasksWithP90 = tasks.filter(function(t){ return t.p90 != null; });
+      if (tasksWithP90.length > 0) {
+        var totalP90 = tasksWithP90.reduce(function(s, t){ return s + Number(t.p90); }, 0);
+        html += '<div class="s-item">Sum P90: <strong>' + totalP90.toFixed(1) + '</strong></div>';
+      }
+      html += '</div>';
+    }
+
+    tasks.forEach(function(t, i) {
+      if (i > 0) html += '<hr class="divider">';
+      html += renderTask(t, i, tasks.length);
+    });
+
+    root.innerHTML = html;
+
+    // Wire up nav links with session token
+    var sess = payload.session || getParam('session');
+    if (sess) {
+      var pl = document.getElementById('plot-link');
+      if (pl) pl.href = '/projectcare/saco/plot/?session=' + encodeURIComponent(sess);
+      var cl = document.getElementById('cpm-link');
+      if (cl) cl.href = '/projectcare/cpm/?session=' + encodeURIComponent(sess);
+    }
   }
 
   var raw = getParam('data');
   if (!raw) { showError('No report data found in URL.'); return; }
 
-  var data = decode(raw);
-  if (!data) { showError('Could not decode report data.'); return; }
+  var payload = decode(raw);
+  if (!payload) { showError('Could not decode report data.'); return; }
 
-  render(data);
+  renderAll(payload);
 })();
 </script>
 </body>

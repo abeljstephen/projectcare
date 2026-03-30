@@ -190,12 +190,11 @@ function handleCallApi(body) {
   }
   var durationMs = Date.now() - engineStart;
 
-  // 5. Build chart URLs and report link for the first task only.
-  //    Multi-task chart support is not implemented — charts represent task[0] distribution.
-  //    Portfolio-level visualization is surfaced via _portfolio P10/P50/P90 instead.
+  // 5. Build chart URLs and report link.
+  //    Charts represent task[0] distribution; report encodes all tasks.
   if (tasks.length > 0 && result.results && result.results[0]) {
     result._sacoCharts    = buildChartUrls(result.results[0], tasks[0]);
-    result._sacoReportUrl = buildSacoReportUrl(result.results[0], tasks[0]);
+    result._sacoReportUrl = buildSacoReportUrl(result.results, tasks, sessionToken);
   }
 
   // 8. Enrich per-task results: full percentile table, sensitivity, scenario batch, target-advisor.
@@ -318,9 +317,9 @@ function handleCallApi(body) {
           Math.round(rOptProb * (1 - tailPenalty) * 100)));
       }
 
-      // Per-task SACO report URL — all tasks.
+      // Per-task SACO report URL (single-task view for this result item).
       if (rInTask) {
-        try { rItem._sacoReportUrl = buildSacoReportUrl(rItem, rInTask); } catch (e) {}
+        try { rItem._sacoReportUrl = buildSacoReportUrl([rItem], [rInTask], sessionToken); } catch (e) {}
       }
     }
   }
@@ -927,25 +926,33 @@ function buildProbBarChart(res, task) {
   return 'https://quickchart.io/chart?width=500&height=300&c=' + encodeURIComponent(JSON.stringify(cfg));
 }
 
-function buildSacoReportUrl(res, task) {
+// Build SACO report URL encoding all tasks + session token.
+// results: array parallel to tasks (may be shorter if some failed).
+// tasks:   original task input array.
+// token:   session token for plot-link back-navigation.
+function buildSacoReportUrl(results, tasks, token) {
   try {
-    var tp  = (res.targetProbability && res.targetProbability.value) || {};
-    var cdf = (res.baseline && res.baseline.monteCarloSmoothed && res.baseline.monteCarloSmoothed.cdfPoints) || [];
-    var data = {
-      task:   task.task,
-      O:      task.optimistic,
-      M:      task.mostLikely,
-      P:      task.pessimistic,
-      target: task.targetValue,
-      baselineProb:  tp.original          != null ? tp.original          : null,
-      adjustedProb:  tp.adjusted          != null ? tp.adjusted          : null,
-      optimizedProb: tp.adjustedOptimized != null ? tp.adjustedOptimized : null,
-      p10: cdf.length ? invertCdf(cdf, 0.10) : null,
-      p50: cdf.length ? invertCdf(cdf, 0.50) : null,
-      p90: cdf.length ? invertCdf(cdf, 0.90) : null
-    };
-    var encoded = encodeURIComponent(Utilities.base64Encode(JSON.stringify(data)));
-    return 'https://abeljstephen.github.io/projectcare/saco/report/?data=' + encoded;
+    var taskSeeds = tasks.map(function(task, i) {
+      var res = (results && results[i]) ? results[i] : null;
+      var tp  = (res && res.targetProbability && res.targetProbability.value) || {};
+      var cdf = (res && res.baseline && res.baseline.monteCarloSmoothed && res.baseline.monteCarloSmoothed.cdfPoints) || [];
+      return {
+        task:          task.task,
+        O:             task.optimistic,
+        M:             task.mostLikely,
+        P:             task.pessimistic,
+        target:        task.targetValue || null,
+        baselineProb:  tp.original          != null ? tp.original          : null,
+        adjustedProb:  tp.adjusted          != null ? tp.adjusted          : null,
+        optimizedProb: tp.adjustedOptimized != null ? tp.adjustedOptimized : null,
+        p10: cdf.length ? invertCdf(cdf, 0.10) : null,
+        p50: cdf.length ? invertCdf(cdf, 0.50) : null,
+        p90: cdf.length ? invertCdf(cdf, 0.90) : null
+      };
+    });
+    var payload = { schemaVersion: 1, session: token || null, tasks: taskSeeds };
+    var encoded = encodeURIComponent(Utilities.base64Encode(JSON.stringify(payload)));
+    return 'https://abeljstephen.github.io/projectcare/saco/report/?data=' + encoded + (token ? '&session=' + token : '');
   } catch(e) {
     return null;
   }

@@ -570,7 +570,7 @@ function renderNetworkDiagram(tasks, det) {
         from: fromId,
         to:   task.id,
         label: type + (lag ? ' +'+lag : ''),
-        font:  { size: 9, color:var(--muted)|| '#6B7280', align:'middle' },
+        font:  { size: 9, color: '#6B7280', align:'middle' },
         color: { color: isCritEdge ? '#DC2626' : '#9CA3AF', highlight: '#DC2626' },
         width: isCritEdge ? 2.5 : 1,
         arrows: 'to'
