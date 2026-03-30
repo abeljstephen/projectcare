@@ -108,7 +108,9 @@
     .float-bar { display:inline-block; height:6px; border-radius:3px; background:var(--cdf); vertical-align:middle; margin-left:4px; }
 
     /* ── Network Diagram ── */
-    #networkContainer { width:100%; height:400px; border-radius:10px; overflow:hidden; background:#FAFAFA; border:1px solid var(--line); }
+    #networkContainer { width:100%; height:560px; border-radius:10px; overflow:hidden; background:#FAFAFA; border:1px solid var(--line); }
+    .box-legend { display:inline-block; border:2px solid #DC2626; border-radius:6px; font-family:Consolas,"SF Mono",monospace; font-size:11px; background:#FEE2E2; padding:6px 12px; color:#111827; line-height:1.7; margin-bottom:12px; }
+    .box-legend .bl-row { border-top:1px solid #FECACA; margin-top:4px; padding-top:4px; font-size:10px; color:#6B7280; }
 
     /* ── Gantt ── */
     #ganttContainer { width:100%; height:min(360px,50vh); }
@@ -201,7 +203,7 @@
 
     /* ── Legend ── */
     .legend-row { display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:var(--muted); align-items:center; margin-top:8px; }
-    .leg-dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:4px; vertical-align:middle; }
+    .leg-dot { width:12px; height:12px; border-radius:3px; display:inline-block; margin-right:5px; vertical-align:middle; border:1.5px solid transparent; }
 
     /* ── Risk rows (SSI table) ── */
     .risk-row { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); }
@@ -303,16 +305,29 @@
     <!-- Tab: Network Diagram -->
     <div id="tab-network" class="tab-panel">
       <div class="card section">
-        <h2>Network Diagram
-          <span class="htip" data-tip="Directed acyclic graph of task dependencies. Arrows show Finish-to-Start links. Critical path tasks are red (zero float). Near-critical tasks are amber. Click and drag to rearrange.">?</span>
+        <h2>Network Diagram — Activity on Node (AON)
+          <span class="htip" data-tip="Each box is one task. Arrows are Finish-to-Start dependencies. The top row shows Early Start / Early Finish (forward pass). The bottom row shows Late Start, Total Float, Late Finish (backward pass). Critical path boxes have red borders and zero float.">?</span>
         </h2>
-        <div class="legend-row" style="margin-bottom:10px;">
-          <span><span class="leg-dot" style="background:#DC2626;"></span>Critical path</span>
-          <span><span class="leg-dot" style="background:#F59E0B;"></span>Near-critical (float &lt; 10%)</span>
-          <span><span class="leg-dot" style="background:#6EE7B7;"></span>Has float</span>
-          <span><span class="leg-dot" style="background:#6366F1;"></span>Tipping point</span>
+        <!-- Box layout legend -->
+        <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px;">
+          <div>
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Each node reads:</div>
+            <div class="box-legend">
+              ES &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; EF<br>
+              Task Name (Dur)<br>
+              LS &nbsp;TF: x.xd &nbsp;LF
+              <div class="bl-row">Top row = forward pass &nbsp;·&nbsp; Bottom row = backward pass</div>
+            </div>
+          </div>
+          <div class="legend-row" style="flex-direction:column;gap:5px;margin-top:0;align-items:flex-start;">
+            <span><span class="leg-dot" style="background:#DC2626;border:2px solid #DC2626;"></span> Critical path (TF = 0)</span>
+            <span><span class="leg-dot" style="background:#FEF9C3;border:2px solid #F59E0B;"></span> Near-critical (TF &lt; 10% of project)</span>
+            <span><span class="leg-dot" style="background:#F0FDF4;border:2px solid #059669;"></span> Has float</span>
+            <span><span class="leg-dot" style="background:#EDE9FE;border:2px solid #6D28D9;"></span> Tipping point</span>
+          </div>
         </div>
         <div id="networkContainer"></div>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px;">Scroll to zoom · Drag to pan · Hover a node for full values</div>
       </div>
     </div>
 
@@ -660,14 +675,26 @@ function renderGraphIntegrity(det) {
     alerts.push({ cls:'alert-ok', icon:'✓', html:'<strong>Schedule integrity OK</strong> — no cycles, no disconnected tasks, no input errors.' });
   }
 
-  // Build header with critical path chain
+  // Build critical path summary (full chain up to 8 tasks, count-only beyond)
   var cp = det.criticalPath || [];
-  var cpChain = cp.length > 0
-    ? '<div class="cp-chain">' + cp.map(function(id, i) {
+  var cpChain = '';
+  if (cp.length > 0) {
+    if (cp.length <= 8) {
+      cpChain = '<div class="cp-chain">' + cp.map(function(id, i) {
         var name = (det.tasks[id] && det.tasks[id].name) ? det.tasks[id].name : id;
         return (i > 0 ? '<span class="cp-arrow">→</span>' : '') + '<span class="cp-node">' + esc(name) + '</span>';
-      }).join('') + '</div>'
-    : '';
+      }).join('') + '</div>';
+    } else {
+      var first = cp.slice(0, 3).map(function(id){ return (det.tasks[id]&&det.tasks[id].name)||id; });
+      var last  = cp.slice(-2).map(function(id){ return (det.tasks[id]&&det.tasks[id].name)||id; });
+      cpChain = '<div class="cp-chain">' +
+        first.map(function(n,i){ return (i>0?'<span class="cp-arrow">→</span>':'') + '<span class="cp-node">'+esc(n)+'</span>'; }).join('') +
+        '<span class="cp-arrow">→ … (' + (cp.length - 5) + ' more) →</span>' +
+        last.map(function(n){ return '<span class="cp-node">'+esc(n)+'</span><span class="cp-arrow">→</span>'; }).join('').replace(/<span class="cp-arrow">→<\/span>$/, '') +
+        ' <a href="#" onclick="showTab(\'network\');return false;" style="font-size:11px;color:var(--cdf);margin-left:8px;">View full network →</a>' +
+        '</div>';
+    }
+  }
 
   // Graph metrics strip
   var metricStrip = '<div class="metric-strip">' +
@@ -802,28 +829,45 @@ function renderNetworkDiagram(tasks, det) {
     var tf   = td.totalFloat;
     var tp   = det.tippingPoints && det.tippingPoints[id];
 
-    var color, borderColor, fontColor = '#111827';
+    var bg, border;
     if (onCp) {
-      color = '#FEE2E2'; borderColor = '#DC2626';
+      bg = '#FEE2E2'; border = '#DC2626';
     } else if (tf != null && tf < 0.10 * (det.projectDuration || 1)) {
-      color = '#FEF9C3'; borderColor = '#F59E0B';
+      bg = '#FEF9C3'; border = '#F59E0B';
     } else {
-      color = '#D1FAE5'; borderColor = '#059669';
+      bg = '#F0FDF4'; border = '#059669';
     }
-    if (tp && tp.severity === 'critical') { color = '#EDE9FE'; borderColor = '#6D28D9'; }
+    if (tp && tp.severity === 'critical') { bg = '#EDE9FE'; border = '#6D28D9'; }
 
-    var label = task.task + '\n' +
-                'Dur: ' + fmtDays(td.duration) + '\n' +
-                'TF: '  + fmtDays(tf);
+    // Classic CPM activity-on-node box:
+    //  ES │ Task Name (dur) │ EF
+    //  ───────────────────────
+    //  LS │   TF: x.xd     │ LF
+    var es  = fmt(td.earlyStart,  1);
+    var ef  = fmt(td.earlyFinish, 1);
+    var ls  = fmt(td.lateStart,   1);
+    var lf  = fmt(td.lateFinish,  1);
+    var tff = fmtDays(tf);
+    var dur = fmtDays(td.duration);
+    var nm  = task.task.length > 14 ? task.task.slice(0, 13) + '…' : task.task;
+
+    var label =
+      es + '          ' + ef + '\n' +
+      nm + ' (' + dur + ')\n' +
+      ls + '  TF:' + tff + '  ' + lf;
 
     nodes.add({
-      id:    id,
-      label: label,
-      color: { background: color, border: borderColor, highlight: { background: color, border: borderColor }},
-      font:  { size: 11, color: fontColor, face: '-apple-system,BlinkMacSystemFont,Inter,sans-serif', multi: false },
-      shape: 'box',
+      id:          id,
+      label:       label,
+      title:       '<b>' + task.task + '</b><br>Duration: ' + dur +
+                   '<br>ES: ' + es + '   EF: ' + ef +
+                   '<br>LS: ' + ls + '   LF: ' + lf +
+                   '<br>Total Float: ' + tff,
+      color:       { background: bg, border: border, highlight: { background: bg, border: border } },
+      font:        { size: 11, color: '#111827', face: 'Consolas,"SF Mono",monospace', multi: false },
+      shape:       'box',
       borderWidth: onCp ? 3 : 1.5,
-      margin: 8
+      margin:      { top: 7, right: 10, bottom: 7, left: 10 }
     });
   });
 
@@ -850,12 +894,21 @@ function renderNetworkDiagram(tasks, det) {
   });
 
   var container = document.getElementById('networkContainer');
+  var nCount = tasks.length;
+  // Scale spacing with network size
+  var nodeSep  = nCount > 15 ? 80  : 110;
+  var levelSep = nCount > 15 ? 200 : 240;
   var options = {
-    layout:   { hierarchical: { direction:'LR', sortMethod:'directed', nodeSpacing:100, levelSeparation:160 }},
+    layout:   { hierarchical: { direction: 'LR', sortMethod: 'directed', nodeSpacing: nodeSep, levelSeparation: levelSep }},
     physics:  { enabled: false },
-    interaction:{ hover: true, navigationButtons: true, keyboard: false },
-    edges:    { smooth: { type:'cubicBezier', forceDirection:'horizontal', roundness:.5 }},
-    nodes:    { widthConstraint:{ minimum:80, maximum:150 }}
+    interaction: { hover: true, navigationButtons: true, keyboard: false, tooltipDelay: 100 },
+    edges: {
+      smooth:  { type: 'cubicBezier', forceDirection: 'horizontal', roundness: 0.4 },
+      arrows:  { to: { enabled: true, scaleFactor: 0.7 } },
+      font:    { size: 9, color: '#6B7280', align: 'middle' },
+      color:   { inherit: false }
+    },
+    nodes: { widthConstraint: { minimum: 170, maximum: 230 } }
   };
   _network = new vis.Network(container, { nodes: nodes, edges: edges }, options);
 }
