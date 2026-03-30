@@ -28,6 +28,70 @@ function pc_render_users_list(): void {
         exit;
     }
 
+    // ── Inline quick action POST (from list row) ──────────────────────────────
+    $quick_notice = '';
+    if (isset($_POST['pc_list_quick_nonce'], $_POST['pc_list_action'], $_POST['pc_list_uid'])) {
+        $quid = (int) $_POST['pc_list_uid'];
+        if ($quid > 0 && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pc_list_quick_nonce'])), 'pc_list_quick_' . $quid)) {
+            $qu  = pc_get_user_by_id($quid);
+            $qact = sanitize_text_field($_POST['pc_list_action']);
+            if ($qu) {
+                switch ($qact) {
+                    case 'grant10': case 'grant25': case 'grant50': case 'grant100':
+                        $amt = (int) substr($qact, 5);
+                        $new_total = (int) $qu->credits_total + $amt;
+                        pc_update_user($quid, ['credits_total' => $new_total]);
+                        pc_log_activity(['user_id' => $quid, 'email' => $qu->email, 'action' => 'manual_grant',
+                            'credits_cost' => -$amt, 'credits_before' => (int)$qu->credits_total,
+                            'credits_after' => $new_total, 'result' => 'success',
+                            'notes' => 'List quick grant +' . $amt . ' credits']);
+                        $quick_notice = esc_html($qu->email) . ': granted +' . $amt . ' credits.';
+                        break;
+                    case 'switch_plan':
+                        $new_plan = sanitize_text_field($_POST['pc_list_plan'] ?? '');
+                        $plan_row = pc_get_plan($new_plan);
+                        if ($plan_row) {
+                            $old_plan = $qu->plan;
+                            pc_update_user($quid, ['plan' => $new_plan]);
+                            pc_log_activity(['user_id' => $quid, 'email' => $qu->email, 'action' => 'admin_edit',
+                                'result' => 'success', 'notes' => 'Plan switched: ' . $old_plan . ' → ' . $new_plan . ' (history retained)']);
+                            $quick_notice = esc_html($qu->email) . ': plan changed from ' . esc_html($old_plan) . ' to ' . esc_html($new_plan) . '. History retained.';
+                        }
+                        break;
+                    case 'extend7': case 'extend30':
+                        $days    = $qact === 'extend7' ? 7 : 30;
+                        $new_exp = date('Y-m-d', strtotime(($qu->key_expires ?: 'now') . ' +' . $days . ' days'));
+                        pc_update_user($quid, ['key_expires' => $new_exp, 'key_status' => 'active']);
+                        pc_log_activity(['user_id' => $quid, 'email' => $qu->email, 'action' => 'manual_grant',
+                            'result' => 'success', 'notes' => 'Extended +' . $days . 'd from list. New expiry: ' . $new_exp]);
+                        $quick_notice = esc_html($qu->email) . ': extended +' . $days . 'd → ' . $new_exp . '.';
+                        break;
+                    case 'activate':
+                        $upd = ['key_status' => 'active'];
+                        if (!$qu->key_expires || strtotime($qu->key_expires) < time())
+                            $upd['key_expires'] = date('Y-m-d', strtotime('+30 days'));
+                        pc_update_user($quid, $upd);
+                        pc_log_activity(['user_id' => $quid, 'email' => $qu->email, 'action' => 'admin_edit',
+                            'result' => 'success', 'notes' => 'Activated from list']);
+                        $quick_notice = esc_html($qu->email) . ': activated.';
+                        break;
+                    case 'suspend':
+                        pc_update_user($quid, ['key_status' => 'suspended']);
+                        pc_log_activity(['user_id' => $quid, 'email' => $qu->email, 'action' => 'suspension',
+                            'result' => 'success', 'notes' => 'Suspended from list']);
+                        $quick_notice = esc_html($qu->email) . ': suspended.';
+                        break;
+                    case 'reset_usage':
+                        pc_update_user($quid, ['credits_used' => 0]);
+                        pc_log_activity(['user_id' => $quid, 'email' => $qu->email, 'action' => 'admin_edit',
+                            'result' => 'success', 'notes' => 'Usage reset to 0 from list']);
+                        $quick_notice = esc_html($qu->email) . ': usage reset to 0.';
+                        break;
+                }
+            }
+        }
+    }
+
     // ── Bulk action POST ──────────────────────────────────────────────────────
     $bulk_notice = '';
     if (isset($_POST['pc_bulk_nonce'], $_POST['bulk_action'], $_POST['user_ids'])) {
@@ -164,6 +228,26 @@ function pc_render_users_list(): void {
         $plan_meta[$pm['slug']] = $pm;
     }
 
+    // Per-user call count + country from activity log (for current page only)
+    $page_user_ids = array_map(fn($u) => (int) $u->id, $users);
+    $call_counts = $geo_map = [];
+    if (!empty($page_user_ids)) {
+        $placeholders = implode(',', array_fill(0, count($page_user_ids), '%d'));
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT user_id, COUNT(*) AS calls,
+                    MAX(geo_country) AS country,
+                    MAX(ip_address) AS ip
+             FROM `{$wpdb->prefix}pc_activity`
+             WHERE user_id IN ($placeholders) AND action IN ('validate','deduct')
+             GROUP BY user_id",
+            ...$page_user_ids
+        ), ARRAY_A) ?: [];
+        foreach ($rows as $r) {
+            $call_counts[(int)$r['user_id']] = (int) $r['calls'];
+            $geo_map[(int)$r['user_id']]     = ['country' => $r['country'], 'ip' => $r['ip']];
+        }
+    }
+
     // Filter params for URL building (no 'page' key — base_url already has it)
     $filter_params = array_filter([
         's'             => $search,
@@ -215,6 +299,9 @@ function pc_render_users_list(): void {
             <button type="button" class="page-title-action" id="pmc-import-toggle">Import CSV</button>
         </h1>
 
+        <?php if ($quick_notice): ?>
+            <div class="notice notice-success is-dismissible"><p><?php echo wp_kses_post($quick_notice); ?></p></div>
+        <?php endif; ?>
         <?php if ($bulk_notice): ?>
             <div class="notice notice-success is-dismissible"><p><?php echo esc_html($bulk_notice); ?></p></div>
         <?php endif; ?>
@@ -361,15 +448,14 @@ function pc_render_users_list(): void {
             </div>
 
             <div style="overflow-x:auto">
-            <table class="widefat striped" style="border-radius:6px;font-size:12px;min-width:1400px">
+            <table class="widefat striped" style="border-radius:6px;font-size:12px;min-width:1600px">
                 <thead>
-                    <tr>
+                    <tr style="background:#f6f7f7">
                         <th style="width:28px"><input type="checkbox" id="pmc-check-all"></th>
                         <th><a href="<?php echo esc_url($sort_url('email')); ?>" style="text-decoration:none;color:inherit">Email<?php echo $sort_ind('email'); ?></a></th>
                         <th><a href="<?php echo esc_url($sort_url('plan')); ?>" style="text-decoration:none;color:inherit">Plan<?php echo $sort_ind('plan'); ?></a></th>
                         <th>Tier</th>
                         <th style="text-align:right">Price</th>
-                        <th style="text-align:right">Credits</th>
                         <th style="text-align:right">Stripe fee</th>
                         <th style="text-align:right">Net rev</th>
                         <th style="text-align:right">Rev/credit</th>
@@ -378,14 +464,23 @@ function pc_render_users_list(): void {
                         <th><a href="<?php echo esc_url($sort_url('key_status')); ?>" style="text-decoration:none;color:inherit">Status<?php echo $sort_ind('key_status'); ?></a></th>
                         <th><a href="<?php echo esc_url($sort_url('key_expires')); ?>" style="text-decoration:none;color:inherit">Expires<?php echo $sort_ind('key_expires'); ?></a></th>
                         <th><a href="<?php echo esc_url($sort_url('credits_remaining')); ?>" style="text-decoration:none;color:inherit">Credits<?php echo $sort_ind('credits_remaining'); ?></a></th>
+                        <th style="text-align:right">Calls</th>
+                        <th>Country</th>
                         <th><a href="<?php echo esc_url($sort_url('last_estimation')); ?>" style="text-decoration:none;color:inherit">Last Used<?php echo $sort_ind('last_estimation'); ?></a></th>
                         <th>Source</th>
                         <th><a href="<?php echo esc_url($sort_url('created_at')); ?>" style="text-decoration:none;color:inherit">Joined<?php echo $sort_ind('created_at'); ?></a></th>
-                        <th style="width:90px"></th>
+                        <th style="width:110px">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                <?php foreach ($users as $u):
+                <?php
+                // Totals accumulators
+                $tot_credits_total = $tot_credits_used = $tot_credits_rem = 0;
+                $tot_net_rev = 0.0;
+                $tot_calls   = 0;
+                $tot_paying  = 0;
+
+                foreach ($users as $u):
                     $is_expired = $u->key_expires && strtotime($u->key_expires) < time();
                     $detail_url = admin_url('admin.php?page=pmc-crm-users&user_id=' . $u->id . '&return_url=' . urlencode($list_url));
 
@@ -401,13 +496,22 @@ function pc_render_users_list(): void {
                     $pm           = $plan_meta[$u->plan] ?? null;
                     $u_tier       = $pm ? $pm['gas_tier']        : '—';
                     $u_price      = $pm ? $pm['price']           : 0;
-                    $u_credits    = $pm ? (int) $pm['credits']   : 0;
                     $u_unlimited  = $pm ? $pm['unlimited']       : false;
                     $u_stripe     = $pm ? $pm['stripe_fee']      : 0;
                     $u_net        = $pm ? $pm['net_revenue']     : 0;
                     $u_rpc        = $pm ? $pm['rev_per_credit']  : 0;
                     $u_margin     = $pm ? $pm['gross_margin_pct']: null;
                     $margin_color = $u_margin === null ? '#999' : ($u_margin >= 50 ? '#0a6b0a' : ($u_margin >= 0 ? '#996633' : '#b32d2e'));
+
+                    $u_calls   = $call_counts[(int)$u->id] ?? 0;
+                    $u_country = $geo_map[(int)$u->id]['country'] ?? '';
+
+                    // Accumulate totals
+                    $tot_credits_total += (int) $u->credits_total;
+                    $tot_credits_used  += (int) $u->credits_used;
+                    $tot_credits_rem   += max(0, (int) $u->credits_remaining);
+                    $tot_calls         += $u_calls;
+                    if ($u_price > 0) { $tot_net_rev += $u_net; $tot_paying++; }
                 ?>
                     <tr>
                         <td><input type="checkbox" name="user_ids[]" value="<?php echo esc_attr($u->id); ?>"></td>
@@ -415,11 +519,11 @@ function pc_render_users_list(): void {
                             <a href="<?php echo esc_url($detail_url); ?>" style="font-weight:600;text-decoration:none;color:#1d2327">
                                 <?php echo esc_html($u->email); ?>
                             </a>
+                            <?php if (!empty($u->notes)): ?><span title="<?php echo esc_attr($u->notes); ?>" style="color:#f0a500;cursor:help"> ✎</span><?php endif; ?>
                         </td>
                         <td><?php echo pc_plan_badge($u->plan); ?></td>
                         <td><span style="font-size:11px;background:#f0f0f0;padding:1px 5px;border-radius:3px"><?php echo esc_html($u_tier); ?></span></td>
                         <td style="text-align:right"><?php echo $u_price > 0 ? '$' . esc_html(number_format($u_price, 2)) : '<span style="color:#999">free</span>'; ?></td>
-                        <td style="text-align:right"><?php echo $u_unlimited ? '<span style="color:#666">∞</span>' : esc_html(number_format($u_credits)); ?></td>
                         <td style="text-align:right;color:#666"><?php echo $u_price > 0 ? '$' . esc_html($u_stripe) : '—'; ?></td>
                         <td style="text-align:right"><?php echo $u_price > 0 ? '$' . esc_html($u_net) : '—'; ?></td>
                         <td style="text-align:right;font-family:monospace"><?php echo (!$u_unlimited && $u_rpc > 0) ? '$' . esc_html($u_rpc) : '<span style="color:#999">—</span>'; ?></td>
@@ -428,23 +532,95 @@ function pc_render_users_list(): void {
                         <td><?php echo pc_status_badge($u->key_status, $is_expired); ?></td>
                         <td style="<?php echo esc_attr($exp_style); ?>"><?php echo esc_html($u->key_expires ?: '—'); ?></td>
                         <td><?php echo pc_credits_bar_html((int) $u->credits_used, (int) $u->credits_total); ?></td>
+                        <td style="text-align:right;color:#555"><?php echo $u_calls > 0 ? esc_html(number_format($u_calls)) : '<span style="color:#ccc">0</span>'; ?></td>
+                        <td style="color:#555"><?php echo esc_html($u_country ?: '—'); ?></td>
                         <td style="color:#555"><?php echo esc_html(pc_relative_time($u->last_estimation)); ?></td>
                         <td style="color:#555"><?php echo esc_html($u->source ?: '—'); ?></td>
                         <td style="color:#555"><?php echo esc_html($u->created_at ? substr($u->created_at, 0, 10) : '—'); ?></td>
                         <td>
+                            <!-- Quick action menu -->
                             <div style="position:relative;display:inline-block">
                                 <button type="button" class="button button-small pmc-actions-toggle">Actions ▾</button>
-                                <div class="pmc-actions-menu" style="display:none;position:absolute;right:0;top:100%;z-index:9999;background:#fff;border:1px solid #ddd;border-radius:4px;min-width:130px;box-shadow:0 2px 8px rgba(0,0,0,.15)">
-                                    <a href="<?php echo esc_url($detail_url); ?>" style="display:block;padding:7px 12px;font-size:12px;text-decoration:none;color:#1d2327;border-bottom:1px solid #f0f0f0">Edit Profile</a>
-                                    <a href="<?php echo esc_url($detail_url . '#tab-email'); ?>" style="display:block;padding:7px 12px;font-size:12px;text-decoration:none;color:#1d2327;border-bottom:1px solid #f0f0f0">Send Email</a>
-                                    <a href="<?php echo esc_url($detail_url . '#tab-activity'); ?>" style="display:block;padding:7px 12px;font-size:12px;text-decoration:none;color:#1d2327">Activity</a>
+                                <div class="pmc-actions-menu" style="display:none;position:absolute;right:0;top:100%;z-index:9999;background:#fff;border:1px solid #ddd;border-radius:4px;min-width:180px;box-shadow:0 2px 8px rgba(0,0,0,.15);padding:6px 0">
+                                    <div style="padding:4px 10px;font-size:11px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Navigate</div>
+                                    <a href="<?php echo esc_url($detail_url); ?>" style="display:block;padding:6px 12px;font-size:12px;text-decoration:none;color:#1d2327">✏ Edit Profile</a>
+                                    <a href="<?php echo esc_url($detail_url . '#tab-email'); ?>" style="display:block;padding:6px 12px;font-size:12px;text-decoration:none;color:#1d2327">✉ Send Email</a>
+                                    <a href="<?php echo esc_url($detail_url . '#tab-activity'); ?>" style="display:block;padding:6px 12px;font-size:12px;text-decoration:none;color:#1d2327">📋 Activity</a>
+                                    <div style="border-top:1px solid #eee;margin:4px 0;padding:4px 10px;font-size:11px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Quick Actions</div>
+                                    <!-- Grant credits -->
+                                    <form method="post" style="padding:4px 12px;display:flex;align-items:center;gap:4px">
+                                        <?php wp_nonce_field('pc_list_quick_' . $u->id, 'pc_list_quick_nonce'); ?>
+                                        <input type="hidden" name="pc_list_uid"    value="<?php echo esc_attr($u->id); ?>">
+                                        <input type="hidden" name="pc_list_action" value="">
+                                        <span style="font-size:11px;color:#444">Grant:</span>
+                                        <?php foreach ([10,25,50,100] as $amt): ?>
+                                        <button type="submit" class="button button-small pmc-grant-btn" data-action="grant<?php echo $amt; ?>" style="padding:1px 5px;font-size:11px">+<?php echo $amt; ?></button>
+                                        <?php endforeach; ?>
+                                    </form>
+                                    <!-- Switch plan -->
+                                    <form method="post" style="padding:4px 12px;display:flex;align-items:center;gap:4px">
+                                        <?php wp_nonce_field('pc_list_quick_' . $u->id, 'pc_list_quick_nonce'); ?>
+                                        <input type="hidden" name="pc_list_uid"    value="<?php echo esc_attr($u->id); ?>">
+                                        <input type="hidden" name="pc_list_action" value="switch_plan">
+                                        <span style="font-size:11px;color:#444">Plan:</span>
+                                        <select name="pc_list_plan" style="font-size:11px;height:22px">
+                                            <?php foreach ($plans as $p): ?>
+                                            <option value="<?php echo esc_attr($p['slug']); ?>" <?php selected($u->plan, $p['slug']); ?>><?php echo esc_html($p['label']); ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <button type="submit" class="button button-small" style="padding:1px 6px;font-size:11px">Switch</button>
+                                    </form>
+                                    <!-- Extend -->
+                                    <form method="post" style="padding:4px 12px;display:flex;align-items:center;gap:4px">
+                                        <?php wp_nonce_field('pc_list_quick_' . $u->id, 'pc_list_quick_nonce'); ?>
+                                        <input type="hidden" name="pc_list_uid"    value="<?php echo esc_attr($u->id); ?>">
+                                        <input type="hidden" name="pc_list_action" value="">
+                                        <span style="font-size:11px;color:#444">Extend:</span>
+                                        <button type="submit" class="button button-small pmc-grant-btn" data-action="extend7"  style="padding:1px 5px;font-size:11px">+7d</button>
+                                        <button type="submit" class="button button-small pmc-grant-btn" data-action="extend30" style="padding:1px 5px;font-size:11px">+30d</button>
+                                    </form>
+                                    <!-- Status -->
+                                    <form method="post" style="padding:4px 12px;display:flex;align-items:center;gap:4px">
+                                        <?php wp_nonce_field('pc_list_quick_' . $u->id, 'pc_list_quick_nonce'); ?>
+                                        <input type="hidden" name="pc_list_uid"    value="<?php echo esc_attr($u->id); ?>">
+                                        <input type="hidden" name="pc_list_action" value="">
+                                        <button type="submit" class="button button-small pmc-grant-btn" data-action="activate"    style="padding:1px 5px;font-size:11px;color:#0a6b0a">Activate</button>
+                                        <button type="submit" class="button button-small pmc-grant-btn" data-action="suspend"     style="padding:1px 5px;font-size:11px;color:#b32d2e">Suspend</button>
+                                        <button type="submit" class="button button-small pmc-grant-btn" data-action="reset_usage" style="padding:1px 5px;font-size:11px">Reset</button>
+                                    </form>
                                 </div>
                             </div>
                         </td>
                     </tr>
                 <?php endforeach; ?>
+
                 <?php if (empty($users)): ?>
-                    <tr><td colspan="18" style="text-align:center;color:#666;padding:28px 0">No users found.</td></tr>
+                    <tr><td colspan="19" style="text-align:center;color:#666;padding:28px 0">No users found.</td></tr>
+                <?php else: ?>
+                <!-- Totals row -->
+                <tr style="background:#f0f6fc;font-weight:600;border-top:2px solid #2271b1">
+                    <td></td>
+                    <td style="color:#2271b1">Totals (<?php echo esc_html($to_n - $from_n + 1); ?> shown<?php echo $total > count($users) ? ', ' . number_format($total) . ' total' : ''; ?>)</td>
+                    <td colspan="2"></td>
+                    <td></td><!-- price -->
+                    <td></td><!-- stripe fee -->
+                    <td style="text-align:right"><?php echo $tot_net_rev > 0 ? '$' . esc_html(number_format($tot_net_rev, 2)) : '—'; ?>
+                        <?php if ($tot_paying > 0): ?><div style="font-size:10px;color:#666;font-weight:400"><?php echo esc_html($tot_paying); ?> paying</div><?php endif; ?>
+                    </td>
+                    <td colspan="3"></td><!-- rev/credit, cost/credit, margin -->
+                    <td></td><!-- status -->
+                    <td></td><!-- expires -->
+                    <td>
+                        <span style="font-size:11px;color:#555;font-weight:400">
+                            <?php echo esc_html(number_format($tot_credits_used)); ?> used<br>
+                            <?php echo esc_html(number_format($tot_credits_rem)); ?> rem<br>
+                            <?php echo esc_html(number_format($tot_credits_total)); ?> total
+                        </span>
+                    </td>
+                    <td style="text-align:right"><?php echo esc_html(number_format($tot_calls)); ?></td>
+                    <td colspan="4"></td>
+                    <td></td>
+                </tr>
                 <?php endif; ?>
                 </tbody>
             </table>
@@ -479,6 +655,15 @@ function pc_render_users_list(): void {
             });
             document.addEventListener('click', function() {
                 document.querySelectorAll('.pmc-actions-menu').forEach(function(m) { m.style.display = 'none'; });
+            });
+
+            // Quick action buttons — set hidden action field before submit
+            document.querySelectorAll('.pmc-grant-btn').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    var form = this.closest('form');
+                    var actionInput = form.querySelector('[name="pc_list_action"]');
+                    if (actionInput) actionInput.value = this.dataset.action;
+                });
             });
 
             // Import toggle
