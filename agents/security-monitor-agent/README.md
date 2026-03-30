@@ -1,6 +1,6 @@
 # Security Monitor Agent
 
-Runs static and AI-powered security checks across the entire PMC Estimator codebase.
+Runs static and AI-powered security checks across the entire ProjectCare codebase.
 
 ## Usage
 
@@ -71,6 +71,6 @@ python3 agents/security-monitor-agent/security-agent.py --scope full --no-confir
 
 ## Invocation phrase (for Claude Code)
 
-> "run security-agent on PMC Estimator"
+> "run security-agent on ProjectCare"
 > "run security scan --scope static"
 > "run full security audit"

@@ -1,6 +1,6 @@
 # Codebase Research Agent
 
-A specialized research agent powered by Claude API that reads, traces, and explains the PMC Estimator codebase — mapping call chains, data flow, and architectural relationships across `.gs` and `.html` source files.
+A specialized research agent powered by Claude API that reads, traces, and explains the ProjectCare codebase — mapping call chains, data flow, and architectural relationships across `.gs` and `.html` source files.
 
 ## What This Agent Does
 

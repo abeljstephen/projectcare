@@ -1,4 +1,4 @@
-# QA Plan — PMC Estimator
+# QA Plan — ProjectCare
 <!-- ─────────────────────────────────────────────────────────────────────────
      This file is the canonical QA task list read by qa-agent.py at runtime.
      Add new tasks anywhere in the appropriate phase.  The agent will include
@@ -444,7 +444,7 @@
 ---
 
 ## Phase 7 — WordPress CRM PHP Static Checks
-> Static analysis of the pmc-crm WordPress plugin. No API calls. Runs when target = wordpress-crm.
+> Static analysis of the projectcare-crm WordPress plugin. No API calls. Runs when target = wordpress-crm.
 
 ### QA-070
 - **title**: All PHP files begin with ABSPATH guard
@@ -502,17 +502,17 @@
 - **files**: includes/stripe.php, includes/rest-api.php, includes/admin/user-detail.php
 
 ### QA-075
-- **title**: PMC_CRM_VERSION bumped when schema changes
+- **title**: PC_CRM_VERSION bumped when schema changes
 - **phase**: static
 - **severity**: FAIL
 - **enabled**: true
 - **description**: Detect whether schema.php contains table definitions that would not have
-  existed in `PMC_CRM_VERSION == '2.0.0'` (specifically `wp_pmc_payments`). If the version
-  is still `2.0.0`, `pmc_maybe_upgrade()` will never fire on existing installs and the new
-  table will not be created. The version must be at least `2.1.0` when `wp_pmc_payments` is
+  existed in `PC_CRM_VERSION == '2.0.0'` (specifically `wp_pc_payments`). If the version
+  is still `2.0.0`, `pc_maybe_upgrade()` will never fire on existing installs and the new
+  table will not be created. The version must be at least `2.1.0` when `wp_pc_payments` is
   present in schema.php.
-- **pass_when**: PMC_CRM_VERSION >= 2.1.0 when wp_pmc_payments is in schema.php
-- **files**: pmc-crm.php, includes/schema.php
+- **pass_when**: PC_CRM_VERSION >= 2.1.0 when wp_pc_payments is in schema.php
+- **files**: projectcare-crm.php, includes/schema.php
 
 ### QA-076
 - **title**: Cross-system contract — GAS deduct payload matches WP REST handler
@@ -525,7 +525,7 @@
   required field the WP handler expects is sent by GAS. Silent contract drift means fields
   arrive as null without error, corrupting activity logs and credit accounting.
 - **pass_when**: Every field in the GAS deduct payload maps to a consumed field in wp rest-api.php deduct handler; no required field is absent from either side
-- **files**: system-google-sheets-addon/webapp.gs, wordpress-plugin/pmc-crm/includes/rest-api.php
+- **files**: system-google-sheets-addon/webapp.gs, wordpress-plugin/projectcare-crm/includes/rest-api.php
 
 ---
 
@@ -580,7 +580,7 @@
   WordPress REST API deduct endpoint. If they diverge, the GPT tells users incorrect costs
   or over/under-charges without surfacing an error.
 - **pass_when**: Credit costs for all three operation types match between instructions.md and rest-api.php
-- **files**: custom-gpt/instructions.md, wordpress-plugin/pmc-crm/includes/rest-api.php
+- **files**: custom-gpt/instructions.md, wordpress-plugin/projectcare-crm/includes/rest-api.php
 
 ### QA-084
 - **title**: All response fields read by GPT exist in adaptResponse() output
@@ -606,7 +606,7 @@
   logic in rest-api.php `/trial` handler. Discrepancy means the GPT gives users incorrect
   information about what a promo code does.
 - **pass_when**: Promo code effects described in instructions.md match the REST API /trial promo logic
-- **files**: custom-gpt/instructions.md, wordpress-plugin/pmc-crm/includes/rest-api.php
+- **files**: custom-gpt/instructions.md, wordpress-plugin/projectcare-crm/includes/rest-api.php
 
 ### QA-086
 - **title**: openapi.yaml request/response schemas are internally consistent

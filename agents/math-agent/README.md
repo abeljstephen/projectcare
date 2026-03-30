@@ -1,6 +1,6 @@
 # Math QA Auditor Agent
 
-A specialized mathematical QA agent powered by Claude API that audits the PMC Estimator codebase for mathematical soundness, correctness, accuracy, and opportunities for improvement.
+A specialized mathematical QA agent powered by Claude API that audits the ProjectCare codebase for mathematical soundness, correctness, accuracy, and opportunities for improvement.
 
 ## What This Agent Does
 

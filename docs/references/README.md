@@ -1,6 +1,6 @@
 # References & Bibliography
 
-Academic papers, books, and industry sources that ground the PMC Estimator system in research literature.
+Academic papers, books, and industry sources that ground the ProjectCare system in research literature.
 
 ## Contents
 

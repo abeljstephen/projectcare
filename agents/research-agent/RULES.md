@@ -1,6 +1,6 @@
-# Research Rules for PMC Estimator Codebase
+# Research Rules for ProjectCare Codebase
 
-These rules govern how the research agent reads, traces, and reports on the PMC Estimator source code.
+These rules govern how the research agent reads, traces, and reports on the ProjectCare source code.
 
 ---
 
@@ -23,7 +23,7 @@ When comparing two modes (e.g., `adaptive=true` vs `adaptive=false`):
 - Note what is the SAME — shared steps that run in both paths
 
 ### 4. Trace Guards and Revert Logic
-The PMC Estimator has multiple safety guards that reset or zero outputs:
+The ProjectCare has multiple safety guards that reset or zero outputs:
 - `step7_output` revert guard: zeros sliders if `lift < 0`
 - KL divergence threshold: reverts if `KL > 0.08`
 - Moment validation: rejects reshaped distributions outside bounds
@@ -38,7 +38,7 @@ For any variable of interest, document:
 
 ---
 
-## PMC Estimator Architecture Rules
+## ProjectCare Architecture Rules
 
 ### 6. Optimizer Modes
 Two optimizer modes exist in `core/optimization/optimizer.gs`:

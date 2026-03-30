@@ -1,6 +1,6 @@
 # PMBOK Research & Weight Justification
 
-Project Management Body of Knowledge (PMBOK) analysis and justification of weight values used in the PMC Estimator system.
+Project Management Body of Knowledge (PMBOK) analysis and justification of weight values used in the ProjectCare system.
 
 ## Contents
 
@@ -41,7 +41,7 @@ Project Management Body of Knowledge (PMBOK) analysis and justification of weigh
 
 ## Weight System Overview
 
-The PMC Estimator uses **7 weighted sliders** to capture project complexity:
+The ProjectCare uses **7 weighted sliders** to capture project complexity:
 
 ```
 W = [0.20, 0.20, 0.18, 0.15, 0.10, 0.09, 0.08]

@@ -1,6 +1,6 @@
 # limits-monitor
 
-Tracks Google Apps Script deployment and version slot usage for the PMC Estimator add-on.
+Tracks Google Apps Script deployment and version slot usage for the ProjectCare add-on.
 
 ## Usage
 

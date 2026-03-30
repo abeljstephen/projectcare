@@ -1,6 +1,6 @@
-# PMC Estimator Documentation
+# ProjectCare Documentation
 
-Complete mathematical, architectural, and research documentation for the PMC (PERT Monte Carlo) Estimator system.
+Complete mathematical, architectural, and research documentation for the ProjectCare (PERT Monte Carlo) estimation system.
 
 ---
 

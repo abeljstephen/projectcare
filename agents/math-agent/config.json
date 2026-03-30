@@ -2,7 +2,7 @@
   "agent": {
     "name": "Math QA Auditor",
     "version": "1.0.0",
-    "description": "Specialized mathematical QA agent for PMC Estimator codebase"
+    "description": "Specialized mathematical QA agent for ProjectCare codebase"
   },
   "audit_config": {
     "severity_levels": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],

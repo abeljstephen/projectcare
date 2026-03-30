@@ -1,4 +1,4 @@
-# Mathematical Quality Assurance Rules for PMC Estimator
+# Mathematical Quality Assurance Rules for ProjectCare
 
 ## Core Mathematical Constraints
 

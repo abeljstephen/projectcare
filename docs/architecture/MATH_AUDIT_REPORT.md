@@ -1,4 +1,4 @@
-# Mathematical Audit Report - PMC Estimator
+# Mathematical Audit Report - ProjectCare
 **Conducted**: February 15, 2026
 **Auditor**: Direct mathematical analysis (without agent)
 **Scope**: Core mathematical implementations (PERT, Beta, KL divergence, copula, moments, numerics)

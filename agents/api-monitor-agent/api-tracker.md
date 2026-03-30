@@ -1,4 +1,4 @@
-# PMC Estimator — API Usage Tracker
+# ProjectCare — API Usage Tracker
 
 > Last checked: never
 

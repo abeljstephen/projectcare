@@ -1,5 +1,5 @@
 # Comprehensive Research Synthesis: Probability Distribution Reshaping & Expert Elicitation
-## Application to PMC Estimator's PERT Distribution System
+## Application to ProjectCare's PERT Distribution System
 
 **Created:** February 2026
 **Focus:** Theoretical foundations and practical validation of slider-based distribution reshaping for project estimation
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-The PMC Estimator implements a sophisticated hybrid approach to expert-driven distribution reshaping that synthesizes copula-based moment aggregation, beta distribution refitting, and heuristic guardrails. This document provides comprehensive literature grounding for the 10 core methodological areas.
+The ProjectCare implements a sophisticated hybrid approach to expert-driven distribution reshaping that synthesizes copula-based moment aggregation, beta distribution refitting, and heuristic guardrails. This document provides comprehensive literature grounding for the 10 core methodological areas.
 
 **Key Finding:** The system's approach is theoretically sound and operationally practical, combining:
 - **Moment Matching (MLE-style):** PERT canonical mapping (λ=4) to estimate Beta parameters
@@ -50,7 +50,7 @@ The PMC Estimator implements a sophisticated hybrid approach to expert-driven di
 | Beta Distribution Review | Evans et al. (2000) | 2000 | Comprehensive Beta distribution properties |
 | Tail Risk & Moments | McNeil et al. (2015) | 2015 | Moment-based risk measures; KL divergence |
 
-### 1.3 Application to PMC Estimator
+### 1.3 Application to ProjectCare
 
 **Current Approach:**
 - Uses canonical PERT: α = 1 + λ(M-O)/(P-O), β = 1 + λ(P-M)/(P-O), with λ=4
@@ -119,7 +119,7 @@ The PMC Estimator implements a sophisticated hybrid approach to expert-driven di
 | Uncertainty Visualization | Spiegelhalter et al. (2011); Kay et al. (2015) | 2011-2015 | Interactive probability communication |
 | Debiasing | Schoemaker & Tetlock (2016); Arkes (1991) | 1991-2016 | Reducing judgment errors |
 
-### 2.3 Application to PMC Estimator
+### 2.3 Application to ProjectCare
 
 **Current Approach:**
 - 7 sliders capture expert inputs: budgetFlexibility, scheduleFlexibility, scopeCertainty, scopeReductionAllowance, reworkPercentage, riskTolerance, userConfidence
@@ -190,7 +190,7 @@ The PMC Estimator implements a sophisticated hybrid approach to expert-driven di
 | PERT Limitations | Mak & Marwala (2018) | 2018 | Tail risk underestimation |
 | Risk Correlation | Embrechts et al. (2002); Ferson & Rogers (2014) | 2002-2014 | Copula aggregation; correlation |
 
-### 3.3 Application to PMC Estimator
+### 3.3 Application to ProjectCare
 
 **Current Approach:**
 - PERT baseline (O/M/P) estimates using canonical λ=4
@@ -248,7 +248,7 @@ The PMC Estimator implements a sophisticated hybrid approach to expert-driven di
 | Quantile-Weighted Blending | McShane et al. (2016) | 2016 | Interactive percentile adjustment |
 | Inverse Transform | Nadarajah & Kotz (2008) | 2008 | Quantile-based transformation |
 
-### 4.3 Application to PMC Estimator
+### 4.3 Application to ProjectCare
 
 **Current Approach:**
 - Primary reliance on moment matching (m0, m1) and Beta refitting
@@ -323,7 +323,7 @@ Output: Use quantile-adjusted distribution if it passes guardrails
 | Sensitivity Analysis | Saltelli et al. (2008); Sobol (1993) | 1993-2008 | Parameter importance analysis |
 | Ensemble Forecasting | Tetlock & Gardner (2015) | 2015 | Aggregation best practices |
 
-### 5.3 Application to PMC Estimator
+### 5.3 Application to ProjectCare
 
 **Current Approach:**
 - Single "best estimate" PERT baseline
@@ -426,7 +426,7 @@ Output: Use quantile-adjusted distribution if it passes guardrails
 | Mixtures | McLachlan & Basford (1988) | 1988 | Heterogeneous sources |
 | Log-Normal | Crow & Shimizu (1988) | 1988 | Right-skewed durations |
 
-### 6.3 Application to PMC Estimator
+### 6.3 Application to ProjectCare
 
 **Current Approach:**
 - Exclusive use of Beta distribution via canonical PERT
@@ -519,7 +519,7 @@ Output: Use quantile-adjusted distribution if it passes guardrails
 | Wasserstein | Villani (2008); Peyré & Cuturi (2019) | 2008-2019 | Optimal transport |
 | Jensen-Shannon | Lin (1991) | 1991 | Symmetric divergence |
 
-### 7.3 Application to PMC Estimator
+### 7.3 Application to ProjectCare
 
 **Current Approach:**
 - Sliders (0-100 scale) → normalized to [0,1] → apply weights → compute m0, m1
@@ -622,7 +622,7 @@ Output: Use quantile-adjusted distribution if it passes guardrails
 | Log-Space Computation | Frühwirth-Schnatter (2006) | 2006 | Underflow prevention |
 | Lanczos Gamma | Spouge (1994) | 1994 | Accurate log-gamma computation |
 
-### 8.3 Application to PMC Estimator
+### 8.3 Application to ProjectCare
 
 **Current Approach:**
 - Lanczos approximation for logGamma (8 coefficients; high precision)
@@ -722,7 +722,7 @@ Output: Use quantile-adjusted distribution if it passes guardrails
 | Black Swan Framework | Taleb (2007, 2018) | 2007-2018 | Practitioner calibration |
 | Monte Carlo Validation | Saltelli et al. (2004) | 2004 | Simulation diagnostics |
 
-### 9.3 Application to PMC Estimator
+### 9.3 Application to ProjectCare
 
 **Current Approach:**
 - Interactive sliders (7 variables) for expert adjustment
@@ -732,7 +732,7 @@ Output: Use quantile-adjusted distribution if it passes guardrails
 
 **Comparison to Commercial Systems:**
 
-| Aspect | @RISK / Crystal Ball | PMC Estimator | Trade-offs |
+| Aspect | @RISK / Crystal Ball | ProjectCare | Trade-offs |
 |--------|---|---|---|
 | Computation | Full Monte Carlo simulation | Analytical (moment-based) | Speed vs. precision on correlations |
 | Interaction | Limited; mostly specification | Rich slider interface | UX vs. computational burden |
@@ -809,7 +809,7 @@ If inconsistent:
 | Sensitivity: Global | Saltelli et al. (2008) | 2008 | Sobol, variance decomposition |
 | Complexity vs. Simplicity | Hastie et al. (2009) "Elements of Stat. Learning" | 2009 | Overfitting; model selection |
 
-### 10.3 Application to PMC Estimator
+### 10.3 Application to ProjectCare
 
 **Current Approach:**
 - KL divergence as internal validation metric
@@ -1413,7 +1413,7 @@ function bayesianUpdate({
 
 ## 16. CONCLUSION
 
-The PMC Estimator system represents a pragmatic, well-engineered synthesis of several academic domains:
+The ProjectCare system represents a pragmatic, well-engineered synthesis of several academic domains:
 
 1. **Distribution Theory:** Proper use of PERT, Beta distribution, moment matching
 2. **Copula-Based Aggregation:** Simplified but sensible approximation of Embrechts et al. (2002)

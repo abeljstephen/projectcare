@@ -1,7 +1,7 @@
 # QA Orchestrator Agent
 
 A senior QA agent that coordinates `math-agent`, `research-agent`, and its own built-in static
-checks to produce a comprehensive, prioritised QA report for any PMC Estimator component.
+checks to produce a comprehensive, prioritised QA report for any ProjectCare component.
 
 ## What It Does
 

@@ -1,4 +1,4 @@
-# PMC Estimator Research Documentation
+# ProjectCare Research Documentation
 ## Complete Index & Reading Guide
 
 **Version:** 1.0
@@ -9,7 +9,7 @@
 
 ## DOCUMENT OVERVIEW
 
-This research package contains four interconnected documents providing theoretical foundations, academic grounding, and a practical implementation roadmap for the PMC Estimator's probability distribution reshaping system.
+This research package contains four interconnected documents providing theoretical foundations, academic grounding, and a practical implementation roadmap for the ProjectCare's probability distribution reshaping system.
 
 ### Quick Navigation
 
@@ -530,7 +530,7 @@ GATES:  Week 5 (Phase 1), Week 10 (Phase 2), Week 16 (Phase 3), Week 21 (Phase 4
 ## FREQUENTLY ASKED QUESTIONS
 
 **Q: Why was this research undertaken?**
-A: PMC Estimator combines copula-based aggregation with slider-based expert adjustment—a pragmatic but under-validated approach. This research package provides academic grounding and a validation roadmap.
+A: ProjectCare combines copula-based aggregation with slider-based expert adjustment—a pragmatic but under-validated approach. This research package provides academic grounding and a validation roadmap.
 
 **Q: Is the current system good?**
 A: Yes, but unproven empirically. Numerically stable, well-designed UI, sensible moment-based approach. Needs validation against historical projects (Phase 1).

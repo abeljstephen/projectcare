@@ -1,7 +1,7 @@
 # Documentation Organization Map
 
 **Status Date**: February 15, 2026
-**Project**: PMC Estimator System
+**Project**: ProjectCare System
 **Total Documentation**: 90,000+ words across 20+ documents with comprehensive README navigation
 
 ---

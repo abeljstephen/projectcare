@@ -43,7 +43,7 @@ and codebase research into a single actionable QA report.
 - All `$wpdb` queries with external input must use `$wpdb->prepare()` with `%s`/`%d` placeholders; string interpolation in SQL is a SQL injection vector
 - All POST handlers must verify a nonce with `wp_verify_nonce()` before processing; missing nonce verification allows CSRF
 - `$wpdb->insert()`, `$wpdb->update()`, `$wpdb->delete()` return `false` on error; return values must be checked before assuming success
-- Schema changes (new tables, new columns) require a `PMC_CRM_VERSION` bump so `pmc_maybe_upgrade()` fires on existing installs; a schema change without a version bump means the new table/column never gets created on production
+- Schema changes (new tables, new columns) require a `PC_CRM_VERSION` bump so `pc_maybe_upgrade()` fires on existing installs; a schema change without a version bump means the new table/column never gets created on production
 - `dbDelta()` is idempotent and safe to call on every activation; use it for all table creation and migration
 - REST endpoint callbacks must check `current_user_can()` or verify an API key before returning sensitive data
 - Stripe webhook handlers must verify the `Stripe-Signature` header before processing any payload; unverified webhooks allow replay or forged event attacks

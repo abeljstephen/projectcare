@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-The 7 weights in PMC Estimator [0.20, 0.20, 0.18, 0.15, 0.10, 0.09, 0.08] are NOT uniquely justified by PMBOK. Multiple frameworks across industries show different weight distributions. This document explores credible alternatives and concludes that **Phase 1 empirical validation is the true validator—not prior theory.**
+The 7 weights in ProjectCare [0.20, 0.20, 0.18, 0.15, 0.10, 0.09, 0.08] are NOT uniquely justified by PMBOK. Multiple frameworks across industries show different weight distributions. This document explores credible alternatives and concludes that **Phase 1 empirical validation is the true validator—not prior theory.**
 
 ---
 

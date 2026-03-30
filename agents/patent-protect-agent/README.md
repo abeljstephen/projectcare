@@ -57,6 +57,6 @@ claims from the date of notice.
 
 ## Invocation phrase (for Claude Code)
 
-> "run patent-agent on PMC Estimator"
+> "run patent-agent on ProjectCare"
 > "check patent protection risks"
 > "run patent scan"

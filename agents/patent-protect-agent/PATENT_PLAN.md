@@ -1,4 +1,4 @@
-# PMC Estimator — Patent Protection Plan
+# ProjectCare — Patent Protection Plan
 
 > Living document. Add new tasks by appending blocks in the same format.
 > The patent-agent reads this file and runs all enabled checks in phase order.

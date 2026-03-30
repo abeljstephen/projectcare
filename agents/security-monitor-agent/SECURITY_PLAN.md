@@ -1,4 +1,4 @@
-# PMC Estimator — Security Monitor Plan
+# ProjectCare — Security Monitor Plan
 
 > Living document. Add new tasks by appending blocks in the same format below.
 > The security-agent reads this file and runs all enabled tasks in phase order.

@@ -30,6 +30,6 @@ open agents/qa-agent/reports/   # macOS — find the latest .md file
 
 ## Invocation phrase (for Claude Code)
 
-> "run qa-agent on PMC Estimator google sheet addon"
-> "run qa-agent on PMC Estimator --scope static"
+> "run qa-agent on ProjectCare google sheet addon"
+> "run qa-agent on ProjectCare --scope static"
 > "run qa-agent on wordpress plugin"

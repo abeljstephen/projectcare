@@ -2,7 +2,7 @@
   "agent": {
     "name": "Codebase Research Agent",
     "version": "1.0.0",
-    "description": "Specialized codebase research agent for the PMC Estimator — traces call chains, maps data flow, and produces structured architectural analyses"
+    "description": "Specialized codebase research agent for the ProjectCare — traces call chains, maps data flow, and produces structured architectural analyses"
   },
   "research_config": {
     "trace_call_chains": true,

@@ -1,4 +1,4 @@
-# PMC Estimator Validation Roadmap
+# ProjectCare Validation Roadmap
 ## Empirical Testing Plan for Distribution Reshaping System
 
 **Version:** 1.0
@@ -13,7 +13,7 @@
 
 This document operationalizes the 10-test framework from the Research Synthesis document into a concrete, executable plan with timelines, success criteria, and resource requirements.
 
-**High-Level Goal:** Validate that PMC Estimator's slider-based distribution adjustment empirically improves project outcome predictions over baseline PERT estimation.
+**High-Level Goal:** Validate that ProjectCare's slider-based distribution adjustment empirically improves project outcome predictions over baseline PERT estimation.
 
 **Key Metric:** Brier score reduction of 10-20% (from ~0.25 to ≤0.22) with slider adjustments vs. baseline alone.
 
@@ -708,7 +708,7 @@ Gate Reviews: End of each phase (Weeks 5, 10, 16, 21)
 - [x] Positive decision OR accept with minor revisions
 
 **BUSINESS IMPACT:**
-- [x] PMC Estimator documented as evidence-based system
+- [x] ProjectCare documented as evidence-based system
 - [x] Customers can cite academic validation in governance reports
 - [x] Team expertise recognized (potential consulting/training revenue)
 

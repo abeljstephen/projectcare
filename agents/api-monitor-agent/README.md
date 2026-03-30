@@ -1,6 +1,6 @@
 # API Monitor Agent
 
-Monitors Anthropic API usage and costs for PMC Estimator agents.
+Monitors Anthropic API usage and costs for ProjectCare agents.
 
 ## Usage
 

@@ -1,5 +1,5 @@
 # PMBOK Formula Reference: Mathematical Mappings
-**Technical Reference for PMC Estimator weight validation**
+**Technical Reference for ProjectCare weight validation**
 
 ---
 

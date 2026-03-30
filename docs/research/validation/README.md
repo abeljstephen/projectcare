@@ -34,7 +34,7 @@ Academic research on how to empirically test, validate, and calibrate probabilit
 
 ## Validation Strategy Overview
 
-The PMC Estimator validation follows a **4-phase roadmap**:
+The ProjectCare validation follows a **4-phase roadmap**:
 
 ### Phase 1: Foundation (Weeks 1-5, $30k)
 - Collect 30+ historical projects

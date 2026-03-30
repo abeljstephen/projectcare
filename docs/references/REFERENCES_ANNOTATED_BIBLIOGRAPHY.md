@@ -1,5 +1,5 @@
 # Comprehensive References: Distribution Reshaping & Expert Elicitation
-## Annotated Bibliography for PMC Estimator System
+## Annotated Bibliography for ProjectCare System
 
 **Version:** 2.0
 **Last Updated:** February 2026
@@ -977,12 +977,12 @@
 **Total References:** 50+
 **Pages:** ~60 (this document)
 **Version:** 2.0 (comprehensive annotated bibliography)
-**Maintainer:** PMC Estimator Research Team
+**Maintainer:** ProjectCare Research Team
 **Last Reviewed:** February 2026
 **Status:** Ready for publication as supplementary material
 
 **Recommended Citation for This Document:**
-> "Comprehensive References: Distribution Reshaping & Expert Elicitation for Project Estimation" (2026). Annotated bibliography for PMC Estimator System. Version 2.0. [Internal Research Document]
+> "Comprehensive References: Distribution Reshaping & Expert Elicitation for Project Estimation" (2026). Annotated bibliography for ProjectCare System. Version 2.0. [Internal Research Document]
 
 **Related Documents:**
 - RESEARCH_SYNTHESIS_DISTRIBUTION_RESHAPING.md (main synthesis, ~10,000 words)
