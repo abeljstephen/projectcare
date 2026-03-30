@@ -7,7 +7,7 @@
 | Resource     | Used | Limit | % Used | Status |
 |-------------|------|-------|--------|--------|
 | Deployments | 3    | 20     | 15%     | OK      |
-| Versions    | 82   | 100    | 82%     | WATCH   |
+| Versions    | 85   | 100    | 85%     | WATCH   |
 
 ## Rules
 - `clasp push` → updates HEAD only. **No slots consumed. Push freely.**
@@ -35,12 +35,11 @@ clasp deploy --deploymentId AKfycbxPMikpb1W7qHCYwuIfx1696rU-rsnZka_SRhdSL6x8r8En
 
 ## Recent Versions (last 5)
 ```
-68 - ProjectCare API v1.9.38 — slim-only session payload, fix multi-task plot URL
-75 - (version snapshot pre-deploy)
-76 - (API deploy version)
-77 - (Addon deploy version)
 81 - ProjectCare API v1.1.0 — slim/full GAS tier per plan
 82 - ProjectCare API v1.2.0 — dynamic credit costs, benchmark action
+83 - ProjectCare API v1.3.0 — slim URL seed-only payload (fix truncation)
+84 - ProjectCare API v1.4.0 — URL seed only (p10/p50/p90 removed, O/M/P only)
+85 - ProjectCare API v1.5.0 — buildCpmUrl, _cpmUrl in slim+full response
 ```
 
 ## Tasks for This Agent
@@ -52,6 +51,7 @@ clasp deploy --deploymentId AKfycbxPMikpb1W7qHCYwuIfx1696rU-rsnZka_SRhdSL6x8r8En
 
 ## History (last 10 checks)
 <!-- Updated automatically by check-limits.sh -->
+- 2026-03-29 — Deployments: 3/20  Versions: 85/100  [OK / WATCH]  API v1.5.0 CPM URL builder, cpm/index.html critical path GUI — API @85, Addon @77
 - 2026-03-29 — Deployments: 3/20  Versions: 82/100  [OK / WATCH]  API v1.2.0 dynamic credits, calibration, margin dashboard — API @82, Addon @77
 - 2026-03-29 — Deployments: 3/20  Versions: 81/100  [OK / WATCH]  API v1.1.0 slim/full tier — API @81, Addon @77
 - 2026-03-28 — Deployments: 3/20  Versions: 77/100  [OK / WATCH]  ProjectCare v1.0.0 launch — API @76, Addon @77

@@ -468,7 +468,9 @@ function handleCallApi(body) {
         return { task: t.task, O: t.optimistic, M: t.mostLikely, P: t.pessimistic };
       });
       var plotUrl = buildPlotUrl(urlTasks, tasks, sessionToken, null);
+      var cpmUrl  = buildCpmUrl(tasks, sessionToken);
       result._plotUrl      = plotUrl;
+      result._cpmUrl       = cpmUrl;
       result._sessionToken = sessionToken;
       // Save slim payload to WordPress for live-update polling (non-fatal)
       try {
@@ -699,8 +701,9 @@ function handleCallApiSlim(body, key, auth, sessionToken) {
     };
   });
 
-  // Build plot URL and save to WP for session polling
+  // Build plot + CPM URLs and save to WP for session polling
   var plotUrl = buildPlotUrl(slimTasks, tasks, sessionToken, portfolio);
+  var cpmUrl  = buildCpmUrl(tasks, sessionToken);
   try {
     wpPost('/projectcare/v1/plot-data/save', {
       token: sessionToken,
@@ -731,6 +734,7 @@ function handleCallApiSlim(body, key, auth, sessionToken) {
     results:         taskResults,
     _portfolio:      portfolio,
     _plotUrl:        plotUrl,
+    _cpmUrl:         cpmUrl,
     _sessionToken:   sessionToken,
     _quota: {
       plan:              auth.plan,
@@ -963,6 +967,29 @@ function buildPlotUrl(slimTasks, tasks, token, portfolio) {
     return 'https://abeljstephen.github.io/projectcare/plot/?data=' + encoded + '&session=' + token;
   } catch (e) {
     return 'https://abeljstephen.github.io/projectcare/plot/?session=' + token;
+  }
+}
+
+function buildCpmUrl(tasks, token) {
+  try {
+    // CPM seed: task name, O/M/P, predecessors (minimal payload)
+    var seed = {
+      schemaVersion: 1,
+      tasks: tasks.map(function(t) {
+        return {
+          id:           String(t.id || t.task),
+          task:         t.task,
+          O:            t.optimistic,
+          M:            t.mostLikely,
+          P:            t.pessimistic,
+          predecessors: t.predecessors || []
+        };
+      })
+    };
+    var encoded = encodeURIComponent(Utilities.base64Encode(JSON.stringify(seed)));
+    return 'https://abeljstephen.github.io/projectcare/cpm/?data=' + encoded + '&session=' + token;
+  } catch (e) {
+    return 'https://abeljstephen.github.io/projectcare/cpm/?session=' + token;
   }
 }
 
