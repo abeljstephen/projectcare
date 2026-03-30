@@ -398,10 +398,10 @@ function onOpen() {
     .addSeparator()
     .addItem('Export Run Log', 'writeLogsToSheet');
   const settings = ui.createMenu('Settings')
-    .addItem('Select Data Tab',            'pmcSelectDataTab')
+    .addItem('Select Data Tab',            'pcSelectDataTab')
     .addSeparator()
-    .addItem('Add "Run?" Checkbox Column', 'pmcAddCheckboxColumn')
-    .addItem('Clear Validation Highlights', 'pmcClearHighlights');
+    .addItem('Add "Run?" Checkbox Column', 'pcAddCheckboxColumn')
+    .addItem('Clear Validation Highlights', 'pcClearHighlights');
   ui.createMenu('ProjectCare')
     .addSubMenu(pert)
     .addItem('PLOT', 'openPlotUi')
@@ -930,7 +930,7 @@ function preflight_(sheet, colMap, startRow, endRow) {
 
 // Lets the user pin which tab contains their task data.
 // Saves the choice to document properties; getSourceSheet_() reads it on every run.
-function pmcSelectDataTab() {
+function pcSelectDataTab() {
   const ss     = SpreadsheetApp.getActiveSpreadsheet();
   const ui     = SpreadsheetApp.getUi();
   const sheets = ss.getSheets();
@@ -961,7 +961,7 @@ function pmcSelectDataTab() {
 }
 
 // Clears red validation highlights from the entire source sheet data area.
-function pmcClearHighlights() {
+function pcClearHighlights() {
   const ss     = SpreadsheetApp.getActiveSpreadsheet();
   const active = ss.getActiveSheet();
   if (!active || active.getLastRow() < 2) { toast_('Settings', 'Nothing to clear.', 3); return; }
@@ -1521,7 +1521,7 @@ function pertRerunLastSheet() {
 }
 
 // Adds a "Run?" checkbox column to the active sheet, after the last data column.
-function pmcAddCheckboxColumn() {
+function pcAddCheckboxColumn() {
   const ss  = SpreadsheetApp.getActiveSpreadsheet();
   const src = ss.getActiveSheet();
   if (!src) { safeAlert_('No active sheet.'); return; }
@@ -1672,12 +1672,12 @@ function runTasks_(tasks, mode, skippedRows) {
   if (reportPayloads.length > 0) {
     const batchDate = new Date();
     try {
-      pmcWriteBatchReportTab_(reportPayloads, tasks.length, batchDate);
+      pcWriteBatchReportTab_(reportPayloads, tasks.length, batchDate);
     } catch(e) {
       logSheet.appendRow([tsMsg('Batch full report write failed: ' + e.message)]);
     }
     try {
-      pmcWriteBatchSnapshotTab_(reportPayloads, tasks.length, batchDate);
+      pcWriteBatchSnapshotTab_(reportPayloads, tasks.length, batchDate);
     } catch(e) {
       logSheet.appendRow([tsMsg('Batch snapshot write failed: ' + e.message)]);
     }

@@ -1,6 +1,6 @@
 // File: report/sheet-writer.gs
 // Writes PMC Snapshot or Full Report to a new tab in the active spreadsheet.
-// Called by Plot.html via google.script.run.pmcWriteReportTab(payload, mode).
+// Called by Plot.html via google.script.run.pcWriteReportTab(payload, mode).
 // invertCdf / ensureSortedMonotoneCdf are available globally from helpers/metrics.gs.
 
 // ── Colour palette ───────────────────────────────────────────────────────────
@@ -279,7 +279,7 @@ function _pmcWriteSnapshot_(sheet, p, runDate) {
 
   var totalCols = headers.length;
   swApplyTitle_(sheet, totalCols,
-    'PMC Estimator — Snapshot   |   ' + (p.taskName || 'Task') +
+    'ProjectCare — Snapshot   |   ' + (p.taskName || 'Task') +
     '   |   ' + swDate_(runDate ? runDate.toISOString() : new Date().toISOString()));
 
   // Row 2: section band (using merged spans per section)
@@ -493,7 +493,7 @@ function _pmcWriteFullReport_(sheet, p, runDate) {
   var totalCols = headers.length; // 38
 
   swApplyTitle_(sheet, totalCols,
-    'PMC Estimator — Full Report   |   ' + (p.taskName || 'Task') +
+    'ProjectCare — Full Report   |   ' + (p.taskName || 'Task') +
     '   |   ' + swDate_(runDate ? runDate.toISOString() : new Date().toISOString()));
 
   // Row 2: section bands
@@ -537,14 +537,14 @@ function _pmcWriteFullReport_(sheet, p, runDate) {
 }
 
 // ── Batch Snapshot (15-col condensed, one row per task) ──────────────────────
-function pmcWriteBatchSnapshotTab_(payloads, taskCount, runDate) {
+function pcWriteBatchSnapshotTab_(payloads, taskCount, runDate) {
   if (!Array.isArray(payloads) || payloads.length === 0) return;
   try {
     var ss      = SpreadsheetApp.getActiveSpreadsheet();
     var tz      = ss.getSpreadsheetTimeZone();
     var now     = runDate || new Date();
     var dateStr = Utilities.formatDate(now, tz, 'MMM d, yyyy  HH:mm');
-    var tabName = 'PMC Estimator \u2014 Batch Snapshot \u2014 ' + dateStr;
+    var tabName = 'ProjectCare \u2014 Batch Snapshot \u2014 ' + dateStr;
 
     var existing = ss.getSheetByName(tabName);
     if (existing) { try { ss.deleteSheet(existing); } catch(_) {} }
@@ -579,7 +579,7 @@ function pmcWriteBatchSnapshotTab_(payloads, taskCount, runDate) {
 
     // Row 1: title
     swApplyTitle_(sheet, totalCols,
-      'PMC Estimator \u2014 Batch Snapshot   |   ' +
+      'ProjectCare \u2014 Batch Snapshot   |   ' +
       payloads.length + ' task' + (payloads.length !== 1 ? 's' : '') +
       '   |   ' + dateStr);
 
@@ -633,7 +633,7 @@ function pmcWriteBatchSnapshotTab_(payloads, taskCount, runDate) {
     ss.setActiveSheet(sheet);
     return { ok: true, tabName: tabName };
   } catch(e) {
-    Logger.log('pmcWriteBatchSnapshotTab_ error: ' + e.message);
+    Logger.log('pcWriteBatchSnapshotTab_ error: ' + e.message);
     return { ok: false, error: e.message };
   }
 }
@@ -644,14 +644,14 @@ function pmcWriteBatchSnapshotTab_(payloads, taskCount, runDate) {
 // Each payload must have: taskName, O, M, P, target, baselineProb, baseCdf,
 //   unconstrainedProb, unconstrainedSliders (0-1), unconstrainedKL,
 //   topRecommendation, playbookFlags, taskCount.
-function pmcWriteBatchReportTab_(payloads, taskCount, runDate) {
+function pcWriteBatchReportTab_(payloads, taskCount, runDate) {
   if (!Array.isArray(payloads) || payloads.length === 0) return;
   try {
     var ss      = SpreadsheetApp.getActiveSpreadsheet();
     var tz      = ss.getSpreadsheetTimeZone();
     var now     = runDate || new Date();
     var dateStr = Utilities.formatDate(now, tz, 'MMM d, yyyy  HH:mm');
-    var tabName = 'PMC Estimator \u2014 Batch Report \u2014 ' + dateStr;
+    var tabName = 'ProjectCare \u2014 Batch Report \u2014 ' + dateStr;
 
     var existing = ss.getSheetByName(tabName);
     if (existing) { try { ss.deleteSheet(existing); } catch(_) {} }
@@ -699,7 +699,7 @@ function pmcWriteBatchReportTab_(payloads, taskCount, runDate) {
 
     // Row 1: title
     swApplyTitle_(sheet, totalCols,
-      'PMC Estimator \u2014 Batch Report   |   ' +
+      'ProjectCare \u2014 Batch Report   |   ' +
       payloads.length + ' task' + (payloads.length !== 1 ? 's' : '') +
       '   |   ' + dateStr);
 
@@ -790,13 +790,13 @@ function pmcWriteBatchReportTab_(payloads, taskCount, runDate) {
     ss.setActiveSheet(sheet);
     return { ok: true, tabName: tabName };
   } catch(e) {
-    Logger.log('pmcWriteBatchReportTab_ error: ' + e.message);
+    Logger.log('pcWriteBatchReportTab_ error: ' + e.message);
     return { ok: false, error: e.message };
   }
 }
 
 // ── Public entry point ───────────────────────────────────────────────────────
-function pmcWriteReportTab(payload, mode) {
+function pcWriteReportTab(payload, mode) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var tz = ss.getSpreadsheetTimeZone();
