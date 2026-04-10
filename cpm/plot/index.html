@@ -1554,7 +1554,7 @@ function renderHealthScore(health) {
     { key:'criticalitySpread',    label:'Path concentration',       desc:'How concentrated risk is on one path. High = most iterations share the same critical path — little schedule flexibility.', invert:true },
     { key:'hasNegativeFloat',     label:'Negative float',           desc:'Any task with negative float means the schedule is already behind the deadline.',            invert:true, binary:true }
   ];
-  var fHtml = '<h2 style="margin-bottom:10px;">Risk Factors</h2>';
+  var fHtml = '<h2 style="margin-bottom:10px;">Risk Factors <span class="htip" data-tip="Each factor is a schedule risk signal. Bars show intensity (red = high risk, green = low risk). Hover any ? for details.">?</span></h2>';
   factorDefs.forEach(function(fd) {
     var v = f[fd.key];
     if (v == null) return;
@@ -1568,7 +1568,7 @@ function renderHealthScore(health) {
     }
     var fillColor = barFill > 60 ? '#FCA5A5' : barFill > 30 ? '#FDE68A' : '#6EE7B7';
     fHtml += '<div class="factor-row">' +
-      '<span class="factor-name" title="' + fd.desc + '">' + fd.label + '</span>' +
+      '<span class="factor-name">' + fd.label + ' <span class="htip" data-tip="' + fd.desc.replace(/"/g, '&quot;') + '">?</span></span>' +
       '<div class="factor-bar-track"><div class="factor-bar-fill" style="width:' + barFill + '%;background:' + fillColor + ';"></div></div>' +
       '<span class="factor-val">' + dispVal + '</span>' +
       '</div>';

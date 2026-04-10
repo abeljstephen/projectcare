@@ -2246,9 +2246,10 @@
     <!-- ── Persistent task toolbar ── -->
     <div id="pcToolbar">
       <!-- Manage + Settings -->
-      <button class="stp1-meta-btn" id="btnManageTasks" onclick="TM.openManager()" title="View, add, edit tasks. In Group mode: select which tasks to include.">Manage tasks</button>
+      <button class="stp1-meta-btn" id="btnManageTasks" onclick="TM.openManager()" title="View, add, edit, and manage your own tasks.">Your tasks</button>
       <button class="stp1-meta-btn" id="btnTMSettings" onclick="TM.openSettings()" title="Task settings">&#9881;</button>
       <button class="stp1-meta-btn" id="btnDemoDatasets" onclick="openSacoDatasetPicker()" title="Load an example dataset to explore the four optimization strategies" style="color:#5B21B6;border-color:#A78BFA;background:#F5F3FF;">✨ Demo</button>
+      <span id="sacoDemoActiveBadge" style="display:none;font-size:10px;font-weight:700;color:#5B21B6;background:#EDE9FE;border:1px solid #C4B5FD;border-radius:4px;padding:1px 6px;white-space:nowrap;"></span>
       <div class="pct-sep"></div>
       <!-- Mode toggle -->
       <div class="tm-mode-toggle" title="Single: analyze one task. Group: combine multiple tasks into one distribution.">
@@ -2283,7 +2284,7 @@
       <!-- Status + refresh + report -->
       <span id="tmDirtyBadge" style="display:none;font-size:10px;color:#D97706;font-weight:700;">&#9679; Unsaved</span>
       <a id="tmReportLink" href="#" target="_blank" rel="noopener" style="display:none;font-size:11px;font-weight:600;color:#4338CA;text-decoration:none;padding:3px 8px;border:1px solid #C7D2FE;border-radius:6px;background:#EEF2FF;white-space:nowrap;" title="View one-page report for this task">&#128203; Report</a>
-      <a href="/projectcare/cpm/plot/" target="_blank" rel="noopener" style="font-size:11px;font-weight:600;color:#065F46;text-decoration:none;padding:3px 8px;border:1px solid #6EE7B7;border-radius:6px;background:#ECFDF5;white-space:nowrap;" title="Open Critical Path / CPM view">&#128279; CPM</a>
+      <a id="sacoCpmLink" href="/projectcare/cpm/plot/" target="_blank" rel="noopener" style="font-size:11px;font-weight:600;color:#065F46;text-decoration:none;padding:3px 8px;border:1px solid #6EE7B7;border-radius:6px;background:#ECFDF5;white-space:nowrap;" title="Open Critical Path with current tasks pre-loaded">&#128279; CPM</a>
       <span id="fetchStatus" class="status">Ready</span>
       <button id="refreshBtn" class="primary">&#x21bb;</button>
     </div><!-- /#pcToolbar -->
@@ -7232,6 +7233,10 @@
           onTaskChange();
           var _pl = document.getElementById('pageLoader');
           if (_pl) _pl.style.display = 'none';
+          // Update CPM link with freshly loaded tasks
+          if (typeof window._sacoUpdateCpmLink === 'function') {
+            window._sacoUpdateCpmLink();
+          }
         }
 
         if (window._pmcBootstrap) {
@@ -9004,14 +9009,15 @@
     }
 
     if (ds.isMulti) {
+      _sacoSetActiveSource('demo:' + id);
       pmcLoadExample();
       return;
     }
 
-    // O>M validation
+    // O>M validation — show in form but don't run
     var ompErr = ds.O > ds.M || ds.M > ds.P;
 
-    // Fill form fields
+    // Always fill the no-data form fields so the user can see/edit the values
     var taskEl = document.getElementById('nd_task');
     var oEl    = document.getElementById('nd_O');
     var mEl    = document.getElementById('nd_M');
@@ -9031,14 +9037,68 @@
       return; // do not auto-run invalid estimates
     }
 
-    // Auto-run
-    pmcRunFromForm();
+    // Track active demo then inject directly — avoids form-read race condition
+    _sacoSetActiveSource('demo:' + id);
+    _pmcInjectTasks([{ task: ds.task || ds.label, optimistic: ds.O, mostLikely: ds.M, pessimistic: ds.P }], 'demo:' + id);
+  }
+
+  // ── Active source tracking + CPM link updater ────────────────
+  // Tracks whether the page is showing a named demo or the user's own data.
+  // Also keeps the CPM toolbar link updated with current task data.
+  var _sacoActiveSource = 'demo:portfolio'; // default on cold load
+
+  function _sacoSetActiveSource(src) {
+    _sacoActiveSource = src;
+    var badge = document.getElementById('sacoDemoActiveBadge');
+    var demoBtn = document.getElementById('btnDemoDatasets');
+    var yourBtn = document.getElementById('btnManageTasks');
+    var isDemo = src && src.indexOf('demo:') === 0;
+    var demoId = isDemo ? src.slice(5) : null;
+    var ds = demoId ? SACO_DATASETS.find(function(d){ return d.id === demoId; }) : null;
+
+    if (badge) {
+      if (isDemo) {
+        badge.textContent = (ds ? ds.icon + ' ' + ds.label : 'Demo');
+        badge.style.display = '';
+      } else {
+        badge.textContent = '';
+        badge.style.display = 'none';
+      }
+    }
+    // Visual active state on buttons
+    if (demoBtn) demoBtn.style.fontWeight = isDemo ? '800' : '';
+    if (yourBtn) yourBtn.style.fontWeight = isDemo ? '' : '800';
+
+    // Update CPM link with current tasks
+    _sacoUpdateCpmLink();
+  }
+
+  function _sacoUpdateCpmLink() {
+    var cpmLink = document.getElementById('sacoCpmLink');
+    if (!cpmLink) return;
+    try {
+      var tasks = (window.S && window.S.tasks) ? window.S.tasks : (window._pmcBootstrap && window._pmcBootstrap.tasks);
+      if (!tasks || !tasks.length) { cpmLink.href = '/projectcare/cpm/plot/'; return; }
+      var payload = { tasks: tasks.map(function(t) {
+        return {
+          task:         t.task || t.task_name || t.name || 'Task',
+          O:            t.optimistic  || t.O || 1,
+          M:            t.mostLikely  || t.M || 2,
+          P:            t.pessimistic || t.P || 3,
+          predecessors: t.predecessors || []
+        };
+      })};
+      var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+      cpmLink.href = '/projectcare/cpm/plot/?data=' + b64;
+    } catch(e) { cpmLink.href = '/projectcare/cpm/plot/'; }
   }
 
   // Expose picker functions globally so toolbar button can reach them
   window.openSacoDatasetPicker  = openSacoDatasetPicker;
   window.closeSacoDatasetPicker = closeSacoDatasetPicker;
   window.loadSacoDataset        = loadSacoDataset;
+  window._sacoSetActiveSource   = _sacoSetActiveSource;
+  window._sacoUpdateCpmLink     = _sacoUpdateCpmLink;
 
   /* Show no-data overlay (input form) */
   function showNoDataMessage() {
@@ -9062,6 +9122,7 @@
 
   /* Load example portfolio (same 6-task project used on CPM page) */
   function pmcLoadExample() {
+    if (typeof _sacoSetActiveSource === 'function') { _sacoSetActiveSource('demo:portfolio'); }
     var example = [
       { task:'Requirements',  optimistic:3,  mostLikely:5,  pessimistic:8  },
       { task:'Design',        optimistic:4,  mostLikely:7,  pessimistic:12 },
@@ -9070,7 +9131,7 @@
       { task:'Documentation', optimistic:2,  mostLikely:4,  pessimistic:6  },
       { task:'Deployment',    optimistic:1,  mostLikely:2,  pessimistic:4  }
     ];
-    _pmcInjectTasks(example);
+    _pmcInjectTasks(example, 'demo:portfolio');
   }
 
   function pmcToggleGsRow() {
@@ -9153,7 +9214,7 @@
     });
     if (!tasks.length) { _pmcSetImportStatus('No valid rows in ' + src + ' (need O ≤ M ≤ P).', true); return; }
     _pmcSetImportStatus('Loaded ' + tasks.length + ' task' + (tasks.length !== 1 ? 's' : '') + ' from ' + src + '.');
-    _pmcInjectTasks(tasks);
+    _pmcInjectTasks(tasks, 'user');
   }
 
   function _pmcSetImportStatus(msg, isError) {
@@ -9164,9 +9225,10 @@
     el.style.display = msg ? '' : 'none';
   }
 
-  function _pmcInjectTasks(tasks) {
+  function _pmcInjectTasks(tasks, src) {
     window._pmcBootstrap = { tasks: tasks };
     window._pmcNoData = false;
+    if (typeof _sacoSetActiveSource === 'function') { _sacoSetActiveSource(src || 'user'); }
     var overlay = document.getElementById('pmcNoDataOverlay');
     if (overlay) overlay.classList.remove('visible');
     if (typeof window.loadTasks === 'function') {
@@ -9202,6 +9264,11 @@
     if (O === P) {
       if (errEl) { errEl.textContent = 'O and P cannot be equal (no range to estimate).'; errEl.style.display = 'block'; }
       return;
+    }
+
+    // Mark source as user unless a demo already set it (loadSacoDataset calls us after setting source)
+    if (typeof _sacoSetActiveSource === 'function' && (!_sacoActiveSource || _sacoActiveSource.indexOf('demo:') === -1)) {
+      _sacoSetActiveSource('user');
     }
 
     // Inject as a bootstrap task list and call the existing loader
