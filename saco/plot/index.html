@@ -12800,9 +12800,9 @@ window.TM = {
         // Restore full group state from cache (sets baselineProb, KPI chips, recommendations)
         this._showAggregateResult(this._lastAggResult);
       } else {
-        // No run yet — clear KPI chips so they show "–" not stale single-task values
-        if (typeof window.renderKPIs === 'function') window.renderKPIs();
-        if (typeof window.updateRecommendation === 'function') window.updateRecommendation(window.S || {});
+        // No cached result — auto-run immediately so the user sees results without clicking
+        var self = this;
+        setTimeout(function() { if (typeof self.saveAndRun === 'function') self.saveAndRun(); }, 50);
       }
     }
 
