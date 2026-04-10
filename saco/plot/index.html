@@ -8952,15 +8952,15 @@
       O:20, M:10, P:8, task:'Invalid Estimate' },
     { id:'portfolio', label:'Full Project Portfolio', category:'multi', icon:'🏗',
       tagline:'6 tasks — Requirements → Design → Dev → Test → Docs → Deploy',
-      mathProp:'Portfolio mode · Independent PERT distributions · No CPM correlation',
-      mathExplain:'Loads all 6 tasks from the Full Project example as a SACO portfolio.\n\nEach task is analysed independently with its own PERT distribution.\nThe SACO Plot shows one task at a time (use the task selector dropdown).\n\nFor critical path analysis and inter-task correlation,\nuse the Critical Path page: abeljstephen.github.io/projectcare/cpm/plot/',
+      mathProp:'Multi-path DAG · Merge at Deployment · Critical path through Development',
+      mathExplain:'The reference project exercises all engine features simultaneously.\n\nGraph: Requirements → Design → Development → Testing ↘\n               Design → Documentation              ↗  Deployment\n\nCritical path: Requirements → Design → Development → Testing → Deployment\nDocumentation float: ~9.5 d\n\nIn the SACO Plot each task is analysed independently.\nOpen the CPM Diagram to see the full network with critical path, float, and correlation.',
       tasks:[
-        { task:'Requirements',  optimistic:3,  mostLikely:5,  pessimistic:8  },
-        { task:'Design',        optimistic:4,  mostLikely:7,  pessimistic:12 },
-        { task:'Development',   optimistic:10, mostLikely:16, pessimistic:25 },
-        { task:'Testing',       optimistic:4,  mostLikely:6,  pessimistic:10 },
-        { task:'Documentation', optimistic:2,  mostLikely:4,  pessimistic:6  },
-        { task:'Deployment',    optimistic:1,  mostLikely:2,  pessimistic:4  }
+        { id:'requirements',  task:'Requirements',  optimistic:3,  mostLikely:5,  pessimistic:8,  predecessors:[] },
+        { id:'design',        task:'Design',        optimistic:4,  mostLikely:7,  pessimistic:12, predecessors:['requirements'], phase:'Discovery' },
+        { id:'development',   task:'Development',   optimistic:10, mostLikely:16, pessimistic:25, predecessors:['design'], resource:'Dev Team', phase:'Build', riskSignals:['vendor-dependency','single-resource'] },
+        { id:'testing',       task:'Testing',       optimistic:4,  mostLikely:6,  pessimistic:10, predecessors:['development'], resource:'QA Team', phase:'Build' },
+        { id:'documentation', task:'Documentation', optimistic:2,  mostLikely:4,  pessimistic:6,  predecessors:['design'], resource:'Dev Team', phase:'Build' },
+        { id:'deployment',    task:'Deployment',    optimistic:1,  mostLikely:2,  pessimistic:4,  predecessors:['testing','documentation'], phase:'Release', riskSignals:['regulatory-approval'] }
       ]},
     { id:'software_team', label:'Software Team Sprint', category:'multi', icon:'🚀',
       tagline:'5 tasks — Backlog → Design → Build → QA → Release',
@@ -9126,16 +9126,25 @@
     var cpmLink = document.getElementById('sacoCpmLink');
     if (!cpmLink) return;
     try {
-      var tasks = (window.S && window.S.tasks) ? window.S.tasks : (window._pmcBootstrap && window._pmcBootstrap.tasks);
+      // Prefer bootstrap tasks (richer — carry id, predecessors, phase, resource, riskSignals)
+      // over the normalised S.tasks which may have lost those fields
+      var bootstrapTasks = window._pmcBootstrap && window._pmcBootstrap.tasks;
+      var sTasks = window.S && window.S.tasks;
+      var tasks = bootstrapTasks || sTasks;
       if (!tasks || !tasks.length) { cpmLink.href = '/projectcare/cpm/plot/'; return; }
-      var payload = { tasks: tasks.map(function(t) {
-        return {
-          task:         t.task || t.task_name || t.name || 'Task',
-          O:            t.optimistic  || t.O || 1,
-          M:            t.mostLikely  || t.M || 2,
-          P:            t.pessimistic || t.P || 3,
-          predecessors: t.predecessors || []
+      var payload = { tasks: tasks.map(function(t, i) {
+        var obj = {
+          task: t.task || t.task_name || t.name || ('Task ' + (i + 1)),
+          O:    t.optimistic  != null ? t.optimistic  : (t.O != null ? t.O : 1),
+          M:    t.mostLikely  != null ? t.mostLikely  : (t.M != null ? t.M : 2),
+          P:    t.pessimistic != null ? t.pessimistic : (t.P != null ? t.P : 3)
         };
+        if (t.id)           obj.id           = t.id;
+        if (t.predecessors) obj.predecessors  = t.predecessors;
+        if (t.phase)        obj.phase         = t.phase;
+        if (t.resource)     obj.resource      = t.resource;
+        if (t.riskSignals)  obj.riskSignals   = t.riskSignals;
+        return obj;
       })};
       var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
       cpmLink.href = '/projectcare/cpm/plot/?data=' + b64;
