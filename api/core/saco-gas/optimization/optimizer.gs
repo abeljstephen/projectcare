@@ -33,48 +33,49 @@ var PER_SLIDER_BOUNDS = [
 ];
 Logger.log('OPTIMIZER v1.9.33 — SACO Geometry + Latin Hypercube');
 
-// Placeholder SACO_GEOMETRY (prevents "not defined" errors)
-// Replace with real implementations from copula-utils.gs / kl-divergence.gs later
+// SACO_GEOMETRY — delegates to real implementations in global scope.
+// Each method defers resolution to call time so load-order of GAS files doesn't matter.
 var SACO_GEOMETRY = {
   baseline: function(params) {
-    Logger.log('SACO_GEOMETRY.baseline placeholder called:', params);
-    return { pdfPoints: [], cdfPoints: [] };
+    // Real: generateBaseline is in baseline/coordinator.gs (loaded globally)
+    return typeof generateBaseline === 'function'
+      ? generateBaseline(params)
+      : { pdfPoints: [], cdfPoints: [] };
   },
-  lhsSample: function(n, dims, seed = Date.now()) {
-    Logger.log('lhsSample placeholder: n=', n, 'dims=', dims);
-    const samples = Array.from({ length: n }, () => Array(dims).fill(0));
-    for (let j = 0; j < dims; j++) {
-      for (let i = 0; i < n; i++) {
-        samples[i][j] = Math.random();
+  lhsSample: function(n, dims) {
+    // Latin Hypercube Sampling: stratified random over [0,1]^dims
+    var samples = [];
+    for (var i = 0; i < n; i++) {
+      var row = [];
+      for (var j = 0; j < dims; j++) row.push((i + Math.random()) / n);
+      samples.push(row);
+    }
+    // Fisher-Yates shuffle each dimension independently
+    for (var j = 0; j < dims; j++) {
+      var col = samples.map(function(r) { return r[j]; });
+      for (var i = col.length - 1; i > 0; i--) {
+        var k = Math.floor(Math.random() * (i + 1));
+        var tmp = col[i]; col[i] = col[k]; col[k] = tmp;
       }
+      samples.forEach(function(r, i) { r[j] = col[i]; });
     }
     return samples;
   },
   computeMoments: function(sliders100, scale, cv) {
-    Logger.log('computeMoments placeholder:', sliders100);
-    return { moments: [0, 0] };
+    // Real: computeAdjustedMoments is in reshaping/copula-utils.gs
+    return typeof computeAdjustedMoments === 'function'
+      ? computeAdjustedMoments(sliders100, scale, cv)
+      : { moments: [0, 0] };
   },
   betaRefit: function(o, m, p, moments) {
-    const [m0, m1] = Array.isArray(moments) ? moments : [0, 0];
-    const mu0 = (o + 4 * m + p) / 6;
-    const var0 = ((p - o) / 6) ** 2;
-    const range = Math.max(1e-9, p - o);
-    let mu1 = mu0 * (1 - clamp01(m0) * 0.2);
-    mu1 = Math.max(o * 1.01, mu1);
-    const var1 = Math.max(1e-12, Math.min(var0, var0 * (1 - clamp01(m1) * 0.5)));
-    const mu01 = clamp01((mu1 - o) / range);
-    const var01 = Math.max(1e-12, var1 / (range ** 2));
-    const denom = mu01 * (1 - mu01) / var01 - 1;
-    const alpha = mu01 * denom;
-    const beta = (1 - mu01) * denom;
-    if (!(alpha > 0 && beta > 0 && Number.isFinite(alpha) && Number.isFinite(beta))) {
-      return null;
-    }
-    return { alpha, beta };
+    // Real: betaRefit defined below in this file — call directly
+    return betaRefit(o, m, p, moments);
   },
   klDivergence: function(params) {
-    Logger.log('klDivergence placeholder:', params);
-    return { 'triangle-monteCarloSmoothed': 0 };
+    // Real: calculateKLDivergence is in optimization/kl-divergence.gs
+    return typeof calculateKLDivergence === 'function'
+      ? calculateKLDivergence(params)
+      : { 'triangle-monteCarloSmoothed': 0 };
   }
 };
 

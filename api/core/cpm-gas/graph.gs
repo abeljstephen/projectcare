@@ -182,6 +182,71 @@ function cpmTopologicalSort(graph) {
 }
 
 // ─────────────────────────────────────────────
+// All-pairs shortest path in the DAG (BFS from each source).
+// Returns dist[srcId][destId] = number of hops, or Infinity if unreachable.
+// Used by stochastic-cpm correlation matrix builder.
+// ─────────────────────────────────────────────
+function cpmAllPairsDistance(graph, order) {
+  var nodeIds = order || Object.keys(graph.nodes);
+  var dist = {};
+
+  nodeIds.forEach(function(src) {
+    dist[src] = {};
+    var visited = {};
+    var queue = [{ id: src, d: 0 }];
+    visited[src] = true;
+    while (queue.length > 0) {
+      var item = queue.shift();
+      dist[src][item.id] = item.d;
+      (graph.adjacency[item.id] || []).forEach(function(e) {
+        if (!visited[e.to]) {
+          visited[e.to] = true;
+          queue.push({ id: e.to, d: item.d + 1 });
+        }
+      });
+    }
+    nodeIds.forEach(function(id) {
+      if (dist[src][id] === undefined) dist[src][id] = Infinity;
+    });
+  });
+
+  return dist;
+}
+
+// ─────────────────────────────────────────────
+// For each merge node (in-degree > 1), compute the set of all ancestors
+// (nodes that have any directed path leading to this node).
+// Returns { mergeNodeId: { ancestorId: true, ... }, ... }
+// Used to identify shared ancestry between tasks feeding the same convergence point.
+// ─────────────────────────────────────────────
+function cpmMergeAncestors(graph, order) {
+  var nodeIds = order || Object.keys(graph.nodes);
+  var mergeAncestors = {};
+
+  nodeIds.forEach(function(id) {
+    if ((graph.reverseAdj[id] || []).length > 1) {
+      var ancestors = {};
+      var queue = [id];
+      var visited = {};
+      visited[id] = true;
+      while (queue.length > 0) {
+        var v = queue.shift();
+        (graph.reverseAdj[v] || []).forEach(function(e) {
+          if (!visited[e.from]) {
+            visited[e.from] = true;
+            ancestors[e.from] = true;
+            queue.push(e.from);
+          }
+        });
+      }
+      mergeAncestors[id] = ancestors;
+    }
+  });
+
+  return mergeAncestors;
+}
+
+// ─────────────────────────────────────────────
 // Find disconnected task groups (orphan detection)
 // Returns array of arrays — each inner array is a disconnected component.
 // The main (largest) component is excluded; all others are returned as orphan groups.

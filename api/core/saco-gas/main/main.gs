@@ -881,8 +881,19 @@ function projectcareAPI(tasks) {
       return Array.isArray(t.predecessors) && t.predecessors.length > 0;
     });
     if (hasDependencies) {
+      // Collect project-level slider context: use the first task that has non-default sliders,
+      // or the first task's sliders as a fallback. Sliders represent management context for
+      // the whole project, not per-task values.
+      var sliderContext = null;
+      for (var si = 0; si < tasks.length; si++) {
+        var sv = tasks[si].sliderValues;
+        if (sv && typeof sv === 'object' && Object.keys(sv).some(function(k) { return Number(sv[k]) !== 0; })) {
+          sliderContext = sv;
+          break;
+        }
+      }
       try {
-        cpEngineResult = runCPEngine(tasks, results, cpmOptions || {});
+        cpEngineResult = runCPEngine(tasks, results, cpmOptions || {}, sliderContext);
       } catch (cpe) {
         cpEngineResult = {
           status:  'error',

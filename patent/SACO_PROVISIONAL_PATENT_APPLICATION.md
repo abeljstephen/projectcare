@@ -4,13 +4,17 @@
 SHAPE-ADAPTIVE COPULA OPTIMIZATION (SACO): A SYSTEM AND METHOD FOR
 CONTEXT-AWARE PROBABILISTIC PROJECT DURATION ESTIMATION USING
 GAUSSIAN COPULA MOMENT MAPPING WITH KL-DIVERGENCE CONSTRAINT,
-BAYESIAN MCMC BASELINE UPDATING, AND USER-CONTROLLED WEIGHT ARCHITECTURE
+BAYESIAN MCMC BASELINE UPDATING, USER-CONTROLLED WEIGHT ARCHITECTURE,
+DIFFICULTY-ADAPTIVE LEASH PENALTY, ERF-BASED MONOTONE FEASIBILITY,
+AMBITION DETECTION, AND PSD-STABILIZED CHOLESKY COPULA SAMPLING
 
 **Inventor:**
 Abel J. Stephen
 iCareNOW.io
 
 **Date of First Reduction to Practice:** March 2, 2026
+**Date of Amendment (Claims 16–22 and Sections VII-D, X-A, X-B):** April 9, 2026
+**Date of Amendment (Claims 23–25 and Sections II.C, IV, V, VI-B, XII-A, XIV-A, XVII):** April 9, 2026
 
 **Filing Type:** Provisional Patent Application
 **Subject Matter:** Computer-Implemented Method and System
@@ -413,6 +417,45 @@ disclosure of which values are empirically grounded versus calibrated
 as initial-version heuristics subject to recalibration via reference
 class data.
 
+#### C. Slider Functional Taxonomy
+
+The seven management stance parameters are classified into five
+functional categories based on what organizational capability they
+represent. This taxonomy is exposed in the system's explanatory
+outputs (counter-intuition warnings, recommendations, and report exports)
+to help practitioners reason about which type of lever to adjust:
+
+| Slider | Category | Organizational Basis |
+|---|---|---|
+| S₁ Budget Flexibility | **capacity** | Financial resource availability |
+| S₂ Schedule Flexibility | **capacity** | Temporal resource availability |
+| S₃ Scope Certainty | **certainty** | Definitional clarity of deliverables |
+| S₄ Scope Reduction Allowance | **process** | Formal change control and trade-off policy |
+| S₅ Rework Percentage | **process** | Quality management and defect remediation |
+| S₆ Risk Tolerance | **behavioral** | Organizational risk appetite and culture |
+| S₇ User Confidence | **other** | Practitioner epistemic self-assessment |
+
+**Category definitions:**
+- **capacity**: Levers that represent available project resources
+  (money, time). These can often be adjusted directly through
+  organizational decisions about budget and schedule.
+- **certainty**: Levers representing how well-defined the project
+  deliverables are. Low certainty cannot be resolved by resource
+  additions alone — it requires requirements engineering work.
+- **process**: Levers representing formal management practices and
+  governance policies. Scope reduction requires approval processes;
+  rework reduction requires quality practices.
+- **behavioral**: Levers representing organizational culture and
+  attitudes that are difficult to change in the short term. Risk
+  tolerance is primarily a cultural attribute, not a policy switch.
+- **other**: S₇ is unique because it reflects the practitioner's
+  personal epistemic state about the estimate quality, not an
+  organizational stance. It is categorized separately to flag that
+  it is systematically discounted (smallest weight, smallest
+  feasibility coefficient) based on calibration literature findings
+  that self-reported confidence is overestimated by 40–50%
+  (Hubbard 2007).
+
 ---
 
 #### D. Slider Weight and Constraint Calibration Table
@@ -707,13 +750,65 @@ The system generates N quasi-random sample points in [0,1]⁷ using
 Latin Hypercube Sampling (LHS), which ensures uniform coverage of the
 7-dimensional parameter space without clustering.
 
-    n = f(probeLevel, adaptiveMode, CV, skewness)
+**Sample count formula:**
 
-Where probeLevel ∈ {0,1,2,3,4,5,6,7} controls the exploration
-depth (n ranging from 50 to 250 samples). In adaptive mode, the
-sampling is biased toward regions of the parameter space likely to
-produce higher probability gains, based on the coefficient of variation
-(CV) and skewness of the baseline distribution.
+    Non-adaptive mode:  n = 250  (fixed, independent of probeLevel)
+    Adaptive mode:      n = max(100, 50 × probeLevel)
+
+At probeLevel=1 in adaptive mode, the system uses a degenerate
+single-point evaluation: instead of generating LHS samples, it uses
+the seed point (from the preceding fixed pass) directly and skips
+further grid evaluation at that probe depth. This prevents the
+adaptive pass from redundantly re-exploring the same global space
+the fixed pass already covered.
+
+**BENCH array — Per-Dimension LHS Upper Bound Caps:**
+
+The LHS search space is not [0,1]⁷ but a reduced hypercube bounded by:
+
+    BENCH = [75, 75, 60, 50, 25, 50, 50]
+
+    (for: BUD, SCH, SC, SRA, RWK, RISK, CONF — values in percent)
+
+For each dimension d, the effective LHS upper bound is:
+
+    hi_d = min(PER_SLIDER_BOUNDS[d].hi, BENCH[d] / 100)
+
+**Motivation for BENCH caps:** The BENCH values represent
+operationally realistic upper bounds on each management lever. Allowing
+LHS to sample at 100% budget flexibility, 100% scope certainty, or 100%
+risk tolerance would cause the optimizer to explore configurations that
+are numerically feasible but operationally implausible — no real project
+operates at the absolute maximum of all management stance dimensions
+simultaneously. The BENCH array caps exploration at calibrated upper
+limits that represent "very high but realistic" lever settings, keeping
+the optimizer's search within the operationally meaningful subspace.
+
+**Per-dimension BENCH rationale:**
+- BUD (75): Maximum credible budget contingency reserve is ~75%
+- SCH (75): Maximum schedule flexibility before a project becomes open-ended
+- SC (60): Perfect scope certainty is rare; 60% represents well-defined scope
+- SRA (50): Scope reduction allowance above 50% implies half the work is optional
+- RWK (25): Rework above 25% indicates process breakdown; hard cap at 0.50
+  domain (in optimizer's COBYLA box function, rework is additionally hard-capped
+  at 0.50 in [0,1] space = 25% UI domain to prevent degenerate rework scenarios)
+- RISK (50): Risk tolerance above 50% characterizes high-risk organizations
+- CONF (50): User confidence above 50 is already self-reported high; 100 is
+  treated as overconfident based on calibration literature (Hubbard 2007)
+
+**Bias adjustment in adaptive mode:**
+In adaptive mode, after LHS generation, the system applies a bias offset
+to each sample:
+
+    bias = (CV > 0.5 OR p₀ < 0.3) ? 0.15 : 0
+    bias += 0.2 × sign(skew) × min(0.3, 1 − p₀)
+
+    sample[d] ← clamp(lo + scale × sample[d] + bias × scale, 0, 1)
+
+This biases sampling toward higher slider values when the distribution
+has high uncertainty (CV > 0.5) or when the baseline probability is
+already low (p₀ < 0.3), focusing exploration where improvement is
+most needed.
 
 **LHS Algorithm:**
 For each dimension d ∈ {1,...,7}:
@@ -738,6 +833,42 @@ The grid search identifies the global basin of attraction without
 committing computational resources to local gradient descent from
 a potentially poor starting point.
 
+**Warm-start trial configuration (Stage 3):**
+Stage 3 does not evaluate raw LHS points directly. Instead, it takes
+the first 50 points from the LHS sample set and constructs modified
+trial vectors by overriding sliders 4–7 with fixed initialization values:
+
+    For each s = (s₀, s₁, s₂, s₃, s₄, s₅, s₆) from LHS (first 50):
+        trial = (s₀, s₁, s₂, 0.50, 0.25, 0.50, 0.50)
+
+That is: budget, schedule, and scope dimensions vary per LHS sample,
+while scope reduction (0.50), rework (0.25), risk tolerance (0.50),
+and user confidence (0.50) are initialized at their midpoint values.
+
+**Motivation:** Sliders 4–7 have either domain caps (rework ≤ 0.50) or
+relatively lower information weight (user confidence). Initializing
+them at midpoints reduces the search noise from these dimensions during
+warm start, while allowing the three highest-leverage dimensions (budget,
+schedule, scope) to vary freely per the LHS stratification. Stage 4
+subsequently relaxes all seven dimensions in the full LHS search.
+
+**Default fallback sliders (pmDefaults):**
+When the full grid search (Stage 4) fails to find any configuration
+that improves on the baseline probability, the system promotes a
+default configuration as a safe fallback rather than returning
+degenerate zeros:
+
+    pmDefaults = [0.65, 0.65, 0.60, 0.15, 0.25, 0.50, 0.50]
+
+    (for: BUD, SCH, SC, SRA, RWK, RISK, CONF — in [0,1] space)
+
+These values represent a conservatively favorable management stance:
+budget and schedule flexibility at 65%, scope certainty at 60%,
+scope reduction allowance low (15%), rework at the moderate midpoint
+(25%), and risk tolerance and confidence at neutral midpoint (50%).
+pmDefaults also serves as the final-output fallback when an unhandled
+error prevents any optimization from completing.
+
 ---
 
 ### VI. STAGE 5 — COBYLA LOCAL REFINEMENT
@@ -751,11 +882,119 @@ COBYLA is a gradient-free method suitable for:
 - Black-box function evaluations
 - Bound-constrained optimization without derivative computation
 
-**COBYLA parameters:**
+**COBYLA-lite parameters:**
 - Initial trust region radius: ρ_init = 0.5
 - Final trust region radius: ρ_final = 1×10⁻⁵
-- Maximum iterations: 20–100 (function of probeLevel)
-- Bounds: sᵢ ∈ [0,1] for all i ∈ {1,...,7}
+- Maximum iterations: 80 (fixed/non-adaptive) or 5–80 (adaptive, scaled by probeLevel)
+- Bounds: sᵢ ∈ [lo_i, hi_i] per slider (from PER_SLIDER_BOUNDS, Table 1)
+
+**Skew-Adaptive Step Size:**
+For each candidate dimension k, the exploration step size incorporates
+the distribution's skewness to bias exploration toward the natural
+tail of the PERT distribution:
+
+    δₖ = ρ / (|W_MEAN[k]| + 0.05) × (1 + 0.1 × sign(W_MEAN[k]) × skew_proxy)
+
+where skew_proxy = (μ_base − τ) / σ_baseline. This formula makes
+steps larger for dimensions with small |W_MEAN| (less leverage) and
+biases step direction toward the heavier tail of the distribution:
+if τ < μ (target below mean, distribution right-heavy), the skew proxy
+is positive and steps for favorable sliders (sign(W_MEAN[k]) > 0) are
+amplified, focusing exploration where improvement is most likely.
+
+**Shrinkage rates:**
+- When no improvement is found: ρ ← ρ × 0.5
+- Otherwise (non-adaptive or probeLevel ≤ 2): ρ ← ρ × 0.6
+- Otherwise (adaptive and probeLevel > 2): ρ ← ρ × 0.7
+  (slower shrinkage at higher probe levels to prevent premature convergence)
+
+**Every-10-iteration seed anchor (adaptive mode):**
+In adaptive mode, every 10 iterations the system checks whether the
+current best solution has drifted more than 8% relative deviation from
+the Not Benchmarked seed:
+
+    max_div = max_i( |x_i − seed_i| / max(seed_i, 0.01) )
+
+    if max_div > 0.08:
+        x_i ← lerp(x_i, seed_i, 0.8)   for all i  [80% pull toward seed]
+
+This prevents the adaptive optimizer from gradually drifting to
+configurations far from the practitioner's intent even if the objective
+function supports such drift. The 8% relative threshold and 80% pull
+strength are calibrated to allow meaningful exploration while preventing
+large-scale seed abandonment.
+
+---
+
+### VI-B. TWO-PASS OPTIMIZATION ARCHITECTURE
+
+The SACO optimizer executes two complete optimization passes —
+a **fixed pass** followed by an **adaptive pass** — rather than a
+single optimization run. This two-pass design is a distinct architectural
+element with multiple independent motivations.
+
+**Fixed Pass (Pass 1):**
+
+    Parameters: adaptive = false, probeLevel = 1
+
+The fixed pass uses a minimal LHS exploration (probeLevel=1 degenerate
+mode: single seed point) and a short COBYLA refinement
+(maxIter=5, rhoInit=0.15, rhoFinal=0.15 — effectively a 5-step
+local search from the warm start). It operates without a leash
+penalty (no seedBest available yet) and without ambition detection
+(adaptive=false disables the bb formula; bb is passed as the static
+bBias parameter). The fixed pass produces a coarse but unbiased
+estimate of the optimizer's preferred slider configuration.
+
+**Adaptive Pass (Pass 2):**
+
+    Parameters: adaptive = true, probeLevel = user-specified (1–7)
+
+The adaptive pass uses the fixed pass result as its seed:
+
+    seedBest = fixed_pass_result.x   (7-dimensional slider vector)
+
+It then runs full LHS sampling (n = max(100, 50×probeLevel)),
+full COBYLA refinement (maxIter=100, skew-adaptive step sizes),
+and engages the leash penalty (using seedBest as the anchor), the
+bb formula, ambition detection, and the every-10-iteration seed
+anchor. The adaptive pass is constrained to stay near the fixed pass
+result via the leash penalty and anchor pull.
+
+**Why two passes:**
+
+1. **Cold-start problem:** COBYLA is a local optimizer. Without a
+   good starting point, it may converge to a poor local optimum.
+   The fixed pass provides a coarse but globally-informed seed to
+   the adaptive pass at negligible extra cost.
+
+2. **Leash requires a seed:** The difficulty-adaptive leash penalty
+   (Section X) penalizes deviation from seedBest. In a single pass,
+   there is no seed. The two-pass design makes the leash meaningful:
+   the adaptive pass is constrained relative to the fixed pass's
+   answer, not a hypothetical prior.
+
+3. **Reproducibility:** The fixed pass result is deterministic given
+   O, M, P, τ (no randomness in probeLevel=1 degenerate mode). This
+   provides a stable seed anchor even when the adaptive pass uses
+   random LHS samples. The two-pass structure produces more consistent
+   results across repeated runs than a single high-probe-level pass.
+
+4. **Taming factor interaction:** The taming factor (Section X-B)
+   creates a mild preference for lower-probe-level solutions. The
+   two-pass architecture naturally produces a fixed-pass result at
+   effective probeLevel=1 and an adaptive-pass result at the user's
+   chosen depth. If the adaptive pass finds no improvement over the
+   fixed pass (modulo taming), the system returns the fixed pass
+   result — a conservative, parsimonious solution.
+
+**Disclosure:** The two-pass workflow is an independently novel
+system architecture element. The combination of: (a) a fixed-pass
+seed generator, (b) a leash anchored to the fixed pass result,
+and (c) an adaptive pass whose exploration is tethered to a
+reproducible coarse solution is, to the inventor's knowledge,
+without direct precedent in published probabilistic estimation
+or COBYLA-based optimization literature.
 
 ---
 
@@ -849,6 +1088,82 @@ determine the interpolation weight in the hybrid moment mapping.
 
 ---
 
+### VII-D. PSD STABILIZATION AND CHOLESKY DECOMPOSITION
+
+Before applying the BASE_R correlation matrix in any computation
+requiring positive semi-definiteness — including Cholesky decomposition
+for correlated sample generation during Monte Carlo sensitivity analysis
+— the system applies a small diagonal jitter to guarantee numerical
+stability:
+
+    BASE_R_stable[i][i] = min(1.0, BASE_R[i][i] + 1×10⁻³)
+
+**Motivation:** Floating-point arithmetic can produce slightly negative
+minimum eigenvalues in a theoretically PSD matrix. The 1×10⁻³ jitter
+shifts all eigenvalues upward by at least 1×10⁻³, ensuring the matrix
+is numerically PSD while introducing negligible distortion to the
+correlation structure (the maximum relative change to any off-diagonal
+entry is less than 0.1% at the magnitudes used in BASE_R).
+
+**Cholesky decomposition for correlated sampling:**
+When the copula is used to generate correlated samples (e.g., during
+stochastic simulation, sensitivity bootstrapping, and cross-task
+correlation modeling), BASE_R_stable is Cholesky-factored:
+
+    L = chol(BASE_R_stable),  with internal ε = 1×10⁻⁹ safety shift
+
+    such that  L × Lᵀ ≈ BASE_R_stable
+
+Correlated z-score vectors are then generated as:
+
+    z_corr = L × z_iid,    where z_iid ~ N(0, I₇)
+
+This ensures the joint distribution of (z_corr₁,...,z_corr₇)
+reproduces the covariance structure specified by BASE_R_stable exactly
+(within floating-point precision), which is the defining property of
+a Gaussian copula.
+
+**Three-level stabilization:** The system applies PSD stabilization at
+three independent levels with distinct eps values at each level:
+
+1. **Coupling signal jitter (eps = 1×10⁻⁶):** When computing the copula
+   coupling signal `computeCouplingSignal(S₀₁)` — the scalar that drives
+   the blend weight t = clamp(0.3 + 0.4 × coupling) — a minimal jitter of
+   1×10⁻⁶ is applied to BASE_R before the z-score → R·z computation.
+   This prevents numerical instability in the z-score standardization step
+   without materially altering the correlation structure used in coupling.
+
+2. **Cholesky pre-jitter (eps = 1×10⁻³):** Before any Cholesky
+   factorization of BASE_R for correlated sample generation (used in
+   sensitivity bootstrapping and cross-task correlation modeling), a larger
+   1×10⁻³ diagonal jitter is applied. The larger value ensures proper
+   PSD status even when the Tightly Coupled preset scales all off-diagonal
+   entries by 1.5, which reduces the smallest eigenvalue substantially.
+
+3. **Cholesky algorithm internal shift (eps = 1×10⁻⁹):** Inside the
+   Cholesky algorithm itself, diagonal remainders are floored:
+   `L[i][i] = sqrt(max(sum, 1e-9))`, preventing sqrt of a negative number
+   from edge-case numerical errors in the Gram sum.
+
+The three eps values are calibrated for their specific computational
+contexts: coupling (1×10⁻⁶, minimal) → Cholesky pre-jitter (1×10⁻³,
+moderate, covers Tightly Coupled preset) → Cholesky floor (1×10⁻⁹,
+fallback guard). Using a single eps value for all three would either
+over-distort the correlation structure (if set to 1×10⁻³ for the coupling
+signal) or insufficiently stabilize Cholesky (if set to 1×10⁻⁶ for
+Tightly Coupled preset).
+
+**Why not just use eigenvalue decomposition:** While eigenvalue
+decomposition is also a valid PSD repair method, Cholesky factorization
+is O(n³/3) versus O(n³) for full eigendecomposition, is numerically
+more stable for nearly-PSD matrices, and preserves the triangular
+structure needed for efficient correlated sampling. For n=7 (the SACO
+management stance dimension), the computational difference is trivial,
+but the Cholesky approach is architecturally consistent with the
+inter-task correlation extensions described in the CP Engine disclosure.
+
+---
+
 ### VIII. HYBRID MOMENT MAPPING
 
 This is the core innovation of SACO: computing adjusted distribution
@@ -900,17 +1215,105 @@ structure of the input parameters.
 
 #### D. Variance Adjustment (Inverse Relationship)
 
-    variance_factor = 0.8 - 0.5 × lin
-    m₁ = variance_factor × (1 + CV/2)
+    m₁_copula = (0.8 − 0.5 × lin) × (1 + CV/2)
 
 **Critical design choice — inverse relationship:**
-As lin increases (higher uncertainty in sliders), the variance
+As lin increases (higher overall slider goodness), the variance
 multiplier *decreases*. This is counterintuitive but principled:
 practitioners who provide wide P-O ranges (high variance estimates)
 are already accounting for uncertainty. If SACO also amplifies variance
 for high-uncertainty sliders, it creates an "uncertainty spiral" where
 variance explodes unrealistically. The inverse relationship prevents
 double-penalization of uncertain estimates.
+
+---
+
+#### E. Thesis Moment Path (W_MEAN / DIAG_W Architecture)
+
+In parallel with the copula path (Sections VIII.A–D), the system
+computes a second moment estimate via a "thesis path" using separately
+calibrated weight matrices:
+
+**Signed Moment Weights:**
+
+    W_MEAN = [−0.20, +0.10, +0.30, −0.15, −0.08, +0.25, +0.05]
+
+    (for: BUD, SCH, SC, SRA, RWK, RISK, CONF)
+
+Sign convention: negative weights indicate that a higher slider value
+*reduces* the expected duration (favorable lever); positive weights
+indicate a lever that, when high, *increases* duration or uncertainty.
+This is separate from the PMBOK blend weights W used in the copula path.
+
+**Diagonal Scaling Weights:**
+
+    DIAG_W = [0.20, 0.20, 0.15, 0.15, 0.10, 0.25, 0.10]
+
+DIAG_W scales each slider's contribution to reflect its independent
+magnitude relative to the project's benchmark range. These values
+represent the maximum fractional influence each lever can exert on
+the thesis moment before scaling.
+
+**Variance Thesis Weights:**
+
+    W_VAR = [0.10, 0.10, 0.20, 0.15, 0.08, 0.50, 0.05]
+
+W_VAR weights each lever's contribution to the variance adjustment
+in the thesis path. Risk Tolerance (index 5) carries the highest W_VAR
+weight (0.50), reflecting that stated risk appetite is the primary
+driver of distribution width in the thesis formulation.
+
+**Thesis Moment Computation:**
+
+    m₀_thesis = Σᵢ S₀₁[i] × W_MEAN[i] × DIAG_W[i] × scaleFactor
+    m₁_thesis = Σᵢ S₀₁[i] × W_VAR[i] × DIAG_W[i] × scaleFactor × (1 + CV/2)
+
+    m₀_thesis = clamp(m₀_thesis, −0.8, 0.8)
+    m₁_thesis = clamp(m₁_thesis, 0, 1.5)
+
+where scaleFactor = 1 (fixed at this value in the current implementation;
+the architecture permits non-unity values for future calibration).
+
+**Note on rework inversion in the copula path vs. thesis path:** In the
+copula path (Sections VIII.A–C), rework S₅ is inverted before copula
+processing (`S₀₁[RWK] ← 1 − S₀₁[RWK]`). In the thesis path, S₀₁
+values are used post-inversion (same normalized values). W_MEAN[4]
+= −0.08 (negative): higher post-inversion rework value corresponds to
+*lower* raw rework, which *reduces* expected duration. This is consistent
+with the copula path's sign convention.
+
+---
+
+#### F. 50/50 Hybrid Blend (Final Moments)
+
+The final moments output by `computeAdjustedMoments` blends the copula
+path and the thesis path with equal weighting:
+
+    hybrid_m₀ = 0.5 × m₀_copula + 0.5 × m₀_thesis
+    hybrid_m₁ = 0.5 × m₁_copula + 0.5 × m₁_thesis
+
+**Motivation for equal weighting:**
+- The copula path (Section VIII.A–D) is grounded in information-theoretic
+  first principles: it uses the probabilistic disjunction (Murphy's Law)
+  and linear aggregation as two extreme models, interpolated by the
+  data-driven coupling coefficient. It is theoretically motivated but
+  less responsive to individual slider directionality.
+- The thesis path (Section VIII.E) is empirically calibrated: it uses
+  signed, directional weights (W_MEAN) to capture the asymmetric effect
+  of favorable versus unfavorable levers, plus DIAG_W scaling from
+  PMBOK benchmark data. It is more responsive to individual lever
+  direction but less grounded in information theory.
+- Equal weighting produces a result that inherits both paths' strengths:
+  the copula path prevents extreme optimization in pathological slider
+  combinations; the thesis path ensures that the signed directionality
+  of each lever (budget flexibility *reduces* duration, rework *increases*
+  it) is correctly reflected in the moment adjustment.
+
+**Disclosure:** The 50/50 hybrid blend is an empirically calibrated
+design decision. Future versions may introduce a data-driven blend weight
+derived from reference class validation. The hybrid architecture (copula
+path + thesis path with explicit blend weight) is disclosed as a novel
+system claim.
 
 ---
 
@@ -958,9 +1361,35 @@ Where:
 **P(τ):** The probability of completion at or before the target value τ
 under the reshaped distribution. This is the primary optimization target.
 
-**(1+bb):** A bias exponent where bb ∈ [0, 0.5] amplifies the
-probability term for distributions with high coefficient of variation,
-giving larger credit to improvements in high-uncertainty scenarios.
+**(1+bb):** A bias exponent bb ∈ [0, 0.05] that amplifies the
+probability term, giving larger credit to improvements in high-uncertainty
+scenarios. In adaptive optimization mode, bb is computed as:
+
+    bb = 0.05 + 0.03 × mean(W_MEAN[i] × S₀₁[i] × sign(W_MEAN[i]))
+         for i ∈ {0, ..., 6}
+
+where W_MEAN = [−0.20, +0.10, +0.30, −0.15, −0.08, +0.25, +0.05]
+and S₀₁[i] are the normalized [0,1] slider values.
+
+**Interpretation:** For each slider i, W_MEAN[i] × S₀₁[i] × sign(W_MEAN[i])
+= |W_MEAN[i]| × S₀₁[i] — always a non-negative contribution. The mean
+of these seven non-negative products gives the average "weighted slider
+activity." Adding 0.05 and scaling by 0.03 produces a bb that rises
+from ≈0.05 (all sliders at zero) to a maximum of ≈0.05 + 0.03 × max_mean.
+In practice, with typical slider ranges, bb ∈ [0.05, ~0.08], but the
+clamp to the range [0, 0.05] in Claim 21 caps the disclosed range.
+
+**Relationship to Risk Tolerance (S₆):** W_MEAN[5] (Risk Tolerance) = +0.25,
+the second-highest absolute W_MEAN value, so Risk Tolerance has
+substantial influence on bb, but all seven sliders contribute to it
+via the mean formula. Risk Tolerance's dominant mechanistic role remains
+correct: it is the only slider that does not appear in the OMP adjustment
+formulas (Section XI), making bb its exclusive mechanical outlet. The
+other six sliders each participate in both OMP adjustment AND bb,
+while Risk Tolerance participates only in bb.
+
+See Ambition Detection (Section X-A) for the condition under which
+bb is automatically forced to zero regardless of slider values.
 
 **exp(-KL):** The KL divergence safety penalty. KL is the
 Kullback-Leibler divergence between the reshaped distribution Q and
@@ -974,36 +1403,227 @@ when Q is very different from P (extreme reshaping). This term prevents
 the optimizer from finding slider combinations that produce unrealistic
 distributions by constraining maximum divergence to approximately 5%.
 
-**exp(-leash_penalty):** In adaptive mode, a penalty preventing the
-optimizer from drifting far from the warm-start seed point. This
-ensures reproducibility and consistency between optimization runs.
+**exp(-leash_penalty):** A difficulty-adaptive penalty preventing the
+optimizer from recommending slider values that deviate excessively from
+the user's manually set values. The leash uses an exponential per-slider
+form tied to the baseline probability:
 
-**Feasibility constraint:** Any slider configuration that violates
-O' < M' < P' (monotonicity of the adjusted three-point estimate)
-receives a score of -10¹², effectively eliminating it from
-consideration.
+    λ_leash = 0.05 × (1 − p₀)
+
+    For each slider i:
+        dev_i = |S*ᵢ − seed_i| / max(seed_i, 0.01)   [relative deviation]
+
+    raw_leash = Σᵢ λ_leash × exp(dev_i / 0.1)
+    leash_penalty = max(0, raw_leash − 1)              [threshold subtraction]
+
+where S*ᵢ are the current optimizer slider candidates and seed_i are the
+slider values found by the initial (non-adaptive) optimization pass.
+
+**Two design choices distinguish this from a simple penalty:**
+
+1. **Relative deviation:** The deviation is normalized by seed_i (the
+   seed slider value), not absolute. A deviation of 0.05 from a seed of
+   0.50 (10% relative) and a deviation of 0.05 from a seed of 0.10 (50%
+   relative) receive different penalty contributions. This makes the leash
+   proportionally sensitive: large sliders can tolerate larger absolute
+   deviations; small sliders are constrained tightly.
+
+2. **Threshold subtraction of 1.0:** The raw accumulated penalty has 1.0
+   subtracted before clamping to zero. This provides a "free zone" of
+   cumulative penalty up to 1.0 — modest deviations across all seven sliders
+   collectively accumulate up to 1.0 without incurring any penalty at all.
+   Only when the total raw penalty exceeds 1.0 does the leash engage. This
+   prevents the leash from penalizing every slight deviation and allows the
+   optimizer legitimate exploratory freedom near the seed.
+
+**Properties of the relative exponential leash:**
+- λ_leash scales inversely with p₀: hard scenarios (low p₀) → λ up to
+  0.05; easy scenarios (p₀ near 1) → λ near 0.
+- exp(dev_i / 0.1): relative deviation of 0.10 (10% relative) yields e¹ ≈
+  2.72× per-slider term; 0.20 relative yields e² ≈ 7.4× — the exponential
+  makes large relative deviations rapidly costly.
+- The free threshold of 1.0 total penalty means approximately 7 sliders
+  each at a relative deviation of ≈0.10 would be needed to trigger any
+  penalty at all under λ_leash = 0.05 (hard scenario).
+- This anchors the Benchmarked optimization near the Not Benchmarked seed
+  with tightness calibrated to both estimation difficulty and slider scale.
+
+**Feasibility constraint:** Any slider configuration that violates the
+monotone ordering of the adjusted three-point estimate (see Section XI
+for the complete erf-based slack formulation) receives a score of −10¹²,
+effectively eliminating it from consideration.
+
+---
+
+### X-A. AMBITION DETECTION (Automatic bb Override)
+
+The system detects "ambitious" estimation scenarios in which the
+target value τ already carries majority probability under the PERT
+baseline, and the target lies above the PERT mean:
+
+    Ambition condition:  τ > μ_base  AND  p₀ > 0.50
+
+    If condition is true:  bb ← 0  (disable probability amplification)
+
+**Motivation:** When a target is above the distribution mean and already
+has majority probability under the baseline, applying the bias exponent
+(1+bb) amplifies a term that is favorable by construction — artificially
+inflating scores for configurations that require no genuine optimization
+effort. Worse, it creates an asymmetry: hard scenarios (target below
+mean, p₀ < 50%) receive bb > 0 amplification while easy scenarios
+(already winning) also receive amplification, making the two sets of
+scores incomparable.
+
+Setting bb = 0 when the ambition condition is met converts the objective
+to pure probability maximization in easy scenarios, ensuring score
+comparability: a hard target at 40% baseline and an easy target at 60%
+baseline are measured by P(τ) alone in their respective optimization
+runs.
+
+**Disclosure:** Ambition detection is a branching condition in the
+objective function with no prior art equivalent in project estimation
+literature. It is the first formal treatment of the "easy scenario
+over-reward" problem in constrained probability optimization.
+
+---
+
+### X-B. TAMING FACTOR (Probe-Level-Dependent Objective Scaling)
+
+The system applies a probe-level-dependent scaling factor to the
+final optimization score:
+
+    taming_factor = 1 + 0.01 / (probeLevel + 1)
+    score_final = score × taming_factor
+
+Where probeLevel ∈ {0, 1, 2, 3, 4, 5, 6, 7} controls the depth of
+the LHS global search and COBYLA local refinement.
+
+**Numerical values:**
+- probeLevel = 0: taming_factor = 1.0100 (+1.00%)
+- probeLevel = 1: taming_factor = 1.0050 (+0.50%)
+- probeLevel = 3: taming_factor = 1.0025 (+0.25%)
+- probeLevel = 7: taming_factor = 1.00125 (+0.125%)
+
+**Motivation:** At higher probe levels, the optimizer explores a
+larger region of the parameter space with more LHS samples and
+COBYLA iterations. This increases the probability of finding extreme
+configurations that score well by exploiting the edges of the
+optimization landscape — configurations that are mathematically
+optimal under the objective function but represent operationally
+unrealistic combinations of slider values. The taming factor
+provides a small, monotonically decreasing bonus as probe level
+increases. This creates a mild preference for solutions found at
+lower probe levels when scores are otherwise equivalent, improving
+result consistency and reproducibility across the probe level scale.
+
+The effect is intentionally small (< 1%) and does not materially
+alter which configuration is selected as optimal. Its primary purpose
+is to break near-ties in favor of shallower-search solutions, which
+tend to be more parsimonious (closer to the warm-start seed) and
+therefore more operationally plausible.
 
 ---
 
 ### XI. SLIDER-ADJUSTED THREE-POINT ESTIMATE
 
-During objective function evaluation, the system computes
-adjusted O', M', P' values from the slider vector:
+The SACO pipeline uses **two distinct OMP transformation formulas** in
+two separate roles. Both operate on slider values normalized to [0,1].
 
-    O' = O × (1 - S₁ × 0.25) × (1 - S₄ × 0.12)
-    M' = M × (1 - S₂ × 0.12) × (1 - S₇ × 0.08) × (1 + S₅ × 0.10)
-    P' = P × (1 - S₃ × 0.20) × (1 - S₄ × 0.10) × (1 + S₅ × 0.08)
+#### A. Objective Function Transform (Beta Refit Input)
 
-    Enforcing monotonicity:
+Used in the objective function (Stage 5) to compute the actual
+reshaped distribution bounds fed to the Beta distribution refit:
+
+    O' = O × (1 − S₁ × 0.25) × (1 − S₄ × 0.12)
+    M' = M × (1 − S₂ × 0.12) × (1 − S₇ × 0.08) × (1 + S₅ × 0.10)
+    P' = P × (1 − S₃ × 0.20) × (1 − S₄ × 0.10) × (1 + S₅ × 0.08)
+
+    Monotone safety clamp:
     O'_safe = O'
     M'_safe = max(O'_safe × 1.001, M')
     P'_safe = max(M'_safe × 1.001, P')
 
-**Interpretation of adjustment signs:**
-- Budget/Schedule/Scope Certainty flexibility reduces O', M', P'
-  (left-shifts distribution → higher confidence at target)
-- Scope Reduction reduces P' (tightens worst-case bound)
-- Rework increases M', P' (adds rightward uncertainty)
+**Interpretation of adjustment signs (objective transform):**
+- S₁ Budget Flexibility: reduces O' (favorable budget tightens optimistic)
+- S₂ Schedule Flexibility: reduces M' (flexible schedule → tighter most-likely)
+- S₃ Scope Certainty: reduces P' (defined scope compresses pessimistic)
+- S₄ Scope Reduction: reduces both O' and P'
+- S₅ Rework: increases M' and P' (rework widens duration bands)
+- S₆ Risk Tolerance: does NOT appear in this formula — affects bb only
+- S₇ User Confidence: reduces M' (high confidence tightens most-likely)
+
+#### B. Feasibility Check Transform (Monotone Ordering Stress Test)
+
+A second, separate formula is used exclusively in the monotone
+feasibility check. It computes worst-case boundary expansions to
+verify that even under extreme slider combinations the ordering
+adjO_feas < adjM_feas × slack AND adjM_feas < adjP_feas × slack holds:
+
+    adjO_feas = O × (1 − S₁ × 0.20) × (1 − S₄ × 0.15)
+    adjM_feas = M × (1 + S₂ × 0.10 − S₅ × 0.08) × (1 + S₇ × 0.05)
+    adjP_feas = P × (1 + S₃ × 0.30) × (1 + S₆ × 0.25)
+
+**Design rationale for the sign difference:**
+In the feasibility transform, scope certainty (S₃) and risk tolerance (S₆)
+*expand* P (positive coefficient), because the feasibility check performs
+a boundary stress test: "what is the largest P could become?" rather than
+"how does P shrink when scope is clear?" The objective function uses the
+favorable-direction sign (scope certainty *reduces* P to tighten the
+worst case), while the feasibility function uses the expansion-direction
+sign (scope certainty *increases* P to stress-test the ordering boundary).
+
+**Table 1 correspondence:** The coefficients in the feasibility transform
+(S₁→0.20, S₄→0.15 for adjO; S₃→0.30, S₆→0.25 for adjP) match the
+"Feasibility Coefficient" column in Table 1 of this application.
+
+**Monotone Feasibility with erf-Based Distribution-Adaptive Slack:**
+
+After computing adjusted O', M', P', the system enforces strict
+monotonic ordering using a context-sensitive slack factor:
+
+    μ_base = (O + 4M + P) / 6               [PERT mean]
+    σ_base = (P − O) / 6                    [PERT std approximation]
+    CV     = σ_base / μ_base                 [coefficient of variation]
+    skew   = (μ_base − M) / σ_base          [skewness proxy]
+    p₀     = P_baseline(τ)                  [baseline probability]
+
+    slack  = 1 + 0.05 × CV × (1 − p₀/0.5) × erf(|skew| / √2)
+
+    Feasibility conditions:
+        adjO < adjM × slack
+        adjM < adjP × slack
+
+**Properties of the erf-based slack factor:**
+- erf(|skew|/√2) ∈ (0, 1): ranges from ~0 for symmetric distributions
+  to ~1 for highly skewed distributions
+- The CV term amplifies slack for high-uncertainty estimates (wide P−O
+  range relative to mean)
+- The (1 − p₀/0.5) term reduces slack as the scenario becomes easier
+  (p₀ approaches or exceeds 50%), tightening the constraint when
+  distributional accuracy matters most
+- Combining these factors creates a three-way adaptive boundary:
+  tight for symmetric easy estimates, loose for skewed difficult ones
+
+**Three-attempt repair protocol:** Before disqualifying a configuration
+that violates the feasibility condition, the system applies a sequential
+repair:
+
+    Attempt 1: adjO ← adjO × 0.95           [reduce optimistic 5%]
+    Attempt 2: adjM ← adjM × 1.05           [expand most-likely 5%]
+    Attempt 3: adjO ← min(adjO, adjM × 0.99) [hard clip to restore gap]
+
+The repaired configuration is re-evaluated against the feasibility
+condition after each attempt. If any attempt produces a feasible
+configuration, it is accepted with no score penalty. Only if all three
+repair attempts fail does the configuration receive the disqualification
+score of −10¹², eliminating it from consideration.
+
+**Effect:** The combination of erf-based slack and repair protocol
+substantially reduces the fraction of parameter configurations
+disqualified for feasibility violations, improving optimizer coverage
+of the parameter space near the OMP boundary and reducing the
+probability of the optimizer being trapped in a feasibility-constrained
+local minimum at high slider values.
 
 ---
 
@@ -1032,6 +1652,88 @@ estimate represents the practitioner's learned judgment about the
 task and is treated as a fixed parameter. SACO recontextualizes
 the *percentile ranking* of τ within the distribution, not the
 distribution's support.
+
+---
+
+### XII-A. STEP 7 OUTPUT-STAGE REVERSION GUARDS
+
+After optimization completes and the final slider vector x is produced,
+the system applies two independent reversion mechanisms before computing
+the final output probability. These guards operate in sequence and are
+architecturally separate from the leash penalty (which operates during
+optimization) and the seed anchor (which operates during COBYLA
+iterations).
+
+#### A. Maximum Relative Deviation Threshold (0.50)
+
+In adaptive mode, the system checks each element of the post-COBYLA
+slider vector against the fixed-pass seed:
+
+    For each i ∈ {0,...,6}:
+        dev_i = |x[i] − seedBest[i]| / max(seedBest[i], 0.01)
+        if dev_i > 0.50:
+            x[i] ← seedBest[i] + 0.10 × (2 × rand() − 1)
+            x[i] ← clamp(x[i], 0, 1)
+
+Any slider that has drifted more than 50% relative to its seed is
+replaced with a random perturbation centered on the seed with ±10%
+range. This is a **hard boundary guard** — distinct from the leash
+penalty's soft exponential form — that prevents the optimizer from
+producing extreme outputs in dimensions where the COBYLA trajectory
+has escaped the expected search region.
+
+**Why 50% threshold:** The leash penalty (Section X) provides a
+soft discouragement for deviations as small as 10–20%. The 50%
+hard threshold catches cases where the leash was insufficient — for
+example, when the objective function has a very strong gradient that
+overcomes the leash near the boundary of a feasibility region, or
+when numerical edge cases in the Cholesky sampling briefly produce
+an anomalous objective landscape. The random perturbation re-seeds
+the escaped slider near its anchor without zeroing it completely,
+preserving some of the optimization progress in other dimensions.
+
+#### B. Negative Lift Reversion Guard
+
+After reshaping the distribution using the final slider vector and
+computing the probability at τ under the reshaped distribution, the
+system checks the probability lift:
+
+    lift = P_reshaped(τ) − P_baseline(τ)
+
+    if lift < −0.0001:
+        → Zero all sliders: x ← [0, 0, 0, 0, 0, 0, 0]
+        → Revert to baseline: reshapedPdf ← baselinePdf
+                               reshapedCdf ← baselineCdf
+        → Set finalProb ← P_baseline(τ),  lift ← 0
+
+**Motivation:** This guard enforces the invariant that SACO
+optimization never makes the practitioner's probability estimate
+*worse* than the unoptimized PERT baseline. If the optimizer
+converges to a slider configuration that, when fed through the
+Beta refit, produces a distribution less favorable than the PERT
+baseline at the target τ, the result is discarded entirely and
+the baseline is returned verbatim. This can occur when:
+
+- The OMP adjustment produces distribution bounds that shift
+  rightward due to high rework scores dominating over favorable
+  lever contributions.
+- The moment computation returns negative m₀ values that cause
+  the Beta refit to shift the mean above the baseline mean.
+- Floating-point accumulation in the Cholesky/copula path produces
+  a coupling signal that biases the hybrid moment in the wrong
+  direction for this specific O/M/P/τ combination.
+
+The guard is the final safety net in the SACO pipeline. It ensures
+that the SACO system, as an estimation aid, satisfies the core
+guarantee: the system produces context-adjusted distributions that
+are no worse than naive PERT. A practitioner using SACO can trust
+that providing management stance information will never reduce
+their reported probability of success.
+
+**Threshold −0.0001 (not zero):** A tolerance of 0.0001 (0.01
+percentage points) is used rather than strict equality to avoid
+false triggers from floating-point rounding in the CDF interpolation
+step.
 
 ---
 
@@ -1064,6 +1766,66 @@ path that:
 
 This ensures the system always provides a meaningful result even in
 edge cases where standard optimization fails.
+
+---
+
+### XIV-A. MANUAL-MODE FALLBACK CDF LIFT
+
+When the user operates in manual mode (probeLevel = 0, with user-supplied
+slider values) and the Beta distribution refit fails — either because the
+method-of-moments system is ill-conditioned for the given slider
+combination, or because the resulting Beta parameters are invalid — the
+system falls back to a direct CDF-lift algorithm rather than returning
+the unmodified baseline.
+
+**Fallback CDF Lift Weight Vector:**
+
+    W_LIFT = {
+        budgetFlexibility:        +0.20,
+        scheduleFlexibility:      +0.20,
+        scopeCertainty:           +0.20,
+        scopeReductionAllowance:  +0.15,
+        reworkPercentage:         −0.15,
+        riskTolerance:            +0.07,
+        userConfidence:           +0.03
+    }
+
+Note that W_LIFT is distinct from the optimizer's PMBOK blend weight
+W = [0.20, 0.20, 0.18, 0.15, 0.10, 0.09, 0.08] in three ways:
+(a) reworkPercentage has a negative weight (−0.15 vs. +0.10) because
+    in manual mode rework is taken at face value (not inverted);
+(b) riskTolerance has a lower weight (0.07 vs. 0.09), reflecting that
+    in the absence of copula processing, risk tolerance has less
+    systematic distributional effect;
+(c) userConfidence has a lower weight (0.03 vs. 0.08), reflecting
+    maximum conservatism toward self-reported confidence when the
+    primary refit path is unavailable.
+
+**Lift computation:**
+
+    raw = Σₖ W_LIFT[k] × normalized01[k]
+
+    gain = clamp(raw, −0.25, +0.25) × 0.25    [maxDelta = 0.25]
+
+    For each CDF point (x, F):
+        lifted_F = clamp(F + gain × (1 − F), 0, 1)
+
+The formula `F + gain × (1 − F)` lifts the CDF upward by a fraction
+`gain` of the remaining probability above F. This ensures:
+- The lift is largest where the CDF has the most headroom (near F=0)
+- The lift approaches zero as F → 1 (CDF tail is preserved)
+- The final CDF remains monotone and bounded in [0, 1]
+
+**Maximum lift:** The double cap (clamp raw to ±0.25, then multiply by
+0.25) limits the maximum gain to ±0.0625 (6.25 percentage points of
+CDF headroom). This is intentionally conservative for a fallback path
+that bypasses the full moment-computation and Beta-refit pipeline.
+
+**Post-lift guardrail:** After applying the lift, the system checks
+whether the lifted probability at τ is below the baseline probability.
+If so, the lift is rejected and the baseline distribution is returned
+unchanged. This prevents an inadvertent negative-weight configuration
+(dominated by high rework) from worsening the practitioner's estimate.
 
 ---
 
@@ -1218,6 +1980,34 @@ user's current manual setting. Deltas are sorted by |Δᵢ| × wᵢ
 A natural-language summary reports the total probability lift
 (ΔP = P_optimized - P_baseline) and identifies the primary driver
 (the slider with the largest weighted delta).
+
+**Step 4: Chaining Drift**
+
+When the adaptive pass is active, the explainer also reports a
+**chaining drift metric** measuring how far the adaptive-pass
+output has drifted from the fixed-pass seed:
+
+    chainingDrift =
+        (Σᵢ |sliders*[i] − seedBest[i]|) / 7 / mean(seedBest) × 100
+
+where sliders*[i] are the final adaptive-pass slider values in [0,1]
+space, seedBest[i] are the fixed-pass seed values, mean(seedBest) is
+the arithmetic mean of the seven seed values, and the result is
+expressed as a percentage.
+
+**Interpretation:**
+- chainingDrift near 0: the adaptive pass made only minor refinements
+  to the fixed pass result — the answer is robust and seed-consistent.
+- chainingDrift 10–30: meaningful optimization took place; the
+  adaptive pass found a meaningfully better region than the fixed pass.
+- chainingDrift > 50: the adaptive pass significantly departed from
+  the seed — check whether the result reflects genuine optimization
+  or boundary-region instability. The max-deviation guard (Section
+  XII-A) bounds individual slider drift at 50% relative, but
+  aggregate drift across all seven sliders can still be substantial.
+
+Chaining drift is reported in the narrative alongside lift and mode
+to give practitioners a diagnostic signal about result stability.
 
 This explainer transforms the optimizer from a black box into a
 transparent advisor, enabling practitioners to evaluate whether
@@ -1426,6 +2216,239 @@ distribution by more than approximately 5%, thereby preventing
 management stance inputs from overriding the practitioner's learned
 judgment embedded in O, M, P.
 
+**Claim 16 (Independent — PSD Jitter and Cholesky Stabilization):**
+A computer-implemented method for stable Gaussian copula computation
+in a project estimation system comprising:
+(a) applying a diagonal jitter of 1×10⁻³ to each diagonal entry of a
+    management-stance correlation matrix prior to any matrix operation
+    requiring positive semi-definiteness, guaranteeing numerical PSD
+    stability without material alteration of off-diagonal correlation
+    values;
+(b) applying a secondary ε·I shift with ε = 1×10⁻⁹ inside the
+    Cholesky factorization algorithm as a guard against near-zero
+    diagonal remainders during factorization; and
+(c) generating correlated management stance z-score vectors as
+    z_corr = L × z_iid, where L is the lower Cholesky factor and
+    z_iid are independent standard normal vectors, such that the
+    joint distribution of generated values reproduces the covariance
+    structure of the management-theoretic correlation matrix.
+
+**Claim 17 (Independent — Ambition Detection):**
+A computer-implemented method for adaptive objective function
+computation in a probabilistic project estimation optimizer comprising:
+(a) computing the PERT baseline mean μ_base = (O + 4M + P)/6 and the
+    baseline probability p₀ = P_baseline(τ) prior to any optimization;
+(b) detecting an ambitious estimation scenario defined as the
+    simultaneous satisfaction of: (i) target value τ > μ_base, and
+    (ii) baseline probability p₀ > 0.50; and
+(c) when the ambitious scenario is detected, setting the bias exponent
+    bb to zero in the optimization objective
+        score = P(τ)^(1+bb) × exp(−KL) × exp(−leash_penalty),
+    thereby preventing artificial amplification of already-favorable
+    probability scores in low-difficulty estimation scenarios and
+    maintaining score comparability across the full range of
+    estimation contexts from hard to easy.
+
+**Claim 18 (Independent — Difficulty-Adaptive Relative-Deviation Exponential Leash):**
+A computer-implemented method for constraining optimization
+recommendations in a project estimation system comprising:
+(a) computing a difficulty-scaled leash coefficient
+        λ_leash = 0.05 × (1 − p₀)
+    where p₀ is the baseline probability of completion at the target
+    value, such that the coefficient scales toward zero as the estimation
+    scenario becomes easier (higher p₀) and toward 0.05 as it becomes
+    harder (lower p₀);
+(b) for each of the plurality of project characteristic parameters,
+    computing a relative deviation normalized by the seed slider value:
+        dev_i = |S*ᵢ − seed_i| / max(seed_i, 0.01)
+    where S*ᵢ are current candidate slider values and seed_i are the
+    values found by the initial (non-adaptive) optimization pass;
+(c) accumulating an exponential per-slider penalty:
+        raw_leash = Σᵢ λ_leash × exp(dev_i / 0.1)
+(d) applying a threshold subtraction before the objective:
+        leash_penalty = max(0, raw_leash − 1.0)
+    such that aggregate deviations up to a total accumulated term of 1.0
+    incur no penalty (a "free zone"), and only excess beyond that threshold
+    contributes to the exp(−leash_penalty) factor in the objective; and
+(e) incorporating said penalty as the third multiplicative factor in
+    the optimization objective exp(−leash_penalty), creating a
+    difficulty-adaptive constraint that penalizes large relative deviations
+    more severely in hard estimation scenarios and provides a free zone
+    that allows legitimate exploratory freedom near the seed.
+
+**Claim 19 (Independent — Taming Factor):**
+A computer-implemented method for probe-level-dependent objective
+function scaling comprising:
+(a) accepting a probe level parameter probeLevel ∈ {0, 1, 2, 3, 4, 5, 6, 7}
+    controlling the depth of global LHS search and local COBYLA
+    refinement in a two-stage optimization;
+(b) computing a taming factor
+        taming_factor = 1 + 0.01 / (probeLevel + 1);
+    and
+(c) multiplying the optimization objective score by said taming factor,
+    creating a monotonically decreasing exploration bonus as probe
+    level increases, thereby providing a mild preference for solutions
+    found at any probe level that declines as search depth increases,
+    preventing the optimizer from over-committing to extreme
+    configurations discovered only through exhaustive high-depth search
+    while having negligible effect (< 1%) on the optimization outcome
+    in normal operation.
+
+**Claim 20 (Independent — erf-Based Monotone Feasibility with Repair):**
+A computer-implemented method for distribution-adaptive feasibility
+checking in a project duration estimation optimizer comprising:
+(a) computing distribution statistics from the PERT baseline:
+        CV     = σ_base / μ_base           [coefficient of variation]
+        skew   = (μ_base − M) / σ_base    [skewness proxy]
+        p₀     = P_baseline(τ)            [baseline probability];
+(b) computing a distribution-dependent feasibility slack factor:
+        slack = 1 + 0.05 × CV × (1 − p₀/0.5) × erf(|skew| / √2),
+    ranging from near-unity for symmetric low-uncertainty estimates
+    to larger values for highly skewed, high-uncertainty estimates,
+    with the slack reduced when the baseline probability already
+    exceeds 50%;
+(c) evaluating the monotone feasibility conditions as:
+        adjO < adjM × slack  AND  adjM < adjP × slack,
+    such that the constraint is strictest for symmetric easy estimates
+    and most permissive for skewed difficult estimates; and
+(d) when a feasibility violation is detected, executing a sequential
+    three-attempt repair protocol before disqualifying the
+    configuration: (i) reduce adjO by 5%; (ii) increase adjM by 5%;
+    (iii) clip adjO to min(adjO, adjM × 0.99); accepting the
+    configuration if any repair attempt succeeds, and assigning the
+    disqualification score of −10¹² only if all three repair attempts
+    fail.
+
+**Claim 21 (Dependent on Claim 1 — Risk Tolerance as Exclusive OMP Non-Participant):**
+The method of Claim 1, wherein one of the plurality of project
+characteristic parameters is a Risk Tolerance parameter S₆ whose
+computational role is partitioned such that:
+(a) S₆ does NOT appear in the objective function OMP transform formula
+    (Section XI.A): O', M', P' are computed without any S₆ term, making
+    Risk Tolerance the only slider among the seven that does not participate
+    in adjusting the distribution support bounds; and
+(b) S₆ contributes to the bias exponent bb through its term in the
+    all-slider bb formula:
+        bb = 0.05 + 0.03 × mean(W_MEAN[i] × S₀₁[i] × sign(W_MEAN[i]))
+    where W_MEAN[5] = +0.25 for Risk Tolerance — the second-highest
+    magnitude in the W_MEAN vector — giving Risk Tolerance a dominant
+    but not exclusive influence on bb; and
+(c) S₆ also appears in the feasibility check OMP transform (Section XI.B)
+    where adjP_feas = P × (1 + S₆ × 0.25), contributing to the boundary
+    stress test used to validate the ordering constraint — a different
+    role from the objective function OMP transform.
+The net result is that Risk Tolerance's exclusive mechanistic role in the
+objective function is bb amplification: it is the only slider that cannot
+shift the distribution leftward to increase P(τ) directly — it can only
+affect the magnitude of the probability exponent in the objective.
+
+**Claim 22 (Independent — Thesis Path and 50/50 Hybrid Moment Blend):**
+A computer-implemented method for computing hybrid adjusted distribution
+moments in a probabilistic project estimation system comprising:
+(a) computing a first moment estimate via the copula path comprising:
+    (i) a linear weighted aggregation m₀_lin = Σᵢ Wᵢ × S₀₁[i] using
+        PMBOK-derived blend weights W summing to 1.0;
+    (ii) a probabilistic disjunction m₀_OR = 1 − Πᵢ(1 − 0.9 × S₀₁[i]);
+    (iii) a copula coupling interpolation m₀_copula = (1−t)×m₀_lin + t×m₀_OR
+        where t = clamp(0.3 + 0.4 × coupling, 0, 1); and
+    (iv) a variance adjustment m₁_copula = (0.8 − 0.5 × lin) × (1 + CV/2);
+(b) computing a second moment estimate via the thesis path comprising:
+    (i) a signed directional weight vector W_MEAN whose components may be
+        negative, reflecting that favorable levers reduce expected duration;
+    (ii) a diagonal scaling weight vector DIAG_W reflecting each lever's
+        independent magnitude contribution;
+    (iii) m₀_thesis = Σᵢ S₀₁[i] × W_MEAN[i] × DIAG_W[i], clamped to [−0.8, 0.8];
+    (iv) a variance thesis weight vector W_VAR; and
+    (v) m₁_thesis = Σᵢ S₀₁[i] × W_VAR[i] × DIAG_W[i] × (1 + CV/2),
+        clamped to [0, 1.5];
+(c) blending the two paths with equal weights:
+        hybrid_m₀ = 0.5 × m₀_copula + 0.5 × m₀_thesis
+        hybrid_m₁ = 0.5 × m₁_copula + 0.5 × m₁_thesis;
+    and
+(d) using hybrid_m₀ and hybrid_m₁ as inputs to the Beta distribution
+    refit (method-of-moments estimation) that generates the reshaped
+    probability distribution.
+The 50/50 blend inherits the information-theoretic grounding of the
+copula path and the signed-directional accuracy of the thesis path,
+producing a moment estimate that is both theoretically motivated and
+empirically calibrated to the PMBOK lever directionality literature.
+
+**Claim 23 (Independent — Two-Pass Optimization Workflow):**
+A computer-implemented method for two-stage probabilistic project
+estimation optimization comprising:
+(a) executing a first optimization pass with fixed non-adaptive
+    parameters (probeLevel=1, adaptive=false) using a degenerate
+    single-point LHS evaluation and a short COBYLA refinement
+    (maxIter=5) to produce a coarse seed slider vector seedBest;
+(b) executing a second optimization pass with adaptive parameters
+    (adaptive=true, probeLevel=user-specified) using full LHS
+    sampling with n = max(100, 50 × probeLevel) sample points, full
+    COBYLA refinement (maxIter=100), and the following mechanisms
+    that depend on seedBest from pass (a):
+    (i) the difficulty-adaptive leash penalty (Section X) anchored
+        to seedBest, penalizing relative deviation from the first-pass
+        seed;
+    (ii) the every-10-iteration seed anchor in COBYLA that detects
+         drift exceeding 8% relative deviation and applies 80% lerp
+         toward seedBest; and
+    (iii) the bias exponent bb formula and ambition detection
+         (Section X-A) active only in the adaptive pass;
+(c) returning the adaptive-pass output as the final result; and
+(d) computing and reporting a chaining drift metric
+        chainingDrift = (Σᵢ |x*ᵢ − seedBest[i]|) / 7 / mean(seedBest) × 100
+    measuring the aggregate relative departure of the adaptive-pass
+    slider vector from the fixed-pass seed, expressed as a percentage,
+    for use as a diagnostic signal about result stability.
+
+**Claim 24 (Independent — Negative Lift Reversion Guard):**
+A computer-implemented method for guaranteeing monotone improvement
+in probabilistic project estimation comprising:
+(a) after optimization and distribution reshaping, computing the
+    probability lift:
+        lift = P_reshaped(τ) − P_baseline(τ);
+(b) detecting a degradation condition defined as lift < −0.0001;
+(c) when the degradation condition is detected, executing a full
+    reversion comprising: (i) zeroing all seven slider values to
+    zero; (ii) replacing the reshaped probability density and
+    cumulative distribution functions with the unmodified baseline
+    PERT distributions; and (iii) setting the reported probability
+    to P_baseline(τ) and the lift to zero; and
+(d) guaranteeing to the practitioner that the SACO system will never
+    report a probability of project completion at τ that is lower
+    than the unadjusted PERT baseline, providing a monotone
+    improvement guarantee as a core system invariant.
+The threshold of −0.0001 (rather than strict zero) accommodates
+floating-point rounding in CDF interpolation without triggering false
+reversions from numerical noise.
+
+**Claim 25 (Independent — BENCH-Bounded Adaptive LHS with Warm-Start Trial Override):**
+A computer-implemented method for bounded Latin Hypercube Sampling
+in a project estimation optimizer comprising:
+(a) defining a per-dimension benchmark upper bound array
+        BENCH = [75, 75, 60, 50, 25, 50, 50]
+    (expressed as percentages for budget flexibility, schedule
+    flexibility, scope certainty, scope reduction allowance, rework
+    percentage, risk tolerance, and user confidence respectively);
+(b) computing effective per-dimension LHS upper bounds as:
+        hi_d = min(PER_SLIDER_BOUNDS[d].hi, BENCH[d] / 100)
+    such that the LHS search space is restricted to operationally
+    realistic upper limits rather than the full [0,1] unit hypercube;
+(c) generating n = max(100, 50 × probeLevel) LHS sample points
+    in the bounded hypercube in adaptive mode (or n=250 in non-adaptive
+    mode), where probeLevel ∈ {1,...,7} controls exploration depth;
+(d) constructing a warm-start trial set from the first 50 LHS samples
+    by overriding the last four slider dimensions with fixed
+    initialization values:
+        trial = (s₀, s₁, s₂, 0.50, 0.25, 0.50, 0.50)
+    retaining the budget, schedule, and scope LHS values while
+    initializing scope reduction, rework, risk tolerance, and user
+    confidence at their midpoint values; and
+(e) maintaining a default fallback slider vector
+        pmDefaults = [0.65, 0.65, 0.60, 0.15, 0.25, 0.50, 0.50]
+    for use when no LHS evaluation improves on the baseline probability,
+    representing a conservatively favorable management stance from which
+    the adaptive pass can be seeded.
+
 **Claim 13 (Independent — Optimizer Explainer):**
 A computer-implemented method for generating natural-language
 explanations of optimization results in the method of Claim 1,
@@ -1489,9 +2512,86 @@ through a four-tier progressive disclosure architecture with
 plain-language descriptions and research citations, and generates
 natural-language optimizer explanations comparing recommended slider
 values to practitioner-supplied values, sorted by PMBOK-derived
-importance weights. The result is context-aware estimation that adapts
-to both organizational risk characteristics and documented project
-history, grounded throughout in probabilistic and information-theoretic
+importance weights.
+
+Six additional innovations strengthen and complete the SACO pipeline:
+(6) PSD Jitter — a 1×10⁻³ diagonal stabilizer applied to BASE_R
+before Cholesky decomposition, with a secondary 1×10⁻⁹ ε·I shift
+inside the Cholesky algorithm, providing two-level numerical stability
+across all copula presets; (7) Ambition Detection — an automatic
+bb=0 override when the target exceeds the PERT mean and baseline
+probability already exceeds 50%, preventing artificial amplification
+of already-favorable scenarios and ensuring score comparability across
+the difficulty spectrum; (8) Taming Factor — taming_factor =
+1+0.01/(probeLevel+1), a probe-level-dependent objective scaling
+that decays as search depth increases, preventing over-commitment to
+extreme configurations found only through exhaustive search; (9)
+Exponential Leash Penalty — λ_leash = 0.05×(1−p₀) with per-slider
+exponential form Σλ×(exp(|Δs|/0.1)−1), a difficulty-adaptive anchor
+to practitioner-supplied slider values that tightens proportionally
+as the estimation scenario becomes harder; (10) erf-Based Monotone
+Feasibility — slack = 1+0.05×CV×(1−p₀/0.5)×erf(|skew|/√2) with a
+three-attempt repair protocol (5% adjO reduction; 5% adjM expansion;
+hard clip), replacing binary feasibility rejection with a smooth
+context-sensitive boundary; and (11) Two-Formula OMP Architecture — the system uses two distinct
+OMP transformation formulas: one for the objective function Beta refit
+(favorable-direction coefficients that shift distributions leftward)
+and one for the monotone feasibility stress test (worst-case expansion
+coefficients); these serve different computational roles and use
+different sign conventions for scope certainty and risk tolerance.
+(12) All-Slider bb Formula — the bias exponent
+bb = 0.05 + 0.03 × mean(W_MEAN[i] × S₀₁[i] × sign(W_MEAN[i])) uses
+the W_MEAN vector across all seven sliders, with Risk Tolerance (S₆)
+having the dominant non-budget influence (W_MEAN[5] = +0.25) but NOT
+exclusively controlling bb.
+(13) 50/50 Thesis-Copula Hybrid Blend — the moment computation
+blends a copula path (lin/OR/coupling) with a thesis path (signed
+W_MEAN directional weights with DIAG_W scaling) at equal 0.5 weight,
+producing hybrid_m₀ and hybrid_m₁ that inherit both theoretical
+grounding and empirical calibration to PMBOK lever directionality.
+
+Seven further innovations complete the system architecture:
+(14) Two-Pass Optimization Architecture — the optimizer executes a
+fixed pass (probeLevel=1, non-adaptive, degenerate single-point LHS,
+5-iteration COBYLA) to produce a coarse seed, followed by an adaptive
+pass (full LHS with n=max(100,50×probeLevel), maxIter=100 COBYLA) that
+uses the fixed-pass result as the leash anchor and seed-anchor target;
+the two-pass structure solves the cold-start problem, enables the leash
+mechanism, and improves result reproducibility across probe levels.
+(15) Negative Lift Reversion Guard — after reshaping, the system checks
+lift = P_reshaped(τ)−P_baseline(τ); if lift < −0.0001, all sliders are
+zeroed and the baseline distribution is restored verbatim, guaranteeing
+the monotone improvement invariant that SACO never makes the practitioner's
+probability estimate worse than unadjusted PERT.
+(16) BENCH-Bounded LHS with Warm-Start Trial Override — LHS sampling is
+restricted to BENCH = [75,75,60,50,25,50,50] upper bounds (per-dimension
+operationally calibrated caps); warm-start trials override the last four
+slider dimensions to (s₀,s₁,s₂,0.50,0.25,0.50,0.50) for the first 50
+samples; a pmDefaults fallback [0.65,0.65,0.60,0.15,0.25,0.50,0.50] seeds
+the adaptive pass when no LHS evaluation improves on baseline.
+(17) Manual-Mode Fallback CDF Lift — when the Beta refit fails in manual
+mode, the system applies a direct lift gain = clamp(Σ W_LIFT[k]×s_k, ±0.25)
+× 0.25 to the baseline CDF via F + gain×(1−F), with weight vector
+W_LIFT = [+0.20,+0.20,+0.20,+0.15,−0.15,+0.07,+0.03] and maxDelta=0.25,
+ensuring a conservative monotone estimate is always returned.
+(18) Chaining Drift Metric — the explainer reports chainingDrift =
+(Σ|x*ᵢ−seedBest[i]|)/7/mean(seedBest)×100 as a diagnostic signal measuring
+aggregate adaptive-pass departure from the fixed-pass seed.
+(19) Slider Functional Taxonomy — the seven management stance parameters are
+classified into five functional categories (capacity: budget, schedule;
+certainty: scope; process: scope reduction, rework; behavioral: risk tolerance;
+other: user confidence), exposed in reports and counter-intuition warnings to
+guide practitioners toward the correct organizational levers.
+(20) Three-Level PSD Stabilization — three independent epsilon values at
+three computational contexts: 1×10⁻⁶ for coupling signal z-score
+standardization, 1×10⁻³ Cholesky pre-jitter (covers Tightly Coupled preset's
+1.5× off-diagonal scaling), and 1×10⁻⁹ internal Cholesky algorithm floor;
+each calibrated specifically for its context rather than using a single
+universal value.
+
+The result is context-aware estimation that adapts to both
+organizational risk characteristics and documented project history,
+grounded throughout in probabilistic and information-theoretic
 foundations.
 
 ---

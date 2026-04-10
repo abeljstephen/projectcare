@@ -82,12 +82,12 @@ function _cpmHealthInterpretation(score) {
 
 // ─────────────────────────────────────────────
 // Main CP engine entry point
-// Called from pmcEstimatorAPI after SACO task loop.
-// tasks:       original task input array
-// sacoResults: parallel array of SACO results (may be null for CP-only mode)
-// options:     { cpmPercentile, stochastic, stochasticN, nearCriticalThreshold }
+// tasks:         original task input array
+// sacoResults:   parallel array of SACO results (may be null for CP-only mode)
+// options:       { cpmPercentile, stochastic, stochasticN, nearCriticalThreshold }
+// sliderContext: project-level slider values (drives task-task correlation m_slider)
 // ─────────────────────────────────────────────
-function runCPEngine(tasks, sacoResults, options) {
+function runCPEngine(tasks, sacoResults, options, sliderContext) {
   options = options || {};
 
   try {
@@ -106,16 +106,22 @@ function runCPEngine(tasks, sacoResults, options) {
       };
     }
 
-    // 2. Stochastic CPM (default: on; disable via options.stochastic = false)
+    // 2. Stochastic CPM — reuse graph/order from detResult; thread sliderContext
     var stochResult = null;
     if (options.stochastic !== false) {
       try {
-        var graph = cpmBuildGraph(tasks);
-        var topo  = cpmTopologicalSort(graph);
-        if (topo.success) {
-          stochResult = runStochasticCPM(tasks, sacoResults, graph, topo.order, {
-            n: options.stochasticN || CPM_STOCHASTIC_DEFAULT_N
-          });
+        var graph = detResult._graph || cpmBuildGraph(tasks);
+        var order = detResult.topologicalOrder;
+        if (order && order.length > 0) {
+          stochResult = runStochasticCPM(
+            tasks, sacoResults, graph, order,
+            {
+              n:                     options.stochasticN         || CPM_STOCHASTIC_DEFAULT_N,
+              nearCriticalThreshold: options.nearCriticalThreshold || 0.10
+            },
+            detResult,
+            sliderContext || null
+          );
         }
       } catch (se) {
         stochResult = {
@@ -128,9 +134,17 @@ function runCPEngine(tasks, sacoResults, options) {
     // 3. Schedule health score
     var healthScore = cpmScheduleHealthScore(detResult, stochResult);
 
+    // Strip internal graph structures before returning
+    var detPublic = {};
+    Object.keys(detResult).forEach(function(k) {
+      if (k !== '_graph' && k !== '_graphDistances' && k !== '_mergeAncestors') {
+        detPublic[k] = detResult[k];
+      }
+    });
+
     return {
       status:        'ok',
-      deterministic:  detResult,
+      deterministic:  detPublic,
       stochastic:     stochResult,
       healthScore:    healthScore
     };

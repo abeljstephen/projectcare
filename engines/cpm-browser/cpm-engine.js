@@ -355,6 +355,10 @@ function runDeterministicCPM(tasks, sacoResults, options) {
   // 13. Graph metrics
   var graphMetrics = cpmGraphMetrics(graph);
 
+  // 13b. Graph distances and merge ancestors (for stochastic correlation matrix)
+  var graphDistances  = cpmAllPairsDistance(graph, order);
+  var mergeAncestors  = cpmMergeAncestors(graph, order);
+
   // 14. Merge point bias warning
   var mergePointBiasWarning = graphMetrics.convergenceCount > 0
     ? 'Merge point bias present at ' + graphMetrics.convergenceCount +
@@ -397,7 +401,11 @@ function runDeterministicCPM(tasks, sacoResults, options) {
     mergePointBiasWarning:  mergePointBiasWarning,
     sources:                graph.sources,
     sinks:                  graph.sinks,
-    topologicalOrder:       order
+    topologicalOrder:       order,
+    // Internal data for stochastic correlation matrix — not sent to client
+    _graphDistances:        graphDistances,
+    _mergeAncestors:        mergeAncestors,
+    _graph:                 graph
   };
 }
 

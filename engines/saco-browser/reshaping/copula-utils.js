@@ -39,7 +39,7 @@ var BASE_R = [
 function psdJitter(R, eps = 1e-3) {
   const out = R.map(row => row.slice());
   for (let i = 0; i < out.length; i++) {
-    out[i][i] = out[i][i] + eps;  // add eps to diagonal; no cap — diagonal > 1 is fine for PSD stability
+    out[i][i] = Math.min(1.0, out[i][i] + eps);  // cap at 1.0 to preserve valid correlation matrix (diagonal must = 1)
   }
   return out;
 }

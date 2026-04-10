@@ -56,9 +56,10 @@ function generateMonteCarloRawPoints(params) {
       return { x, y };
     });
 
-    // CDF points: Empirical from sorted samples (x=sample, y=rank/n)
+    // CDF points: Empirical from sorted samples — Hazen plotting position y=(i+0.5)/n
+    // avoids F(x_min)=0 bias; gives unbiased empirical CDF for uniform order statistics.
     const sortedSamples = samples.slice().sort((a, b) => a - b);
-    const cdfPoints = sortedSamples.map((s, i) => ({ x: s, y: i / numSamples }));
+    const cdfPoints = sortedSamples.map((s, i) => ({ x: s, y: (i + 0.5) / numSamples }));
 
     console.log('generateMonteCarloRawPoints: Completed', {
       pdfPointsLength: pdfPoints.length,

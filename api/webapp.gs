@@ -262,11 +262,10 @@ function handleCallApi(body) {
   }
   var durationMs = Date.now() - engineStart;
 
-  // 5. Build chart URLs and report link.
-  //    Charts represent task[0] distribution; report encodes all tasks.
+  // 5. Build chart URLs (report URL built after enrichment — needs percentiles/probs).
+  //    Charts represent task[0] distribution.
   if (tasks.length > 0 && result.results && result.results[0]) {
-    result._sacoCharts    = buildChartUrls(result.results[0], tasks[0]);
-    result._sacoReportUrl = buildSacoReportUrl(result.results, tasks, sessionToken);
+    result._sacoCharts = buildChartUrls(result.results[0], tasks[0]);
   }
 
   // 8. Enrich per-task results: full percentile table, sensitivity, scenario batch, target-advisor.
@@ -396,20 +395,40 @@ function handleCallApi(body) {
     }
   }
 
-  // Portfolio aggregation — sequential (PERT sum) and parallel (critical path) tasks.
-  // Sequential tasks: mean = Σ PERT means, variance = Σ PERT variances (PMBOK PERT/CPM).
-  // Parallel tasks (task.parallel === true): contribute max(mean_parallel) + max(variance_parallel)
-  //   representing the critical path as the longest parallel branch.
-  // P10/P50/P90 via normal approximation (CLT). Requires ≥2 tasks.
-  if (tasks.length > 1) {
+  // Top-level report URL — built after enrichment so percentiles + probabilities are populated.
+  if (tasks.length > 0 && result.results && result.results[0]) {
+    try { result._sacoReportUrl = buildSacoReportUrl(result.results, tasks, sessionToken); } catch (e) {}
+  }
+
+  // Portfolio aggregation — only when CPM stochastic did NOT produce project duration.
+  // If CPM ran successfully, _portfolio is suppressed: stochastic CPM already accounts for
+  // task correlation and non-normality via its project duration distribution.
+  // Fallback (no CPM): PERT sum / parallel max using SACO-optimized P50/P90 when available.
+  var cpmStochOk = result.cpEngine &&
+                   result.cpEngine.stochastic &&
+                   result.cpEngine.stochastic.status === 'ok' &&
+                   result.cpEngine.stochastic.projectDuration;
+
+  if (tasks.length > 1 && !cpmStochOk) {
     var seqMean = 0, seqVar = 0;
     var parMeans = [], parVars = [];
     var hasParallel = false;
     for (var pIdx = 0; pIdx < tasks.length; pIdx++) {
-      var pTask = tasks[pIdx];
-      var pO = Number(pTask.optimistic), pM = Number(pTask.mostLikely), pP = Number(pTask.pessimistic);
-      var tMean = (pO + 4 * pM + pP) / 6;
-      var tVar  = Math.pow((pP - pO) / 6, 2);
+      var pTask    = tasks[pIdx];
+      var pResult  = result.results && result.results[pIdx];
+      // Prefer SACO-optimized P50 as mean, derive variance from P10/P90 interval.
+      // If SACO didn't run or didn't converge, fall back to raw PERT.
+      var optPct   = pResult && pResult.optimizedPercentiles;
+      var tMean, tVar;
+      if (optPct && Number.isFinite(optPct.p50) && Number.isFinite(optPct.p10) && Number.isFinite(optPct.p90)) {
+        tMean = optPct.p50;
+        // Approximate σ from symmetric P10/P90: σ ≈ (P90 − P10) / (2 × 1.282)
+        tVar  = Math.pow((optPct.p90 - optPct.p10) / 2.564, 2);
+      } else {
+        var pO = Number(pTask.optimistic), pM = Number(pTask.mostLikely), pP = Number(pTask.pessimistic);
+        tMean = (pO + 4 * pM + pP) / 6;
+        tVar  = Math.pow((pP - pO) / 6, 2);
+      }
       if (pTask.parallel === true) {
         hasParallel = true;
         parMeans.push(tMean);
@@ -419,7 +438,6 @@ function handleCallApi(body) {
         seqVar  += tVar;
       }
     }
-    // Parallel group contributes critical path: max mean + max variance
     if (parMeans.length > 0) {
       seqMean += Math.max.apply(null, parMeans);
       seqVar  += Math.max.apply(null, parVars);
@@ -431,7 +449,7 @@ function handleCallApi(body) {
         p10: Math.round((seqMean - 1.282 * pStd) * 100) / 100,
         p50: Math.round(seqMean                   * 100) / 100,
         p90: Math.round((seqMean + 1.282 * pStd)  * 100) / 100,
-        method: hasParallel ? 'pert_critical_path' : 'pert_sum'
+        method: hasParallel ? 'pert_critical_path_saco' : 'pert_sum_saco'
       };
     } else {
       console.error('[ProjectCare API] Portfolio NaN: seqMean=' + seqMean + ' pStd=' + pStd);
@@ -1066,9 +1084,9 @@ function buildCpmUrl(tasks, token) {
       })
     };
     var encoded = encodeURIComponent(Utilities.base64Encode(JSON.stringify(seed)));
-    return 'https://abeljstephen.github.io/projectcare/cpm/?data=' + encoded + '&session=' + token;
+    return 'https://abeljstephen.github.io/projectcare/cpm/plot/?data=' + encoded + '&session=' + token;
   } catch (e) {
-    return 'https://abeljstephen.github.io/projectcare/cpm/?session=' + token;
+    return 'https://abeljstephen.github.io/projectcare/cpm/plot/?session=' + token;
   }
 }
 
