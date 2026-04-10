@@ -3912,13 +3912,22 @@
         }
       }
 
-      // ── RCF-aware label text ─────────────────────────────────────────────
+      // ── Explicit label text: state both the value and probability clearly ──
       var rcf = (typeof window.getHistPrior === 'function') ? window.getHistPrior() : null;
-      var srcSuffix = rcf ? 'based on reference class adjusted estimate.' : 'based on your original values.';
+      var rcfNote = rcf ? ' (reference class adjusted)' : '';
+      var uLabel = units ? '\u00a0' + units : '';
       var sentValLabel = document.getElementById('tgtSentValueLabel');
       var sentProbLabel = document.getElementById('tgtSentProbLabel');
-      if (sentValLabel) sentValLabel.textContent = 'chance of completion ' + srcSuffix;
-      if (sentProbLabel) sentProbLabel.textContent = 'required to hit this probability ' + srcSuffix;
+      if (sentValLabel) {
+        sentValLabel.textContent = (valStr !== '\u2013' && probStr !== '\u2013')
+          ? 'Target: ' + valStr + uLabel + '\u2002\u2014\u2002' + probStr + ' probability of completing at or below this value' + rcfNote
+          : 'probability of completing at or below the target value' + rcfNote;
+      }
+      if (sentProbLabel) {
+        sentProbLabel.textContent = (valStr !== '\u2013' && probStr !== '\u2013')
+          ? 'To achieve ' + probStr + ' probability, the target is ' + valStr + uLabel + rcfNote
+          : 'target value required to achieve this probability' + rcfNote;
+      }
 
       // ── Semantic color tier on hero cards ────────────────────────────────
       var prob = s.targetProb;
@@ -13059,17 +13068,15 @@ window.TM = {
       _s.trianglePdf = triG.pdf;  _s.triangleCdf = triG.cdf;
       _s.betaPertPdf = pertG.pdf; _s.betaPertCdf = pertG.cdf;
 
-      // ── Auto-set target to P50 (median) of this group's distribution ──────
-      // Every time the group composition changes (task added/removed) the target
-      // and probability reset to the natural centre of the new distribution so
-      // the user sees a meaningful baseline before they manually adjust sliders.
-      // P50 from the aggregate MC CDF is the most representative default;
-      // fall back to PERT mean if the CDF isn't populated yet.
-      var _p50Default = (agg.cdfPoints && agg.cdfPoints.length && typeof interpX === 'function')
-        ? interpX(agg.cdfPoints, 0.50)
+      // ── Auto-set target to P50 of this group's distribution ─────────────
+      // Use window.interpX (TM is outside the rendering IIFE so bare interpX
+      // is not in scope here). Falls back to groupPert if CDF not ready.
+      var _interpXfn = (typeof window.interpX === 'function') ? window.interpX : null;
+      var _p50Default = (_interpXfn && agg.cdfPoints && agg.cdfPoints.length)
+        ? _interpXfn(agg.cdfPoints, 0.50)
         : agg.groupPert;
-      _s.target     = _p50Default != null ? _p50Default : agg.groupPert;
-      _s.targetProb = 0.50;  // P50 → 50% completion probability by definition
+      _s.target     = (_p50Default != null && isFinite(_p50Default)) ? _p50Default : agg.groupPert;
+      _s.targetProb = 0.50;
 
       // Default curve visibility for Group mode
       if (!_s.progress) _s.progress = {};
