@@ -7218,10 +7218,10 @@
             // If already in Group mode, refresh picker and auto-run aggregate
             if (window.TM.mode === 'aggregate') {
               if (typeof window.TM._renderGroupPicker === 'function') window.TM._renderGroupPicker();
-              // Defer saveAndRun so the group picker renders first
-              setTimeout(function() {
+              clearTimeout(window.TM._aggDebounce);
+              window.TM._aggDebounce = setTimeout(function() {
                 if (typeof window.TM.saveAndRun === 'function') window.TM.saveAndRun();
-              }, 50);
+              }, 120);
             }
           }
 
@@ -12800,9 +12800,12 @@ window.TM = {
         // Restore full group state from cache (sets baselineProb, KPI chips, recommendations)
         this._showAggregateResult(this._lastAggResult);
       } else {
-        // No cached result — auto-run immediately so the user sees results without clicking
+        // No cached result — auto-run so the user sees results without clicking
         var self = this;
-        setTimeout(function() { if (typeof self.saveAndRun === 'function') self.saveAndRun(); }, 50);
+        clearTimeout(self._aggDebounce);
+        self._aggDebounce = setTimeout(function() {
+          if (typeof self.saveAndRun === 'function') self.saveAndRun();
+        }, 120);
       }
     }
 
@@ -13238,11 +13241,22 @@ window.TM = {
     var t = this._findTask(id);
     if (!t) return;
     t.active = !t.active;
-    this._markDirty();
     this._renderTaskList();
-    if (this.mode === 'aggregate') this._renderGroupPicker();
-    this._syncToLegacy();
-    this._updateBar();
+    if (this.mode === 'aggregate') {
+      this._renderGroupPicker();
+      this._syncToLegacy();
+      this._updateBar();
+      // Auto-recompute aggregate immediately — no Save & Run click needed
+      var self = this;
+      clearTimeout(self._aggDebounce);
+      self._aggDebounce = setTimeout(function() {
+        if (typeof self.saveAndRun === 'function') self.saveAndRun();
+      }, 120);
+    } else {
+      this._markDirty();
+      this._syncToLegacy();
+      this._updateBar();
+    }
   },
 
   _deleteTask: function(id) {
