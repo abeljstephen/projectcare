@@ -7268,17 +7268,17 @@
         }
 
         if (window._pmcNoData) {
-          // No params at all
+          // No params — auto-load the portfolio demo so the page is immediately useful
           var _pl2 = document.getElementById('pageLoader');
           if (_pl2) _pl2.style.display = 'none';
-          showNoDataMessage();
+          pmcLoadExample();
           return;
         }
 
-        // Fallback: load failed / no params
+        // Fallback: load failed / no params — auto-load demo
         var _pl3 = document.getElementById('pageLoader');
         if (_pl3) _pl3.style.display = 'none';
-        showNoDataMessage();
+        pmcLoadExample();
       }
 
       function onTaskChange() {
