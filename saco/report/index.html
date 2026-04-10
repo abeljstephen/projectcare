@@ -81,6 +81,60 @@
     }
     .summary-bar .s-item { font-size: 0.8rem; color: #6B7280; }
     .summary-bar .s-item strong { color: #111827; font-size: 0.9rem; }
+
+    /* ── Empty / landing state ── */
+    .landing {
+      max-width: 520px; margin: 3rem auto 0; text-align: center; padding: 0 1rem;
+    }
+    .landing-logo { font-size: 2.2rem; margin-bottom: 0.75rem; }
+    .landing h2 { font-size: 1.2rem; font-weight: 700; color: #111827; margin-bottom: 0.4rem; }
+    .landing p { font-size: 0.85rem; color: #6B7280; line-height: 1.6; margin-bottom: 1.5rem; }
+    .landing-actions { display: flex; flex-direction: column; gap: 0.75rem; align-items: center; }
+    .btn-primary {
+      display: inline-block; background: #111827; color: #fff;
+      border: none; border-radius: 8px; padding: 0.65rem 1.4rem;
+      font-size: 0.88rem; font-weight: 600; cursor: pointer;
+      text-decoration: none; transition: background .15s;
+    }
+    .btn-primary:hover { background: #374151; }
+    .btn-secondary {
+      display: inline-block; background: #fff; color: #374151;
+      border: 1px solid #D1D5DB; border-radius: 8px; padding: 0.65rem 1.4rem;
+      font-size: 0.88rem; font-weight: 500; cursor: pointer;
+      text-decoration: none; transition: background .15s;
+    }
+    .btn-secondary:hover { background: #F9FAFB; }
+    .demo-section { margin-top: 2.5rem; text-align: left; }
+    .demo-section-title {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #9CA3AF; margin-bottom: 0.75rem;
+    }
+    .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+    @media(max-width:480px){ .demo-grid { grid-template-columns: 1fr; } }
+    .demo-card {
+      background: #fff; border: 1px solid #E5E7EB; border-radius: 10px;
+      padding: 0.9rem 1rem; cursor: pointer; text-align: left;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .demo-card:hover { border-color: #6D28D9; box-shadow: 0 0 0 3px rgba(109,40,217,.08); }
+    .demo-card-title { font-size: 0.85rem; font-weight: 600; color: #111827; margin-bottom: 0.2rem; }
+    .demo-card-sub { font-size: 0.75rem; color: #6B7280; line-height: 1.4; }
+    .demo-card-badge {
+      display: inline-block; font-size: 0.65rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      padding: 0.15rem 0.45rem; border-radius: 4px; margin-bottom: 0.4rem;
+    }
+    .badge-portfolio { background: #EDE9FE; color: #5B21B6; }
+    .badge-single    { background: #D1FAE5; color: #065F46; }
+    .badge-edge      { background: #FEF3C7; color: #92400E; }
+    .demo-banner {
+      display: none; background: #FEF9C3; border: 1px solid #FDE68A;
+      border-radius: 8px; padding: 0.5rem 1rem; font-size: 0.78rem;
+      color: #854D0E; margin-bottom: 1.25rem; align-items: center;
+      justify-content: space-between; gap: 0.75rem;
+    }
+    .demo-banner.visible { display: flex; }
+    .demo-banner a { color: #92400E; font-weight: 600; text-decoration: underline; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -89,13 +143,51 @@
     <h1>ProjectCare by iCareNOW</h1>
     <div class="subtitle">SACO Probability-Based Estimation Report</div>
   </div>
+  <div id="demo-banner" class="demo-banner">
+    <span>✨ Showing example data — <a href="/projectcare/saco/plot/" >run a real analysis in the SACO Plot</a> to generate your report.</span>
+    <a onclick="clearDemo()" style="white-space:nowrap;">✕ dismiss</a>
+  </div>
   <div id="report-root"></div>
+  <div id="landing-state" class="landing" style="display:none;">
+    <div class="landing-logo">📋</div>
+    <h2>SACO Estimation Report</h2>
+    <p>This page displays a shareable probability report generated from the SACO Plot. No data was found in the URL — run an analysis first, or load a demo below to see what a report looks like.</p>
+    <div class="landing-actions">
+      <a class="btn-primary" href="/projectcare/saco/plot/">📊 Open SACO Plot to run analysis</a>
+      <a class="btn-secondary" href="/projectcare/cpm/plot/">🔗 Open CPM Diagram</a>
+    </div>
+    <div class="demo-section">
+      <div class="demo-section-title">✨ Example Reports — load a demo instantly</div>
+      <div class="demo-grid">
+        <button class="demo-card" onclick="loadDemo('portfolio')">
+          <div class="demo-card-badge badge-portfolio">6 tasks</div>
+          <div class="demo-card-title">🏗 Full Project Portfolio</div>
+          <div class="demo-card-sub">Requirements → Design → Dev → Test → Docs → Deploy. Realistic right-skewed estimates with targets.</div>
+        </button>
+        <button class="demo-card" onclick="loadDemo('software_sprint')">
+          <div class="demo-card-badge badge-single">Single task</div>
+          <div class="demo-card-title">💻 Software Sprint</div>
+          <div class="demo-card-sub">Classic Hofstadter pattern. High right skew with scope uncertainty. SACO optimization recommended.</div>
+        </button>
+        <button class="demo-card" onclick="loadDemo('regulatory')">
+          <div class="demo-card-badge badge-single">Single task</div>
+          <div class="demo-card-title">📋 Regulatory Approval</div>
+          <div class="demo-card-sub">Long-tail regulatory timeline. P90 well above most-likely. Low baseline probability at target.</div>
+        </button>
+        <button class="demo-card" onclick="loadDemo('symmetric')">
+          <div class="demo-card-badge badge-edge">Edge case</div>
+          <div class="demo-card-title">⚖️ Symmetric Estimate</div>
+          <div class="demo-card-sub">M = (O+P)/2. Balanced Beta-PERT with equal optimistic/pessimistic tails. Rare in practice.</div>
+        </button>
+      </div>
+    </div>
+  </div>
   <div class="footer">
     <a href="https://icarenow.io" target="_blank" rel="noopener">icarenow.io</a>
     &nbsp;&middot;&nbsp;
     <a href="/projectcare/saco/plot/" id="plot-link">Open Interactive Plot</a>
     &nbsp;&middot;&nbsp;
-    <a href="/projectcare/cpm/" id="cpm-link">Critical Path View</a>
+    <a href="/projectcare/cpm/plot/" id="cpm-link">Critical Path View</a>
   </div>
 </div>
 
@@ -236,12 +328,72 @@
       var pl = document.getElementById('plot-link');
       if (pl) pl.href = '/projectcare/saco/plot/?session=' + encodeURIComponent(sess);
       var cl = document.getElementById('cpm-link');
-      if (cl) cl.href = '/projectcare/cpm/?session=' + encodeURIComponent(sess);
+      if (cl) cl.href = '/projectcare/cpm/plot/?session=' + encodeURIComponent(sess);
     }
   }
 
+  // ── Demo payloads ──────────────────────────────────────────────
+  var DEMOS = {
+    portfolio: {
+      schemaVersion: 1, session: null,
+      tasks: [
+        { task:'Requirements',  O:3,  M:5,  P:8,  target:6,  baselineProb:0.64, adjustedProb:0.76, optimizedProb:0.84, p10:3.8,  p50:5.1,  p90:6.9  },
+        { task:'Design',        O:4,  M:7,  P:12, target:8,  baselineProb:0.56, adjustedProb:0.69, optimizedProb:0.78, p10:5.1,  p50:7.2,  p90:10.4 },
+        { task:'Development',   O:10, M:16, P:25, target:18, baselineProb:0.59, adjustedProb:0.71, optimizedProb:0.80, p10:11.8, p50:16.2, p90:22.0 },
+        { task:'Testing',       O:4,  M:6,  P:10, target:7,  baselineProb:0.61, adjustedProb:0.73, optimizedProb:0.82, p10:4.7,  p50:6.2,  p90:8.7  },
+        { task:'Documentation', O:2,  M:4,  P:6,  target:5,  baselineProb:0.74, adjustedProb:0.84, optimizedProb:0.90, p10:2.6,  p50:3.9,  p90:5.5  },
+        { task:'Deployment',    O:1,  M:2,  P:4,  target:3,  baselineProb:0.77, adjustedProb:0.86, optimizedProb:0.92, p10:1.2,  p50:2.1,  p90:3.3  }
+      ]
+    },
+    software_sprint: {
+      schemaVersion: 1, session: null,
+      tasks: [{ task:'Software Sprint', O:5, M:8, P:25, target:12, baselineProb:0.54, adjustedProb:0.67, optimizedProb:0.78, p10:6.0, p50:8.9, p90:17.2 }]
+    },
+    regulatory: {
+      schemaVersion: 1, session: null,
+      tasks: [{ task:'Regulatory Approval', O:30, M:60, P:180, target:90, baselineProb:0.61, adjustedProb:0.70, optimizedProb:0.79, p10:40.1, p50:65.4, p90:128.6 }]
+    },
+    symmetric: {
+      schemaVersion: 1, session: null,
+      tasks: [{ task:'Symmetric Task', O:8, M:12, P:16, target:13, baselineProb:0.68, adjustedProb:0.75, optimizedProb:0.82, p10:9.3, p50:12.0, p90:14.7 }]
+    }
+  };
+
+  function loadDemo(id) {
+    var d = DEMOS[id];
+    if (!d) return;
+    document.getElementById('landing-state').style.display = 'none';
+    var banner = document.getElementById('demo-banner');
+    if (banner) banner.classList.add('visible');
+    renderAll(d);
+  }
+
+  window.loadDemo = loadDemo;
+
+  window.clearDemo = function() {
+    var banner = document.getElementById('demo-banner');
+    if (banner) banner.classList.remove('visible');
+  };
+
+  // ── Boot ──────────────────────────────────────────────────────
   var raw = getParam('data');
-  if (!raw) { showError('No report data found in URL.'); return; }
+  if (!raw) {
+    // No ?data= param — try ?session= fetch, else show landing
+    var sess = getParam('session');
+    if (sess) {
+      fetch('https://icarenow.io/wp-json/projectcare/v1/plot-data/' + encodeURIComponent(sess))
+        .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
+        .then(function(d){ renderAll(d); })
+        .catch(function(){ showLanding(); });
+    } else {
+      showLanding();
+    }
+    return;
+  }
+
+  function showLanding() {
+    document.getElementById('landing-state').style.display = 'block';
+  }
 
   var payload = decode(raw);
   if (!payload) { showError('Could not decode report data.'); return; }

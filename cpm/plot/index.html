@@ -1,0 +1,2799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ProjectCare by iCareNOW — Critical Path</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' blob: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://abeljstephen.github.io; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; img-src 'self' data: blob:; connect-src 'self' https://icarenow.io https://docs.google.com https://sheets.googleapis.com; font-src https://cdn.jsdelivr.net data:; worker-src blob:;" />
+
+  <!-- Bootstrap: decode ?data= and ?session= before any rendering -->
+  <script>
+  (function() {
+    var params = new URLSearchParams(window.location.search);
+    var dataParam    = params.get('data');
+    var sessionToken = params.get('session');
+    if (dataParam) {
+      try {
+        // Robust base64 decode:
+        // 1. URLSearchParams converts + → space; restore + for standard base64
+        // 2. Also handle URL-safe base64 (- → +, _ → /)
+        // 3. Re-add stripped = padding if needed
+        var b64 = dataParam
+          .replace(/ /g, '+')           // URLSearchParams space-decoded + signs
+          .replace(/-/g, '+')           // URL-safe base64 → standard
+          .replace(/_/g, '/');          // URL-safe base64 → standard
+        // Add padding if stripped
+        var pad = b64.length % 4;
+        if (pad === 2) b64 += '==';
+        else if (pad === 3) b64 += '=';
+        var decoded = JSON.parse(atob(b64));
+        window._cpmBootstrap = decoded;
+        window._cpmSession   = sessionToken || null;
+      } catch(e) {
+        console.warn('[CPM] Failed to decode data param', e);
+        window._cpmDecodeError = e.message;
+      }
+    } else if (!sessionToken) {
+      window._cpmNoData = true;
+    }
+    if (sessionToken) window._cpmSession = sessionToken;
+  })();
+  </script>
+
+  <!-- CPM engine deps — synchronous, must be ready before boot -->
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/helpers/rng.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/helpers/metrics.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/graph.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/cpm-engine.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/stochastic-cpm.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/cpm-adapter.js"></script>
+
+  <!-- Chart.js + Vis.js loaded lazily AFTER core results render -->
+  <link rel="stylesheet" href="https://unpkg.com/vis-network@9.1.9/dist/dist/vis-network.min.css" />
+
+  <style>
+    :root {
+      --fg:#111827; --muted:#6B7280; --brand:#111827; --accent:#10B981;
+      --line:#E5E7EB; --panel:#FFFFFF; --chip:#F3F4F6; --hover:#BFDBFE;
+      --warn:#DC2626; --crit:#DC2626; --near:#F59E0B; --safe:#10B981;
+      --cdf:#3B82F6; --good:#059669; --bad:#F87171;
+    }
+    html,body { font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif; color:var(--fg); background:#F9FAFB; margin:0; min-height:100%; }
+    *{box-sizing:border-box;}
+    .wrap { padding:12px 16px; max-width:1480px; margin:0 auto; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+    h1 { font-size:15px; font-weight:700; margin:0; letter-spacing:.2px; }
+    h2 { font-size:13px; font-weight:700; margin:0 0 10px; letter-spacing:.2px; }
+    label { font-size:11px; font-weight:600; color:var(--muted); letter-spacing:.2px; }
+
+    /* ── Header ── */
+    .header { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px 0 12px; border-bottom:1px solid var(--line); margin-bottom:14px; }
+    .header-left { display:flex; align-items:center; gap:10px; flex:1; min-width:0; }
+    .logo { font-size:13px; font-weight:800; color:var(--brand); white-space:nowrap; }
+    .divider { color:var(--line); font-size:16px; }
+    .status-badge { font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; background:#F0FDF4; color:#166534; border:1px solid #86EFAC; white-space:nowrap; }
+    .status-badge.computing { background:#FEF9C3; color:#854D0E; border-color:#FDE047; animation:pulse 1.2s ease-in-out infinite; }
+    .status-badge.error { background:#FEF2F2; color:#991B1B; border-color:#FCA5A5; }
+    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.6;}}
+    .back-link { font-size:11px; color:var(--muted); text-decoration:none; padding:5px 10px; border:1px solid var(--line); border-radius:8px; white-space:nowrap; }
+    .back-link:hover { background:var(--hover); }
+
+    /* ── Section grid ── */
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+    .section { margin-bottom:14px; }
+    @media(max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr;}}
+
+    /* ── KPI strip ── */
+    .kpi-strip { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+    .kpi { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 14px; min-width:140px; flex:1; }
+    .kpi .ttl { font-size:10px; color:var(--muted); margin-bottom:3px; text-transform:uppercase; letter-spacing:.3px; }
+    .kpi .val { font-size:18px; font-weight:700; font-family:'SF Mono',Consolas,monospace; }
+    .kpi .sub { font-size:10px; color:var(--muted); margin-top:2px; }
+    .kpi.crit .val { color:var(--crit); }
+    .kpi.safe .val { color:var(--safe); }
+    .kpi.warn-kpi .val { color:var(--near); }
+
+    /* ── Tables ── */
+    .tbl-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th { font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; padding:6px 8px; text-align:left; border-bottom:2px solid var(--line); white-space:nowrap; }
+    td { padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+    tr:hover td { background:#F9FAFB; }
+    .badge { display:inline-block; padding:2px 7px; border-radius:999px; font-size:10px; font-weight:700; white-space:nowrap; }
+    .badge.crit { background:#FEE2E2; color:#991B1B; }
+    .badge.near { background:#FEF9C3; color:#854D0E; }
+    .badge.safe { background:#F0FDF4; color:#166534; }
+    .badge.nc { background:var(--chip); color:var(--muted); }
+    .float-bar { display:inline-block; height:6px; border-radius:3px; background:var(--cdf); vertical-align:middle; margin-left:4px; }
+
+    /* ── Network Diagram ── */
+    #networkContainer { width:100%; height:600px; border-radius:10px; overflow:hidden; background:#FAFAFA; border:1px solid var(--line); cursor:grab; }
+    #networkContainer:active { cursor:grabbing; }
+    .net-toolbar { display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+    .box-legend { display:inline-block; border:2px solid #DC2626; border-radius:6px; font-family:Consolas,"SF Mono",monospace; font-size:11px; background:#FEE2E2; padding:6px 12px; color:#111827; line-height:1.7; margin-bottom:12px; }
+    .box-legend .bl-row { border-top:1px solid #FECACA; margin-top:4px; padding-top:4px; font-size:10px; color:#6B7280; }
+
+    /* ── Gantt ── */
+    #ganttContainer { width:100%; height:min(360px,50vh); }
+
+    /* ── Chart containers ── */
+    #scurveContainer { width:100%; height:260px; }
+    #tornadoContainer { width:100%; height:260px; }
+
+    /* ── Health Score ── */
+    .health-card { text-align:center; padding:20px; }
+    .grade-circle { display:inline-flex; align-items:center; justify-content:center; width:80px; height:80px; border-radius:50%; font-size:36px; font-weight:900; border:4px solid; margin-bottom:10px; }
+    .grade-A { color:#059669; border-color:#059669; background:#F0FDF4; }
+    .grade-B { color:#16A34A; border-color:#16A34A; background:#F0FDF4; }
+    .grade-C { color:#D97706; border-color:#D97706; background:#FFFBEB; }
+    .grade-D { color:#EA580C; border-color:#EA580C; background:#FFF7ED; }
+    .grade-F { color:#DC2626; border-color:#DC2626; background:#FEF2F2; }
+    .health-score { font-size:28px; font-weight:800; font-family:'SF Mono',Consolas,monospace; }
+    .health-interp { font-size:12px; color:var(--muted); margin-top:6px; max-width:300px; margin-left:auto; margin-right:auto; line-height:1.5; }
+    .factor-row { display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--line); font-size:11px; }
+    .factor-row:last-child { border-bottom:none; }
+    .factor-name { flex:1; color:var(--muted); }
+    .factor-val { font-family:'SF Mono',Consolas,monospace; font-weight:600; min-width:44px; text-align:right; }
+    .factor-bar-track { flex:2; height:4px; background:var(--line); border-radius:2px; }
+    .factor-bar-fill { height:4px; border-radius:2px; background:var(--cdf); }
+
+    /* ── Input form ── */
+    #inputSection { max-width:720px; margin:0 auto; padding:32px 16px; }
+    .form-title { font-size:18px; font-weight:800; margin-bottom:6px; }
+    .form-sub { font-size:13px; color:var(--muted); margin-bottom:20px; }
+    .task-row { display:grid; grid-template-columns:1fr 80px 80px 80px 1fr auto; gap:8px; align-items:end; margin-bottom:8px; }
+    .task-row input, .task-row select { padding:7px 9px; border:1px solid var(--line); border-radius:8px; font-size:12px; font-family:inherit; width:100%; }
+    .task-row input:focus,.task-row select:focus { outline:2px solid var(--cdf); border-color:transparent; }
+    .remove-btn { background:none; border:1px solid var(--line); border-radius:8px; width:32px; height:32px; cursor:pointer; color:var(--muted); font-size:16px; display:flex; align-items:center; justify-content:center; }
+    .remove-btn:hover { background:#FEF2F2; color:var(--crit); }
+    .add-btn { background:none; border:1px solid var(--line); border-radius:8px; padding:7px 14px; font-size:12px; cursor:pointer; margin-top:4px; }
+    .add-btn:hover { background:var(--hover); }
+    .run-btn { background:var(--brand); color:#fff; border:none; border-radius:10px; padding:10px 24px; font-size:14px; font-weight:700; cursor:pointer; margin-top:16px; }
+    .run-btn:hover { opacity:.88; }
+    .form-note { font-size:11px; color:var(--muted); margin-top:10px; }
+    .pred-hint { font-size:10px; color:var(--muted); }
+    @media(max-width:700px){.task-row{grid-template-columns:1fr 70px 70px 70px;}.task-row .pred-col{display:none;}}
+
+    /* ── Loading overlay ── */
+    #loadingOverlay { display:none; position:fixed; inset:0; background:rgba(255,255,255,.8); z-index:100; align-items:center; justify-content:center; flex-direction:column; gap:12px; }
+    #loadingOverlay.visible { display:flex; }
+    .spinner { width:36px; height:36px; border:3px solid var(--line); border-top-color:var(--brand); border-radius:50%; animation:spin .7s linear infinite; }
+    @keyframes spin{to{transform:rotate(360deg);}}
+
+    /* ── Buttons ── */
+    .btn { padding:6px 12px; border:1px solid var(--line); border-radius:8px; font-size:12px; font-weight:500; cursor:pointer; background:var(--panel); font-family:inherit; }
+    .btn:hover { background:var(--hover); }
+    .btn.primary { background:var(--brand); color:#fff; border-color:var(--brand); }
+    .btn.primary:hover { opacity:.88; }
+
+    /* ── Tab nav ── */
+    .tab-nav { display:flex; gap:0; border-bottom:2px solid var(--line); margin-bottom:16px; overflow-x:auto; }
+    .tab-btn { padding:9px 18px; font-size:12px; font-weight:600; border:none; border-bottom:2px solid transparent; margin-bottom:-2px; background:none; cursor:pointer; color:var(--muted); white-space:nowrap; font-family:inherit; border-radius:6px 6px 0 0; transition:color .15s; }
+    .tab-btn:hover { color:var(--fg); background:var(--chip); }
+    .tab-btn.active { color:var(--brand); border-bottom-color:var(--brand); }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+
+    /* ── Help tooltip ── */
+    .htip { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; border-radius:50%; background:var(--chip); color:var(--muted); font-size:9px; font-weight:700; cursor:help; margin-left:5px; vertical-align:middle; position:relative; border:1px solid var(--line); flex-shrink:0; }
+    .htip::after { content:attr(data-tip); position:absolute; left:50%; transform:translateX(-50%); top:calc(100% + 7px); background:#1e293b; color:#f1f5f9; font-size:11px; font-weight:400; padding:9px 13px; border-radius:8px; width:260px; white-space:normal; z-index:9999; line-height:1.55; display:none; pointer-events:none; }
+    .htip::before { content:''; position:absolute; left:50%; transform:translateX(-50%); top:calc(100% + 3px); border:4px solid transparent; border-bottom-color:#1e293b; display:none; }
+    .htip:hover::after, .htip:hover::before { display:block; }
+
+    /* ── Alerts / graph integrity ── */
+    .alert { border-radius:8px; padding:9px 13px; font-size:12px; margin-bottom:8px; display:flex; gap:8px; align-items:flex-start; line-height:1.5; }
+    .alert-error { background:#FEF2F2; border:1px solid #FCA5A5; color:#991B1B; }
+    .alert-warn  { background:#FFFBEB; border:1px solid #FDE68A; color:#854D0E; }
+    .alert-info  { background:#EFF6FF; border:1px solid #BFDBFE; color:#1D4ED8; }
+    .alert-ok    { background:#F0FDF4; border:1px solid #BBF7D0; color:#166534; }
+    .alert-icon  { font-size:13px; flex-shrink:0; line-height:1.5; }
+    .alert strong { font-weight:700; }
+
+    /* ── Critical path chain ── */
+    .cp-chain { display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin:10px 0 4px; }
+    .cp-node  { background:#FEE2E2; border:1.5px solid #FECACA; border-radius:6px; padding:4px 10px; font-size:12px; font-weight:600; color:#991B1B; }
+    .cp-arrow { color:#9CA3AF; font-size:13px; }
+
+    /* ── Metric chips ── */
+    .metric-strip { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 0; }
+    .mc { background:var(--chip); border-radius:8px; padding:5px 11px; font-size:11px; color:var(--muted); }
+    .mc strong { color:var(--fg); }
+
+    /* ── Error panel ── */
+    .error-panel { background:#FEF2F2; border:1px solid #FCA5A5; border-radius:10px; padding:12px 16px; color:#991B1B; font-size:12px; margin-bottom:14px; }
+
+    /* ── Legend ── */
+    .legend-row { display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:var(--muted); align-items:center; margin-top:8px; }
+    .leg-dot { width:12px; height:12px; border-radius:3px; display:inline-block; margin-right:5px; vertical-align:middle; border:1.5px solid transparent; }
+
+    /* ── Risk rows (SSI table) ── */
+    .risk-row { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); }
+    .risk-row:last-child { border-bottom:none; }
+    .risk-name { font-size:12px; font-weight:600; min-width:120px; flex-shrink:0; }
+    .risk-bar-track { flex:1; height:8px; background:var(--line); border-radius:4px; overflow:hidden; }
+    .risk-bar-fill { height:8px; border-radius:4px; }
+    .risk-pct { font-size:12px; font-weight:700; font-family:'SF Mono',Consolas,monospace; min-width:38px; text-align:right; }
+    .risk-badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px; white-space:nowrap; }
+
+    /* hide results until computed */
+    #resultsSection { display:none; }
+
+    /* ── Correlation audit / richness ── */
+    .richness-strip { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0 0; align-items:center; }
+    .richness-chip { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:999px; font-size:10px; font-weight:700; border:1px solid; white-space:nowrap; }
+    .richness-chip.active  { background:#F0FDF4; color:#166534; border-color:#86EFAC; }
+    .richness-chip.inactive{ background:var(--chip); color:var(--muted); border-color:var(--line); text-decoration:line-through; opacity:.55; }
+    .richness-chip.method  { background:#EFF6FF; color:#1D4ED8; border-color:#BFDBFE; }
+    .corr-heatmap { display:grid; gap:2px; margin-top:8px; }
+    .corr-cell { display:flex; align-items:center; justify-content:center; border-radius:3px; font-size:9px; font-family:'SF Mono',Consolas,monospace; font-weight:600; color:#fff; min-width:28px; min-height:28px; }
+    .corr-label { font-size:9px; color:var(--muted); display:flex; align-items:center; justify-content:center; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    /* ── Top paths table ── */
+    .path-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--line); font-size:12px; }
+    .path-row:last-child { border-bottom:none; }
+    .path-chain { flex:1; font-family:'SF Mono',Consolas,monospace; color:var(--fg); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
+    .path-freq  { font-size:11px; font-weight:700; font-family:'SF Mono',Consolas,monospace; min-width:42px; text-align:right; }
+    .path-bar-track { width:80px; height:6px; background:var(--line); border-radius:3px; flex-shrink:0; }
+    .path-bar-fill  { height:6px; border-radius:3px; background:var(--cdf); }
+
+    /* ── Merge bottleneck ── */
+    .mb-row { display:flex; align-items:baseline; gap:8px; padding:5px 0; border-bottom:1px solid var(--line); font-size:12px; }
+    .mb-row:last-child { border-bottom:none; }
+    .mb-node { font-weight:700; min-width:100px; }
+    .mb-pred  { color:var(--muted); }
+    .mb-freq  { font-family:'SF Mono',Consolas,monospace; font-size:11px; font-weight:700; color:var(--near); margin-left:auto; }
+
+    /* ── Sensitivity comparison ── */
+    .sens-row { display:flex; gap:12px; flex-wrap:wrap; margin-top:8px; }
+    .sens-item { flex:1; min-width:120px; background:var(--chip); border-radius:8px; padding:8px 12px; }
+    .sens-item .s-lbl { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.2px; }
+    .sens-item .s-val { font-size:16px; font-weight:700; font-family:'SF Mono',Consolas,monospace; margin-top:2px; }
+    .sens-item .s-sub { font-size:10px; color:var(--muted); margin-top:2px; }
+    .sens-delta-pos { color:var(--near); }
+    .sens-delta-neg { color:var(--safe); }
+
+    /* ── NCI column in SSI panel ── */
+    .nci-badge { display:inline-block; padding:1px 6px; border-radius:999px; font-size:9px; font-weight:700; background:#EDE9FE; color:#5B21B6; border:1px solid #C4B5FD; }
+
+    /* ── Dataset Picker Modal ── */
+    .dsp-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px; }
+    .dsp-panel { background:#fff; border-radius:16px; max-width:760px; width:100%; max-height:88vh; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 24px 64px rgba(0,0,0,.22); }
+    .dsp-header { padding:14px 18px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; flex-shrink:0; }
+    .dsp-header-text { flex:1; }
+    .dsp-header-title { font-size:14px; font-weight:700; }
+    .dsp-header-sub   { font-size:11px; color:var(--muted); margin-top:1px; }
+    .dsp-close { background:none; border:none; font-size:20px; cursor:pointer; color:var(--muted); padding:4px 8px; border-radius:6px; line-height:1; }
+    .dsp-close:hover { background:var(--chip); }
+    .dsp-body { overflow-y:auto; padding:14px 18px 18px; flex:1; }
+    .dsp-cat { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); margin:14px 0 8px; display:flex; align-items:center; gap:8px; }
+    .dsp-cat::after { content:''; flex:1; height:1px; background:var(--line); }
+    .dsp-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    @media(max-width:520px){.dsp-grid{grid-template-columns:1fr;}}
+    .dsp-card { border:1px solid var(--line); border-radius:10px; padding:10px 12px; cursor:pointer; transition:border-color .12s,background .12s; display:flex; flex-direction:column; gap:4px; text-align:left; background:#fff; font-family:inherit; width:100%; }
+    .dsp-card:hover { border-color:var(--cdf); background:#F0F7FF; }
+    .dsp-card.cat-valid   { border-left:3px solid var(--safe); }
+    .dsp-card.cat-invalid { border-left:3px solid var(--crit); }
+    .dsp-card.cat-warn    { border-left:3px solid var(--near); }
+    .dsp-card-hdr  { display:flex; align-items:center; gap:6px; }
+    .dsp-icon  { font-size:15px; flex-shrink:0; }
+    .dsp-name  { font-size:12px; font-weight:700; color:var(--fg); flex:1; }
+    .dsp-badge { font-size:9px; font-weight:700; padding:2px 6px; border-radius:999px; flex-shrink:0; }
+    .dsp-badge.valid   { background:#F0FDF4; color:#166534; border:1px solid #86EFAC; }
+    .dsp-badge.invalid { background:#FEF2F2; color:#991B1B; border:1px solid #FCA5A5; }
+    .dsp-badge.warn    { background:#FEF9C3; color:#854D0E; border:1px solid #FDE047; }
+    .dsp-tagline  { font-size:10px; color:var(--muted); line-height:1.4; }
+    .dsp-mathprop { font-size:10px; color:var(--cdf); font-weight:600; margin-top:2px; }
+
+    /* ── Math Explanation Panel ── */
+    #mathPanel { background:#F0F7FF; border:1px solid #BFDBFE; border-left:4px solid var(--cdf); border-radius:10px; padding:12px 16px; margin-bottom:14px; display:none; }
+    .math-close { float:right; background:none; border:none; cursor:pointer; color:var(--muted); font-size:16px; line-height:1; padding:0 2px; }
+    .math-title { font-size:13px; font-weight:700; margin:0 0 5px; display:flex; align-items:center; gap:8px; }
+    .math-prop-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; border:1px solid #BFDBFE; background:#EFF6FF; color:#1D4ED8; }
+    .math-body { font-size:11px; color:#374151; line-height:1.75; white-space:pre-wrap; margin-top:6px; font-family:'SF Mono',Consolas,monospace; background:rgba(255,255,255,.6); border-radius:6px; padding:8px 10px; }
+    .math-expected { margin-top:8px; padding:7px 10px; background:#fff; border-radius:7px; border:1px solid var(--line); font-size:11px; display:flex; gap:6px; align-items:flex-start; }
+    .math-expected-label { font-weight:700; color:var(--muted); white-space:nowrap; }
+
+    /* ── QA Panel ── */
+    #qaPanel { background:#F8FAFF; border:1px solid var(--line); border-radius:10px; padding:12px 16px; margin-bottom:14px; display:none; }
+    .qa-header { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+    .qa-title  { font-size:13px; font-weight:700; flex:1; }
+    .qa-summary { font-size:11px; color:var(--muted); }
+    .qa-close  { background:none; border:none; cursor:pointer; color:var(--muted); font-size:16px; padding:0 4px; }
+    .qa-row    { display:flex; align-items:baseline; gap:8px; padding:5px 0; border-bottom:1px solid var(--line); font-size:11px; }
+    .qa-row:last-child { border-bottom:none; }
+    .qa-num    { font-size:10px; color:var(--muted); min-width:22px; font-family:'SF Mono',Consolas,monospace; }
+    .qa-ds-name{ min-width:170px; font-weight:600; font-size:11px; }
+    .qa-status { min-width:40px; font-weight:700; font-family:'SF Mono',Consolas,monospace; }
+    .qa-pass   { color:var(--safe); }
+    .qa-fail   { color:var(--crit); }
+    .qa-skip   { color:var(--muted); }
+    .qa-detail { color:var(--muted); flex:1; font-family:'SF Mono',Consolas,monospace; font-size:10px; }
+    .qa-load-link { color:var(--cdf); cursor:pointer; text-decoration:underline; font-size:10px; white-space:nowrap; }
+
+    /* ── Upload / import section ── */
+    .import-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px; padding:10px 12px; background:var(--chip); border-radius:10px; border:1px solid var(--line); }
+    .import-bar .ib-label { font-size:11px; font-weight:700; color:var(--muted); white-space:nowrap; }
+    .import-btn { padding:5px 11px; border:1px solid var(--line); border-radius:7px; font-size:11px; cursor:pointer; background:var(--panel); font-family:inherit; display:inline-flex; align-items:center; gap:5px; }
+    .import-btn:hover { background:var(--hover); }
+    .import-btn.primary { background:var(--brand); color:#fff; border-color:var(--brand); }
+    .import-gs-row { display:flex; gap:6px; width:100%; margin-top:6px; }
+    .import-gs-row input { flex:1; padding:6px 9px; border:1px solid var(--line); border-radius:7px; font-size:11px; font-family:inherit; }
+    .import-gs-row input:focus { outline:2px solid var(--cdf); border-color:transparent; }
+    .import-preview { margin-top:8px; font-size:11px; }
+    .import-preview table { width:100%; border-collapse:collapse; }
+    .import-preview th { background:var(--chip); padding:4px 7px; font-size:10px; font-weight:700; text-align:left; border-bottom:2px solid var(--line); }
+    .import-preview td { padding:4px 7px; border-bottom:1px solid var(--line); }
+    .import-preview tr.row-warn td { background:#FFFBEB; }
+    .import-preview tr.row-err td { background:#FEF2F2; }
+
+    /* ── Optional enrichment fields ── */
+    .enrich-toggle { font-size:11px; color:var(--cdf); cursor:pointer; margin:6px 0 2px; display:inline-block; }
+    .enrich-toggle:hover { text-decoration:underline; }
+    .enrich-section { display:none; background:var(--chip); border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+    .enrich-section.open { display:block; }
+    .enrich-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+    .enrich-grid input { padding:6px 8px; border:1px solid var(--line); border-radius:7px; font-size:11px; font-family:inherit; width:100%; }
+    .enrich-grid input:focus { outline:2px solid var(--cdf); border-color:transparent; }
+    @media(max-width:700px){.enrich-grid{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+  <div style="font-size:13px;color:var(--muted);font-weight:500;">Computing critical path…</div>
+</div>
+
+<div class="wrap">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <span class="logo">ProjectCare</span>
+      <span class="divider">|</span>
+      <h1>Critical Path</h1>
+      <span id="statusBadge" class="status-badge" style="display:none">Ready</span>
+    </div>
+    <div id="exampleBanner" style="display:none;background:#FEF9C3;border:1px solid #FDE68A;border-radius:8px;padding:5px 12px;font-size:11px;color:#854D0E;display:none;align-items:center;gap:10px;">
+      <span>Showing example data</span>
+      <button onclick="clearAndShowForm()" style="background:none;border:none;font-size:11px;font-weight:700;color:#1D4ED8;cursor:pointer;padding:0;text-decoration:underline;">Enter your own →</button>
+    </div>
+    <a href="../../saco/plot/" class="back-link">← SACO Plot</a>
+  </div>
+
+  <!-- Input form (no data param) -->
+  <div id="inputSection" style="display:none">
+    <div class="form-title">Critical Path Analysis</div>
+    <div class="form-sub">Enter tasks with O / M / P estimates and optional predecessors to compute the critical path, schedule health, and stochastic duration distribution.</div>
+
+    <!-- Import bar -->
+    <div class="import-bar">
+      <span class="ib-label">Import:</span>
+      <label class="import-btn" title="Upload a CSV file — columns: task, O, M, P, predecessors (optional), resource, phase, riskSignals">
+        📄 CSV / Excel
+        <input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="importFromFile(this)" />
+      </label>
+      <button class="import-btn" onclick="toggleGsImport()" title="Paste a Google Sheets URL or published CSV URL">
+        📊 Google Sheets
+      </button>
+      <button class="import-btn" onclick="openDatasetPicker()" title="Browse named example datasets including broken/invalid cases">
+        ✨ Example Datasets
+      </button>
+      <button class="import-btn" id="qaRunBtn" onclick="runQASuite()" title="Run QA tests on all 13 datasets — verifies engine behaviour">
+        🧪 Run QA
+      </button>
+      <div id="gsImportRow" class="import-gs-row" style="display:none">
+        <input type="text" id="gsUrlInput" placeholder="Paste Google Sheets URL or published CSV link…" />
+        <button class="import-btn primary" onclick="importFromGoogleSheets()">Fetch</button>
+      </div>
+      <div id="importStatus" style="font-size:11px;color:var(--muted);width:100%;display:none;"></div>
+      <div id="importPreview" class="import-preview" style="display:none;width:100%;"></div>
+    </div>
+    <div class="form-note" style="margin-bottom:10px;">CSV columns: <code>task, O, M, P, predecessors, resource, phase, riskSignals</code> — only the first four are required.</div>
+
+    <div id="taskRows"></div>
+    <button class="add-btn" onclick="addTaskRow()">+ Add Task</button>
+    <span class="enrich-toggle" onclick="_toggleEnrichment()">▸ Optional: risk signals, resource, phase (improves correlation model)</span>
+    <div id="enrichSection" class="enrich-section">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Fill these per task row above to improve the stochastic correlation model. All optional — skip any you don't have.</div>
+      <div id="enrichRows"></div>
+    </div>
+
+    <br/>
+    <button class="run-btn" onclick="runFromForm()">Compute Critical Path</button>
+    <div class="form-note">Predecessors: comma-separated task IDs (e.g. "A,B"). Leave blank for start tasks.</div>
+  </div>
+
+  <!-- Error panel -->
+  <div id="errorPanel" class="error-panel" style="display:none"></div>
+
+  <!-- Math explanation panel (shown after loading a named dataset) -->
+  <div id="mathPanel">
+    <button class="math-close" onclick="document.getElementById('mathPanel').style.display='none'">×</button>
+    <div class="math-title">
+      <span id="mathPanelIcon"></span>
+      <span id="mathPanelTitle"></span>
+      <span id="mathPanelPropBadge" class="math-prop-badge"></span>
+    </div>
+    <div id="mathPanelBody" class="math-body"></div>
+    <div id="mathPanelExpected" class="math-expected" style="display:none">
+      <span class="math-expected-label">Expected outcome:</span>
+      <span id="mathPanelExpectedText"></span>
+    </div>
+  </div>
+
+  <!-- QA Suite results panel -->
+  <div id="qaPanel">
+    <div class="qa-header">
+      <span class="qa-title">🧪 QA Suite</span>
+      <span class="qa-summary" id="qaSummary"></span>
+      <button class="qa-close" onclick="document.getElementById('qaPanel').style.display='none'">×</button>
+    </div>
+    <div id="qaResults"></div>
+  </div>
+
+  <!-- Results -->
+  <div id="resultsSection">
+
+    <!-- Tab navigation -->
+    <nav class="tab-nav" id="tabNav">
+      <button class="tab-btn active" onclick="showTab('overview')">Overview</button>
+      <button class="tab-btn" onclick="showTab('network')">Network Diagram</button>
+      <button class="tab-btn" onclick="showTab('gantt')">Gantt Chart</button>
+      <button class="tab-btn" onclick="showTab('risk')">Risk Analysis</button>
+      <button class="tab-btn" onclick="showTab('health')">Health Score</button>
+      <button class="tab-btn" id="corrTab" onclick="showTab('correlation')" style="display:none">Correlation</button>
+      <span style="font-size:10px;color:var(--muted);margin-left:auto;align-self:center;padding-right:4px;" id="engineMode"></span>
+    </nav>
+
+    <!-- Tab: Overview -->
+    <div id="tab-overview" class="tab-panel active">
+      <div class="kpi-strip" id="kpiStrip"></div>
+      <div class="card section" id="graphIntegrityPanel"></div>
+      <div class="card section" id="tablePanel">
+        <h2>CPM Values
+          <span class="htip" data-tip="Forward/backward pass results. ES=Early Start, EF=Early Finish, LS=Late Start, LF=Late Finish. Total Float = how much a task can slip without delaying the project. Zero float = critical path.">?</span>
+        </h2>
+        <div class="tbl-wrap">
+          <table id="cpmTable">
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Dur</th>
+                <th>ES</th>
+                <th>EF</th>
+                <th>LS</th>
+                <th>LF</th>
+                <th>TF <span class="htip" data-tip="Total Float: days this task can slip before delaying the project end. 0 = on critical path.">?</span></th>
+                <th>FF <span class="htip" data-tip="Free Float: days this task can slip before delaying its immediate successor (not the whole project).">?</span></th>
+                <th data-col="if">IF <span class="htip" data-tip="Interfering Float: portion of total float shared with other paths. Using it delays successors even if the project end is unaffected.">?</span></th>
+                <th data-col="indf">IndF <span class="htip" data-tip="Independent Float: slack this task has regardless of how predecessors or successors use their float. Truly free buffer.">?</span></th>
+                <th data-col="tp">Tipping Pt <span class="htip" data-tip="The point at which this task's duration would flip it onto the critical path.">?</span></th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="cpmTableBody"></tbody>
+          </table>
+        </div>
+        <div class="legend-row" style="margin-top:10px;">
+          <span id="cpmTableLegend">TF = Total Float  ·  FF = Free Float</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Network Diagram -->
+    <div id="tab-network" class="tab-panel">
+      <div class="card section">
+        <h2>Network Diagram — Activity on Node (AON)
+          <span class="htip" data-tip="Each box is one task. Arrows are Finish-to-Start dependencies. The top row shows Early Start / Early Finish (forward pass). The bottom row shows Late Start, Total Float, Late Finish (backward pass). Critical path boxes have red borders and zero float.">?</span>
+        </h2>
+        <div class="net-toolbar">
+          <button class="btn" onclick="_netFit()">⊙ Center &amp; Fit</button>
+          <button class="btn" id="netLockBtn" onclick="_netToggleLock()" title="Lock prevents accidental panning while mousing over the diagram">🔒 Pan Locked</button>
+          <span style="font-size:10px;color:var(--muted);" id="netHint">Pan locked — click 🔓 Unlock to drag &nbsp;·&nbsp; Scroll to zoom &nbsp;·&nbsp; Hover a node for values</span>
+        </div>
+        <!-- Box layout legend -->
+        <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px;">
+          <div>
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Each node reads:</div>
+            <div class="box-legend">
+              ES &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; EF<br>
+              Task Name (Dur)<br>
+              LS &nbsp;TF: x.xd &nbsp;LF
+              <div class="bl-row">Top row = forward pass &nbsp;·&nbsp; Bottom row = backward pass</div>
+            </div>
+          </div>
+          <div class="legend-row" style="flex-direction:column;gap:5px;margin-top:0;align-items:flex-start;">
+            <span><span class="leg-dot" style="background:#DC2626;border:2px solid #DC2626;"></span> Critical path (TF = 0)</span>
+            <span><span class="leg-dot" style="background:#FEF9C3;border:2px solid #F59E0B;"></span> Near-critical (TF &lt; 10% of project)</span>
+            <span><span class="leg-dot" style="background:#F0FDF4;border:2px solid #059669;"></span> Has float</span>
+            <span><span class="leg-dot" style="background:#EDE9FE;border:2px solid #6D28D9;"></span> Tipping point</span>
+          </div>
+        </div>
+        <div id="networkContainer"></div>
+        <div class="legend-row" style="margin-top:8px;">
+          <span style="font-size:11px;color:#DC2626;font-weight:600;">── solid red/gray</span><span style="font-size:11px;color:var(--muted);margin-left:2px;">= forward pass (ES/EF propagation, L→R)</span>
+          <span style="font-size:11px;color:#6366F1;font-weight:600;">- - dashed indigo</span><span style="font-size:11px;color:var(--muted);margin-left:2px;">= backward pass (LS/LF propagation, R→L)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Gantt -->
+    <div id="tab-gantt" class="tab-panel">
+      <div class="card section">
+        <h2>Gantt Chart
+          <span class="htip" data-tip="Horizontal bars show each task's scheduled window (ES→EF). Translucent extension shows available float — the buffer before that task becomes critical.">?</span>
+        </h2>
+        <div id="ganttContainer"><canvas id="ganttCanvas"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Tab: Risk Analysis -->
+    <div id="tab-risk" class="tab-panel">
+      <div class="card section">
+        <h2>S-Curve — Project Duration Distribution
+          <span class="htip" data-tip="Monte Carlo simulations sampling task durations from PERT/SACO distributions. The curve shows the probability of completing by each date. P50 = 50% chance, P80 = 80% chance. Correlated sampling (Gaussian copula) is used when multiple tasks are present.">?</span>
+        </h2>
+        <div id="scurveContainer"><canvas id="scurveCanvas"></canvas></div>
+        <div id="stochKpis" class="kpi-strip" style="margin-top:12px;"></div>
+      </div>
+      <div class="card section" id="ssiPanel">
+        <h2>Schedule Risk — Which tasks drive your deadline?
+          <span class="htip" data-tip="Criticality Index (CI): % of simulations in which each task ended up on the critical path. NCI: Near-Criticality Index — % of simulations where TF ≤ 10% of project duration. SSI = CI × (task σ / project σ).">?</span>
+        </h2>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Each bar shows how often that task determined the project deadline across all simulations. High = high risk driver even if it has float today.</p>
+        <div id="ssiRows"></div>
+      </div>
+      <div class="card section" id="topPathsPanel" style="display:none">
+        <h2>Most Frequent Critical Paths
+          <span class="htip" data-tip="The top 5 task sequences that formed the critical path most often across all Monte Carlo iterations. Frequency = % of iterations. A high-frequency path is a persistent bottleneck even under uncertainty.">?</span>
+        </h2>
+        <div id="topPathsRows"></div>
+      </div>
+      <div class="card section" id="mergeBottleneckPanel" style="display:none">
+        <h2>Merge Point Bottlenecks
+          <span class="htip" data-tip="For each convergence node (merge point with 2+ predecessors), shows which predecessor most often supplied the binding constraint — i.e. was the last to finish, forcing the merge node to wait.">?</span>
+        </h2>
+        <div id="mergeBottleneckRows"></div>
+      </div>
+    </div>
+
+    <!-- Tab: Health Score -->
+    <div id="tab-health" class="tab-panel">
+      <div class="card section">
+        <h2>Schedule Health Score
+          <span class="htip" data-tip="Composite score (0–100) based on: fraction of near-critical tasks, merge-point density, network density, criticality spread, and whether any negative float exists. Higher = lower schedule risk.">?</span>
+        </h2>
+        <div class="grid-2">
+          <div class="health-card" id="healthCardMain"></div>
+          <div id="healthFactors"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Correlation -->
+    <div id="tab-correlation" class="tab-panel">
+      <div class="card section" id="corrAuditPanel">
+        <h2>Correlation Mode
+          <span class="htip" data-tip="Shows which inter-task correlation signals were active in the Monte Carlo simulation. Each active component contributes to the pairwise correlation matrix R used by the Gaussian copula sampler.">?</span>
+        </h2>
+        <div id="corrRichnessStrip"></div>
+        <div id="corrWeightsPanel" style="margin-top:14px;"></div>
+        <div id="corrHeatmapPanel" style="margin-top:14px;"></div>
+      </div>
+      <div class="card section" id="corrSensPanel">
+        <h2>Correlation Impact
+          <span class="htip" data-tip="Compares the P90 project duration under correlated sampling (Gaussian copula) vs independent sampling. A positive delta means correlation inflates the tail — tasks finishing late tend to do so together.">?</span>
+        </h2>
+        <div id="corrSensContent"></div>
+      </div>
+    </div>
+
+  </div><!-- /resultsSection -->
+</div><!-- /wrap -->
+
+<!-- Dataset picker modal (outside wrap, fixed position) -->
+<div id="datasetPickerModal" style="display:none" class="dsp-backdrop" onclick="if(event.target===this)closeDatasetPicker()">
+  <div class="dsp-panel">
+    <div class="dsp-header">
+      <span style="font-size:22px;">📐</span>
+      <div class="dsp-header-text">
+        <div class="dsp-header-title">Example Datasets</div>
+        <div class="dsp-header-sub">7 valid networks · 5 intentionally broken · 1 warning — each with a mathematical explanation</div>
+      </div>
+      <button class="dsp-close" onclick="closeDatasetPicker()">×</button>
+    </div>
+    <div class="dsp-body" id="datasetPickerBody"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// CPM page main — runs after all deferred scripts load
+// ═══════════════════════════════════════════════════════════════
+
+var _cpmResult    = null;
+var _cpmTasks     = null;
+var _sacoResults  = null;
+var _netPanLocked = true;   // default: pan locked so diagram doesn't drift on mouse-over
+
+function _netFit() {
+  if (!_network) return;
+  _network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+}
+
+function _netToggleLock() {
+  _netPanLocked = !_netPanLocked;
+  var btn  = document.getElementById('netLockBtn');
+  var hint = document.getElementById('netHint');
+  if (_network) {
+    _network.setOptions({ interaction: { dragView: !_netPanLocked, zoomView: true } });
+  }
+  if (btn) btn.textContent = _netPanLocked ? '🔒 Pan Locked' : '🔓 Pan Unlocked';
+  if (hint) hint.textContent = _netPanLocked
+    ? 'Pan locked — click 🔓 Unlock to drag · Scroll to zoom · Hover a node for values'
+    : 'Pan unlocked — drag to move, scroll to zoom · Click 🔒 Lock to prevent accidental pans';
+}
+
+var _ganttChart   = null;
+var _scurveChart  = null;
+var _tornadoChart = null;
+var _network      = null;
+var _chartsLoaded = false;
+var _projDur     = null;   // for Gantt float scaling
+
+// ── Utility ──────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmt(v, dp) {
+  if (v == null || !Number.isFinite(v)) return '—';
+  return v.toFixed(dp != null ? dp : 2);
+}
+function fmtDays(v) {
+  if (v == null || !Number.isFinite(v)) return '—';
+  return v.toFixed(1) + 'd';
+}
+function pct(v) {
+  if (v == null || !Number.isFinite(v)) return '—';
+  return (v * 100).toFixed(0) + '%';
+}
+function showError(msg) {
+  var el = document.getElementById('errorPanel');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function hideError() {
+  document.getElementById('errorPanel').style.display = 'none';
+}
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+
+  var panel = document.getElementById('tab-' + name);
+  if (panel) panel.classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(function(b){
+    if (b.getAttribute('onclick') &&
+        b.getAttribute('onclick') === "showTab('" + name + "')") {
+      b.classList.add('active');
+    }
+  });
+
+  if (name === 'network') {
+    // Center/fit after the panel becomes visible (layout was measured while hidden)
+    setTimeout(function() { if (_network) _netFit(); }, 60);
+    return;
+  }
+
+  if ((name === 'gantt' || name === 'risk') && _cpmResult) {
+    if (!_chartsLoaded) {
+      _lazyLoadChartLibs(function() {
+        _renderChartPanels(_cpmTasks, _cpmResult);
+      });
+    } else {
+      // Charts already rendered — just resize so hidden-tab dimensions are applied
+      if (name === 'gantt' && _ganttChart)  { setTimeout(function(){ _ganttChart.resize(); }, 60); }
+      if (name === 'risk'  && _scurveChart) { setTimeout(function(){ _scurveChart.resize(); }, 60); }
+      // If charts exist but were rendered into a hidden container, they may be empty — re-render
+      if (name === 'gantt' && !_ganttChart)   { _renderChartPanels(_cpmTasks, _cpmResult); }
+      if (name === 'risk'  && !_scurveChart)  { _renderChartPanels(_cpmTasks, _cpmResult); }
+    }
+  }
+}
+function setStatus(text, cls) {
+  var b = document.getElementById('statusBadge');
+  b.textContent = text;
+  b.className   = 'status-badge' + (cls ? ' ' + cls : '');
+  b.style.display = '';
+}
+
+// ── Task normalisation ────────────────────────────────────────
+// Accepts: {id, task|name, O|optimistic, M|mostLikely, P|pessimistic, predecessors}
+//      or: {id, name, duration, predecessors}  (duration → O=M=P, deterministic)
+function normaliseTasks(raw) {
+  var list = [];
+  if (!raw) return list;
+  var arr = Array.isArray(raw) ? raw : (raw.tasks ? raw.tasks : []);
+  arr.forEach(function(t, i) {
+    if (!t) return;
+    // Accept "task", "tasks" (GPT typo), or "name"
+    var taskName = t.task || t.tasks || t.name || t.id || ('Task ' + (i+1));
+    // O/M/P: explicit > duration fallback > hard defaults
+    var dur = Number(t.duration) || 0;
+    var O = Number(t.O || t.optimistic  || t.o) || dur || 1;
+    var M = Number(t.M || t.mostLikely  || t.m) || dur || 2;
+    var P = Number(t.P || t.pessimistic || t.p) || dur || 3;
+    var task = {
+      id:           String(t.id || t.task || t.tasks || t.name || ('T' + (i+1))),
+      task:         taskName,
+      optimistic:   O,
+      mostLikely:   M,
+      pessimistic:  P,
+      predecessors: t.predecessors || [],
+      startDate:    t.startDate || null,
+      endDate:      t.endDate   || null,
+      riskSignals:  t.riskSignals || null,
+      resource:     t.resource   || null,
+      phase:        t.phase      || null
+    };
+    if (typeof task.predecessors === 'string') {
+      task.predecessors = task.predecessors.split(',').map(function(s){return s.trim();}).filter(Boolean);
+    }
+    list.push(task);
+  });
+  return list;
+}
+
+// ── Apply session payload (SACO results OR seed tasks from WP poll) ─────────
+window._applyCpmSessionPayload = function(data) {
+  if (!data || !data.tasks) return;
+
+  // Extract sliderContext: use first task's sliderValues if present
+  var sliderCtx = null;
+  if (data.tasks) {
+    for (var si = 0; si < data.tasks.length; si++) {
+      var sv = data.tasks[si].sliderValues;
+      if (sv && typeof sv === 'object' && Object.keys(sv).some(function(k){ return Number(sv[k]) !== 0; })) {
+        sliderCtx = sv;
+        break;
+      }
+    }
+  }
+
+  // Case 1: _cpmTasks already set (rendered from ?data=) — upgrade with SACO results
+  if (_cpmTasks && _cpmTasks.length > 0) {
+    var byId = {};
+    data.tasks.forEach(function(t) { byId[t.id || t.task] = t; });
+    var saco = _cpmTasks.map(function(t) {
+      var td = byId[t.id] || byId[t.task];
+      return td && td.sacoResult ? td.sacoResult : null;
+    });
+    var hasSaco = saco.some(function(s){ return s != null; });
+    if (hasSaco) {
+      _sacoResults = saco;
+      computeAndRender(_cpmTasks, _sacoResults, sliderCtx);
+    }
+    return;
+  }
+
+  // Case 2: session-only boot — _cpmTasks is null, bootstrap from session task list
+  var tasks = normaliseTasks(data);
+  if (tasks.length > 0) {
+    _cpmTasks = tasks;
+    var saco2 = tasks.map(function(t) {
+      var td = data.tasks.find(function(d){ return (d.id || d.task) === (t.id || t.task); });
+      return td && td.sacoResult ? td.sacoResult : null;
+    });
+    var hasSaco2 = saco2.some(function(s){ return s != null; });
+    computeAndRender(tasks, hasSaco2 ? saco2 : null, sliderCtx);
+  }
+};
+
+// ── Session poll ──────────────────────────────────────────────
+function startSessionPoll(token) {
+  var attempts = 0;
+  var maxAttempts = 15;
+  var delay = 2500;
+  function poll() {
+    if (attempts >= maxAttempts) {
+      // Exhausted — if still waiting (no tasks rendered), fall back to form
+      if (!_cpmTasks || _cpmTasks.length === 0) {
+        setStatus('Session expired', 'error');
+        document.getElementById('inputSection').style.display = '';
+        prefillExampleTasks();
+      }
+      return;
+    }
+    attempts++;
+    fetch('https://icarenow.io/wp-json/projectcare/v1/plot-data/' + encodeURIComponent(token))
+      .then(function(r){ return r.json(); })
+      .then(function(payload) {
+        if (payload && payload.data) {
+          window._applyCpmSessionPayload(payload.data);
+        } else {
+          setTimeout(poll, delay);
+        }
+      })
+      .catch(function() { setTimeout(poll, delay * 1.5); });
+  }
+  setTimeout(poll, 2000);
+}
+
+// ── Run CPM and render all panels ─────────────────────────────
+function computeAndRender(tasks, sacoResults, sliderContext) {
+  setStatus('Computing…', 'computing');
+  document.getElementById('loadingOverlay').classList.add('visible');
+
+  // Defer to next tick so spinner paints
+  setTimeout(function() {
+    try {
+      var n = tasks.length > 15 ? 1000 : 2000;
+      var result = runCPEngine(tasks, sacoResults || null, {
+        cpmPercentile: 0.80,
+        stochastic:    true,
+        stochasticN:   n
+      }, sliderContext || null);
+      _cpmResult = result;
+      hideError();
+
+      if (result.status === 'error') {
+        showError('CPM error: ' + (result.message || 'unknown'));
+        setStatus('Error', 'error');
+        document.getElementById('loadingOverlay').classList.remove('visible');
+        return;
+      }
+
+      renderAll(tasks, result, sacoResults);
+      document.getElementById('resultsSection').style.display = 'block';
+      var modeLabel = sacoResults ? 'SACO-enhanced' : 'PERT mode';
+      setStatus(modeLabel, '');
+      document.getElementById('engineMode').textContent = sacoResults
+        ? 'SACO distributions · correlated MC (' + n + ' iterations)'
+        : 'PERT fallback · correlated MC (' + n + ' iterations)';
+
+    } catch(e) {
+      showError('CPM engine error: ' + e.message);
+      setStatus('Error', 'error');
+      console.error('[CPM]', e);
+    }
+    document.getElementById('loadingOverlay').classList.remove('visible');
+  }, 50);
+}
+
+// ── Master render ──────────────────────────────────────────────
+function renderAll(tasks, result, sacoResults) {
+  var det    = result.deterministic;
+  var stoch  = result.stochastic;
+  var health = result.healthScore;
+  _projDur   = det.projectDuration;
+
+  // Phase 1: pure-HTML panels — no external library needed
+  try { renderKpiStrip(det, stoch); }         catch(e) { console.error('[CPM] kpi', e); }
+  try { renderGraphIntegrity(det, stoch); }   catch(e) { console.error('[CPM] integrity', e); }
+  try { renderCpmTable(tasks, det); }         catch(e) { console.error('[CPM] table', e); }
+  try { renderHealthScore(health); }          catch(e) { console.error('[CPM] health', e); }
+  if (stoch && stoch.status === 'ok') {
+    try { renderSsiRows(tasks, stoch); }        catch(e) { console.error('[CPM] ssi', e); }
+    try { renderTopPaths(tasks, stoch, det); }  catch(e) { console.error('[CPM] paths', e); }
+    try { renderMergeBottleneck(stoch, det); }  catch(e) { console.error('[CPM] mb', e); }
+    try { renderCorrelationAudit(tasks, stoch, sacoResults); } catch(e) { console.error('[CPM] corr', e); }
+  } else {
+    var rp = document.getElementById('tab-risk');
+    if (rp) rp.innerHTML = '<div class="card section" style="color:var(--muted);font-size:13px;padding:20px;">Stochastic analysis unavailable — run a SACO estimation to get P50/P80/P90 and task risk rankings.</div>';
+  }
+
+  // Phase 2: chart libs loaded on demand when user switches to those tabs
+  // Pre-load them in background so first tab switch is fast
+  _lazyLoadChartLibs(function() {
+    _chartsLoaded = true;
+    _renderChartPanels(tasks, result);
+  });
+}
+
+function _renderChartPanels(tasks, result) {
+  var det   = result.deterministic;
+  var stoch = result.stochastic;
+  try { renderNetworkDiagram(tasks, det); }
+  catch(e) { console.error('[CPM] network', e); document.getElementById('networkContainer').textContent = 'Network diagram unavailable: ' + e.message; }
+  try { renderGantt(tasks, det); }
+  catch(e) { console.error('[CPM] gantt', e); document.getElementById('ganttContainer').textContent = 'Gantt unavailable: ' + e.message; }
+  if (stoch && stoch.status === 'ok') {
+    try { renderStochastic(stoch); }
+    catch(e) { console.error('[CPM] stoch', e); }
+  }
+}
+
+// ── Lazy-load Chart.js and Vis.js, call cb when both ready ────
+function _lazyLoadChartLibs(cb) {
+  var needed = 2;
+  var done = 0;
+  function tick() { if (++done === needed) cb(); }
+
+  function loadScript(src, check, onload) {
+    if (typeof check !== 'undefined') { onload(); return; }
+    var s = document.createElement('script');
+    s.src = src;
+    s.onload = onload;
+    s.onerror = function() { console.warn('[CPM] failed to load', src); onload(); };
+    document.head.appendChild(s);
+  }
+
+  loadScript(
+    'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
+    window.Chart,
+    tick
+  );
+  loadScript(
+    'https://unpkg.com/vis-network@9.1.9/dist/vis-network.min.js',
+    window.vis,
+    tick
+  );
+}
+
+// ── Graph Integrity Panel ─────────────────────────────────────
+function renderGraphIntegrity(det, stoch) {
+  var panel = document.getElementById('graphIntegrityPanel');
+  if (!panel) return;
+
+  var alerts = [];
+  var gm = det.graphMetrics || {};
+
+  // Validation errors (unknown predecessors, self-references)
+  (det.validationErrors || []).forEach(function(e) {
+    alerts.push({ cls:'alert-error', icon:'✕', html:'<strong>Input error:</strong> ' + esc(e) });
+  });
+
+  // Orphan groups
+  (det.orphanGroups || []).forEach(function(grp) {
+    if (grp.length > 0) {
+      alerts.push({ cls:'alert-warn', icon:'⚠', html:'<strong>Disconnected tasks:</strong> ' + grp.map(esc).join(', ') + ' — these tasks have no path to the project end. They won\'t affect the critical path.' });
+    }
+  });
+
+  // Merge point bias
+  if (det.mergePointBiasWarning) {
+    alerts.push({ cls:'alert-warn', icon:'⚠', html:'<strong>Merge-point bias:</strong> ' + esc(det.mergePointBiasWarning) });
+  }
+
+  // No issues
+  if (alerts.length === 0) {
+    alerts.push({ cls:'alert-ok', icon:'✓', html:'<strong>Schedule integrity OK</strong> — no cycles, no disconnected tasks, no input errors.' });
+  }
+
+  // Build critical path summary (full chain up to 8 tasks, count-only beyond)
+  var cp = det.criticalPath || [];
+  var cpChain = '';
+  if (cp.length > 0) {
+    if (cp.length <= 8) {
+      cpChain = '<div class="cp-chain">' + cp.map(function(id, i) {
+        var name = (det.tasks[id] && det.tasks[id].name) ? det.tasks[id].name : id;
+        return (i > 0 ? '<span class="cp-arrow">→</span>' : '') + '<span class="cp-node">' + esc(name) + '</span>';
+      }).join('') + '</div>';
+    } else {
+      var first = cp.slice(0, 3).map(function(id){ return (det.tasks[id]&&det.tasks[id].name)||id; });
+      var last  = cp.slice(-2).map(function(id){ return (det.tasks[id]&&det.tasks[id].name)||id; });
+      cpChain = '<div class="cp-chain">' +
+        first.map(function(n,i){ return (i>0?'<span class="cp-arrow">→</span>':'') + '<span class="cp-node">'+esc(n)+'</span>'; }).join('') +
+        '<span class="cp-arrow">→ … (' + (cp.length - 5) + ' more) →</span>' +
+        last.map(function(n){ return '<span class="cp-node">'+esc(n)+'</span><span class="cp-arrow">→</span>'; }).join('').replace(/<span class="cp-arrow">→<\/span>$/, '') +
+        ' <a href="#" onclick="showTab(\'network\');return false;" style="font-size:11px;color:var(--cdf);margin-left:8px;">View full network →</a>' +
+        '</div>';
+    }
+  }
+
+  // Graph metrics strip
+  var metricStrip = '<div class="metric-strip">' +
+    '<div class="mc"><strong>' + (gm.nodeCount||0) + '</strong><span class="mc-lbl">tasks</span></div>' +
+    '<div class="mc"><strong>' + (gm.edgeCount||0) + '</strong><span class="mc-lbl">dependencies</span></div>' +
+    '<div class="mc"><strong>' + (gm.convergenceCount||0) + '</strong><span class="mc-lbl">merge points ' +
+      '<span class="htip" data-tip="A merge point is a task with 2+ predecessors. Deterministic CPM underestimates duration at merge points because it ignores the probability that ANY predecessor runs late (merge-point bias). The stochastic analysis corrects for this.">?</span></span></div>' +
+    (gm.convergenceCount > 0 ? '<div class="mc" style="color:var(--near);"><strong>' + (gm.convergenceNodes||[]).map(function(id){ return (det.tasks[id]&&det.tasks[id].name)||id; }).join(', ') + '</strong><span class="mc-lbl" style="margin-left:4px;">convergence nodes</span></div>' : '') +
+    '<div class="mc"><strong>' + (det.sources||[]).length + '</strong><span class="mc-lbl">start tasks</span></div>' +
+    '<div class="mc"><strong>' + (det.sinks||[]).length + '</strong><span class="mc-lbl">end tasks</span></div>' +
+    '</div>';
+
+  var html = '<h2 style="margin-bottom:8px;">Schedule Overview</h2>';
+  html += cpChain;
+  html += metricStrip;
+  html += '<div style="margin-top:12px;">';
+  alerts.forEach(function(a) {
+    html += '<div class="alert ' + a.cls + '"><span class="alert-icon">' + a.icon + '</span><span>' + a.html + '</span></div>';
+  });
+  html += '</div>';
+
+  // Richness indicator — show correlation components active in this run
+  if (stoch && stoch.correlationAudit) {
+    var ca = stoch.correlationAudit;
+    var w  = ca.weights || {};
+    html += '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line);">';
+    html += '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">Monte Carlo Correlation Mode</div>';
+    html += '<div class="richness-strip">';
+    html += '<span class="richness-chip method">' + (ca.method || 'gaussian-copula') + '</span>';
+    html += _richnessChip('Graph proximity', w.wG > 0 || (ca.activeComponents && ca.activeComponents.graph));
+    html += _richnessChip('Risk signals',    w.wD > 0 || (ca.activeComponents && ca.activeComponents.drivers));
+    html += _richnessChip('Critical path',   w.wC > 0 || (ca.activeComponents && ca.activeComponents.critical));
+    html += _richnessChip('Merge ancestry',  w.wM > 0 || (ca.activeComponents && ca.activeComponents.merge));
+    html += _richnessChip('Resource',        w.wR > 0 || (ca.activeComponents && ca.activeComponents.resource));
+    html += _richnessChip('Phase',           w.wP > 0 || (ca.activeComponents && ca.activeComponents.phase));
+    if (ca.mSlider != null && ca.mSlider !== 1) {
+      html += '<span class="richness-chip method">m_slider=' + ca.mSlider.toFixed(3) + '</span>';
+    }
+    html += '</div>';
+    html += '</div>';
+  }
+
+  panel.innerHTML = html;
+}
+
+function _richnessChip(label, active) {
+  return '<span class="richness-chip ' + (active ? 'active' : 'inactive') + '">' +
+    (active ? '✓ ' : '') + label + '</span>';
+}
+
+// ── SSI Risk Rows ────────────────────────────────────────────
+function renderSsiRows(tasks, stoch) {
+  var el = document.getElementById('ssiRows');
+  if (!el) return;
+  var ci  = stoch.criticalityIndex || {};
+  var ssi = stoch.scheduleSignificanceIndex || stoch.ssi || {};
+  var nci = stoch.nci || {};
+
+  // Build name lookup from tasks array
+  var nameById = {};
+  tasks.forEach(function(t){ nameById[t.id] = t.task || t.id; });
+  // Also look in tornado entries
+  (stoch.tornado||[]).forEach(function(e){ if (e.name) nameById[e.id] = e.name; });
+
+  var hasNci = Object.keys(nci).length > 0;
+
+  var entries = Object.keys(ci).map(function(id){
+    return { id:id, name:nameById[id]||id, ci:ci[id], ssi:ssi[id]||0, nci:nci[id]||0 };
+  }).sort(function(a,b){ return b.ci - a.ci; });
+
+  if (entries.length === 0) { el.textContent = 'No criticality data.'; return; }
+
+  var html = '';
+  entries.forEach(function(e) {
+    var ciPct   = (e.ci * 100).toFixed(0);
+    var barColor= e.ci >= 0.70 ? '#FCA5A5' : e.ci >= 0.40 ? '#FDE68A' : '#6EE7B7';
+    var badgeCls= e.ci >= 0.70 ? 'alert-error' : e.ci >= 0.40 ? 'alert-warn' : 'alert-ok';
+    var riskLbl = e.ci >= 0.70 ? 'High' : e.ci >= 0.40 ? 'Medium' : 'Low';
+    var ssiTxt  = e.ssi > 0 ? e.ssi.toFixed(3) : '—';
+    var nciHtml = '';
+    if (hasNci) {
+      var nciPct = (e.nci * 100).toFixed(0);
+      nciHtml = '<span class="nci-badge" title="Near-Criticality Index: ' + nciPct + '% of iterations had TF ≤ 10% of project duration">' +
+        'NCI ' + nciPct + '%</span> ';
+    }
+    html += '<div class="risk-row">' +
+      '<span class="risk-name">' + esc(e.name) + '</span>' +
+      '<div class="risk-bar-track"><div class="risk-bar-fill" style="width:' + ciPct + '%;background:' + barColor + ';"></div></div>' +
+      '<span class="risk-pct">' + ciPct + '%</span>' +
+      '<span class="risk-badge ' + badgeCls + '">' + riskLbl + '</span>' +
+      nciHtml +
+      '<span style="font-size:10px;color:var(--muted);min-width:60px;">SSI ' + ssiTxt +
+        ' <span class="htip" data-tip="SSI = CI × (task σ / project σ). Combines how often the task is critical with how much its own variability drives the overall project variance.">?</span></span>' +
+      '</div>';
+  });
+  el.innerHTML = html;
+}
+
+// ── KPI strip ─────────────────────────────────────────────────
+function renderKpiStrip(det, stoch) {
+  var cp  = det.criticalPath || [];
+  var dur = det.projectDuration;
+  var negFloat = Object.values(det.tasks).some(function(t){ return t.totalFloat < -0.0001; });
+
+  var stochP50 = null, stochP80 = null, stochP90 = null;
+  if (stoch && stoch.status === 'ok' && stoch.sCurve) {
+    stochP50 = invertAtProb(stoch.sCurve, 0.50);
+    stochP80 = invertAtProb(stoch.sCurve, 0.80);
+    stochP90 = invertAtProb(stoch.sCurve, 0.90);
+  }
+
+  var simN = stoch && stoch.iterations ? stoch.iterations : (stoch && stoch.status === 'ok' ? 'N' : 0);
+  var tip = {
+    dur:  'Deterministic project duration based on PERT-weighted means (O+4M+P)/6 propagated through the network.',
+    cp:   'Tasks with zero total float. Any delay to any of these tasks delays the project end date by the same amount.',
+    n:    'Total tasks in the schedule network.',
+    neg:  'Negative float means the schedule is already behind — a task\'s late finish is earlier than its early finish.',
+    p50:  '50th percentile from ' + simN + ' Monte Carlo simulations. Equal chance of finishing earlier or later.',
+    p80:  '80th percentile from ' + simN + ' simulations — a commonly used planning target.',
+    p90:  '90th percentile from ' + simN + ' simulations — conservative estimate. Only 10% exceeded this duration.'
+  };
+  function kpi(ttl, val, sub, cls, tipKey) {
+    return '<div class="kpi ' + (cls||'') + '">' +
+      '<div class="ttl">' + ttl + (tipKey ? ' <span class="htip" data-tip="' + tip[tipKey] + '">?</span>' : '') + '</div>' +
+      '<div class="val">' + val + '</div>' +
+      (sub ? '<div class="sub">' + sub + '</div>' : '') +
+      '</div>';
+  }
+
+  var html = '';
+  html += kpi('Project Duration', fmtDays(dur), stochP50 ? 'Deterministic (PERT means)' : 'PERT-weighted', '', 'dur');
+  if (stochP50 != null) html += kpi('P50', fmtDays(stochP50), '50% chance done by', '', 'p50');
+  if (stochP80 != null) html += kpi('P80', fmtDays(stochP80), '80% confidence target', 'warn-kpi', 'p80');
+  if (stochP90 != null) html += kpi('P90', fmtDays(stochP90), '90% conservative', 'crit', 'p90');
+  html += kpi('Critical Path', cp.length + ' tasks', cp.length === Object.keys(det.tasks).length ? 'All tasks critical' : 'of ' + Object.keys(det.tasks).length + ' total', 'crit', 'cp');
+  html += kpi('Negative Float', negFloat ? 'YES' : 'No', negFloat ? 'Schedule already behind' : 'On track', negFloat ? 'crit' : 'safe', 'neg');
+  document.getElementById('kpiStrip').innerHTML = html;
+}
+
+// helper: invert S-curve at probability p
+function invertAtProb(sCurve, p) {
+  if (!sCurve || !sCurve.length) return null;
+  for (var i = 1; i < sCurve.length; i++) {
+    if (sCurve[i].y >= p) {
+      var x0 = sCurve[i-1].x, y0 = sCurve[i-1].y;
+      var x1 = sCurve[i].x,   y1 = sCurve[i].y;
+      var dy = (y1 - y0) || 1;
+      return x0 + (p - y0) / dy * (x1 - x0);
+    }
+  }
+  return sCurve[sCurve.length-1].x;
+}
+
+// ── Network Diagram (Vis.js) ───────────────────────────────────
+function renderNetworkDiagram(tasks, det) {
+  if (typeof vis === 'undefined') {
+    document.getElementById('networkContainer').textContent = 'Network diagram unavailable — Vis.js failed to load.';
+    return;
+  }
+  var taskMap = det.tasks;
+  var maxFloat = 0;
+  Object.values(taskMap).forEach(function(t){ if (t.totalFloat > maxFloat) maxFloat = t.totalFloat; });
+
+  var nodes = new vis.DataSet();
+  var edges = new vis.DataSet();
+
+  tasks.forEach(function(task) {
+    var id  = task.id;
+    var td  = taskMap[id] || {};
+    var onCp = td.onCriticalPath;
+    var tf   = td.totalFloat;
+    var tp   = det.tippingPoints && det.tippingPoints[id];
+
+    var bg, border;
+    if (onCp) {
+      bg = '#FEE2E2'; border = '#DC2626';
+    } else if (tf != null && tf < 0.10 * (det.projectDuration || 1)) {
+      bg = '#FEF9C3'; border = '#F59E0B';
+    } else {
+      bg = '#F0FDF4'; border = '#059669';
+    }
+    if (tp && tp.severity === 'critical') { bg = '#EDE9FE'; border = '#6D28D9'; }
+
+    // Classic CPM activity-on-node box:
+    //  ES │ Task Name (dur) │ EF
+    //  ───────────────────────
+    //  LS │   TF: x.xd     │ LF
+    var es  = fmt(td.earlyStart,  1);
+    var ef  = fmt(td.earlyFinish, 1);
+    var ls  = fmt(td.lateStart,   1);
+    var lf  = fmt(td.lateFinish,  1);
+    var tff = fmtDays(tf);
+    var dur = fmtDays(td.duration);
+    var nm  = task.task.length > 14 ? task.task.slice(0, 13) + '…' : task.task;
+
+    var label =
+      es + '          ' + ef + '\n' +
+      nm + ' (' + dur + ')\n' +
+      ls + '  TF:' + tff + '  ' + lf;
+
+    // Vis.js renders title as DOM element — use a div so line breaks work
+    var tipEl = document.createElement('div');
+    tipEl.style.cssText = 'font-family:Consolas,monospace;font-size:12px;line-height:1.7;padding:6px 10px;';
+    tipEl.innerHTML =
+      '<strong>' + esc(task.task) + '</strong><br>' +
+      'Duration: ' + dur + '<br>' +
+      'ES: ' + es + ' &nbsp; EF: ' + ef + '<br>' +
+      'LS: ' + ls + ' &nbsp; LF: ' + lf + '<br>' +
+      'Total Float: ' + tff;
+
+    nodes.add({
+      id:          id,
+      label:       label,
+      title:       tipEl,
+      color:       { background: bg, border: border, highlight: { background: bg, border: border } },
+      font:        { size: 11, color: '#111827', face: 'Consolas,"SF Mono",monospace', multi: false },
+      shape:       'box',
+      borderWidth: onCp ? 3 : 1.5,
+      margin:      { top: 7, right: 10, bottom: 7, left: 10 }
+    });
+  });
+
+  var edgeId = 0;
+  tasks.forEach(function(task) {
+    var preds = task.predecessors || [];
+    preds.forEach(function(pred) {
+      var fromId = typeof pred === 'string' ? pred : (pred.id || pred.task || '');
+      var type   = (typeof pred === 'object' && pred.type) ? pred.type : 'FS';
+      var lag    = (typeof pred === 'object' && pred.lag)  ? pred.lag  : 0;
+      if (!fromId) return;
+      var td    = taskMap[task.id] || {};
+      var fromD = taskMap[fromId]  || {};
+      var isCritEdge = td.onCriticalPath && fromD.onCriticalPath;
+
+      // ── Forward pass arrow (L→R, solid, curves above centre) ──
+      edges.add({
+        id:    'fwd_' + edgeId,
+        from:  fromId,
+        to:    task.id,
+        label: type + (lag ? ' +' + lag : ''),
+        font:  { size: 9, color: '#6B7280', align: 'top' },
+        color: { color: isCritEdge ? '#DC2626' : '#9CA3AF', highlight: '#3B82F6', inherit: false },
+        width: isCritEdge ? 2.5 : 1.2,
+        arrows: { to: { enabled: true, scaleFactor: 0.7 } },
+        smooth: { enabled: true, type: 'curvedCW', roundness: 0.35 },
+        dashes: false,
+        title: 'Forward pass  EF(' + fromId + ') \u2192 ES(' + task.id + ')'
+      });
+
+      // ── Backward pass arrow (R→L, dashed indigo, curves below) ─
+      var lsTo   = fmt(td.lateStart,    1);
+      var lfFrom = fmt(fromD.lateFinish, 1);
+      edges.add({
+        id:    'bwd_' + edgeId,
+        from:  task.id,
+        to:    fromId,
+        font:  { size: 9, color: '#6366F1', align: 'bottom' },
+        color: { color: '#6366F1', highlight: '#6366F1', inherit: false },
+        width: 1,
+        arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+        smooth: { enabled: true, type: 'curvedCW', roundness: 0.35 },
+        dashes: [5, 4],
+        title: 'Backward pass  LS(' + task.id + ')=' + lsTo + ' \u2192 LF(' + fromId + ')=' + lfFrom
+      });
+
+      edgeId++;
+    });
+  });
+
+  var container = document.getElementById('networkContainer');
+  var nCount = tasks.length;
+  var nodeSep  = nCount > 15 ? 80  : 110;
+  var levelSep = nCount > 15 ? 200 : 240;
+  var options = {
+    layout:      { hierarchical: { direction: 'LR', sortMethod: 'directed', nodeSpacing: nodeSep, levelSeparation: levelSep }},
+    physics:     { enabled: false },
+    interaction: { hover: true, navigationButtons: false, keyboard: false, tooltipDelay: 100, zoomView: true, dragView: !_netPanLocked },
+    edges: {
+      font:  { size: 9, color: '#6B7280', align: 'middle' },
+      color: { inherit: false }
+    },
+    nodes: { widthConstraint: { minimum: 170, maximum: 230 } }
+  };
+  _network = new vis.Network(container, { nodes: nodes, edges: edges }, options);
+
+  // Fit after layout: try immediately, then after a short delay for containers
+  // that were hidden when the network was first built.
+  _network.once('stabilized', function() { _netFit(); });
+  setTimeout(function() { if (_network) _netFit(); }, 350);
+}
+
+// ── Gantt Chart (Chart.js horizontal floating-bar) ────────────
+function renderGantt(tasks, det) {
+  var taskMap = det.tasks;
+  var sorted  = tasks.slice().sort(function(a, b) {
+    var ea = (taskMap[a.id] || {}).earlyStart || 0;
+    var eb = (taskMap[b.id] || {}).earlyStart || 0;
+    return ea - eb;
+  });
+
+  var labels      = [];
+  var taskBars    = [];   // [[ES, EF], ...]  floating bars
+  var floatBars   = [];   // [[EF, EF+TF], ...] or [0,0] when no float
+  var taskColors  = [];
+  var floatColors = [];
+  var projDur = det.projectDuration || 1;
+
+  sorted.forEach(function(task) {
+    var td   = taskMap[task.id] || {};
+    var es   = Number(td.earlyStart)  || 0;
+    var ef   = Number(td.earlyFinish) || es;
+    var tf   = Number(td.totalFloat)  || 0;
+    var onCp = td.onCriticalPath;
+    var nearCrit = tf > 0 && tf < 0.10 * projDur;
+
+    labels.push(task.task.length > 26 ? task.task.slice(0, 24) + '…' : task.task);
+    taskBars.push([es, ef]);
+    floatBars.push(tf > 0.001 ? [ef, ef + tf] : [0, 0]);
+    taskColors.push(onCp ? '#FCA5A5' : nearCrit ? '#FDE68A' : '#6EE7B7');
+    floatColors.push('rgba(99,102,241,.22)');
+  });
+
+  var ctx = document.getElementById('ganttCanvas').getContext('2d');
+  if (_ganttChart) { _ganttChart.destroy(); _ganttChart = null; }
+
+  _ganttChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label:           'Task (ES → EF)',
+          data:            taskBars,
+          backgroundColor: taskColors,
+          borderColor:     taskColors,
+          borderWidth:     1,
+          borderSkipped:   false
+        },
+        {
+          label:           'Float buffer',
+          data:            floatBars,
+          backgroundColor: floatColors,
+          borderColor:     'rgba(99,102,241,.4)',
+          borderWidth:     1,
+          borderSkipped:   false
+        }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12 } },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              var task = sorted[ctx.dataIndex];
+              var td   = taskMap[task.id] || {};
+              if (ctx.datasetIndex === 0) {
+                return ' ES ' + fmt(td.earlyStart, 1) + ' → EF ' + fmt(td.earlyFinish, 1) +
+                       '  (dur ' + fmtDays(td.duration) + ')';
+              }
+              var tf = td.totalFloat || 0;
+              return tf > 0.001 ? ' Float: ' + fmtDays(tf) : ' No float (critical)';
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          stacked: false,
+          title: { display: true, text: 'Days from project start', font: { size: 11 } },
+          ticks: { font: { size: 10 } },
+          min: 0
+        },
+        y: {
+          stacked: false,
+          ticks: { font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+// ── CPM Values Table ──────────────────────────────────────────
+function renderCpmTable(tasks, det) {
+  var taskMap = det.tasks;
+  var tps     = det.tippingPoints || {};
+  var projDur = det.projectDuration || 1;
+  var maxFloat = 0;
+  Object.values(taskMap).forEach(function(t){ if ((t.totalFloat||0) > maxFloat) maxFloat = t.totalFloat; });
+
+  // Only show advanced columns if they carry real data
+  var showIF   = tasks.some(function(t){ return Math.abs((taskMap[t.id]||{}).interferingFloat||0) > 0.001; });
+  var showIndF = tasks.some(function(t){ return Math.abs((taskMap[t.id]||{}).independentFloat||0) > 0.001; });
+  var showTP   = tasks.some(function(t){ return !!tps[t.id]; });
+
+  // Patch header
+  var thead = document.querySelector('#cpmTable thead tr');
+  if (thead) {
+    thead.querySelectorAll('th[data-col]').forEach(function(th) {
+      var col = th.getAttribute('data-col');
+      if (col === 'if')   th.style.display = showIF   ? '' : 'none';
+      if (col === 'indf') th.style.display = showIndF ? '' : 'none';
+      if (col === 'tp')   th.style.display = showTP   ? '' : 'none';
+    });
+  }
+
+  var rows = tasks.map(function(task) {
+    var td  = taskMap[task.id] || {};
+    var tp  = tps[task.id];
+    var tf  = td.totalFloat;
+    var onCp = td.onCriticalPath;
+    var nearCrit = tf != null && tf < 0.10 * projDur && !onCp;
+    var statusCls = onCp ? 'crit' : nearCrit ? 'near' : 'safe';
+    var statusTxt = onCp ? 'Critical' : nearCrit ? 'Near-critical' : 'Has float';
+
+    var floatBarW = maxFloat > 0 && tf > 0 ? Math.round((tf / maxFloat) * 60) : 0;
+    var tfCell = fmtDays(tf) + (floatBarW > 0 ? '<span class="float-bar" style="width:' + floatBarW + 'px"></span>' : '');
+    var tpTxt = tp ? fmtDays(tp.tippingPoint) + ' (' + tp.severity + ')' : '—';
+
+    return '<tr>' +
+      '<td style="font-weight:600;">' + (task.task.length > 28 ? task.task.slice(0,26)+'…' : task.task) + '</td>' +
+      '<td>' + fmtDays(td.duration) + '</td>' +
+      '<td>' + fmt(td.earlyStart,1)  + '</td>' +
+      '<td>' + fmt(td.earlyFinish,1) + '</td>' +
+      '<td>' + fmt(td.lateStart,1)   + '</td>' +
+      '<td>' + fmt(td.lateFinish,1)  + '</td>' +
+      '<td>' + tfCell + '</td>' +
+      '<td>' + fmtDays(td.freeFloat) + '</td>' +
+      (showIF   ? '<td data-col="if">'   + fmtDays(td.interferingFloat) + '</td>' : '') +
+      (showIndF ? '<td data-col="indf">' + fmtDays(td.independentFloat) + '</td>' : '') +
+      (showTP   ? '<td data-col="tp">'   + tpTxt + '</td>' : '') +
+      '<td><span class="badge ' + statusCls + '">' + statusTxt + '</span></td>' +
+      '</tr>';
+  }).join('');
+
+  document.getElementById('cpmTableBody').innerHTML = rows;
+
+  // Update legend below table
+  var legend = document.getElementById('cpmTableLegend');
+  if (legend) {
+    var parts = ['TF = Total Float', 'FF = Free Float'];
+    if (showIF)   parts.push('IF = Interfering Float');
+    if (showIndF) parts.push('IndF = Independent Float');
+    legend.textContent = parts.join('  ·  ');
+  }
+}
+
+// ── Stochastic Panel ──────────────────────────────────────────
+function renderStochastic(stoch) {
+  // S-curve
+  if (stoch.sCurve && stoch.sCurve.length > 0) {
+    var sCtx = document.getElementById('scurveCanvas').getContext('2d');
+    if (_scurveChart) { _scurveChart.destroy(); _scurveChart = null; }
+
+    var scX = stoch.sCurve.map(function(p){ return p.x.toFixed(1); });
+    var scY = stoch.sCurve.map(function(p){ return (p.y * 100).toFixed(1); });
+
+    _scurveChart = new Chart(sCtx, {
+      type: 'line',
+      data: {
+        labels: scX,
+        datasets: [{
+          label: 'CDF (%)',
+          data:  scY,
+          borderColor: '#3B82F6',
+          backgroundColor: 'rgba(59,130,246,.08)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: function(c){ return c.parsed.y + '%'; }}}
+        },
+        scales: {
+          x: { title:{ display:true, text:'Project Duration (days)', font:{size:11}}, ticks:{font:{size:10}, maxTicksLimit:10}},
+          y: { title:{ display:true, text:'Cumulative Probability (%)', font:{size:11}}, min:0, max:100, ticks:{font:{size:10}}}
+        }
+      }
+    });
+
+    // Annotate P50/P80/P90
+    var p50 = invertAtProb(stoch.sCurve, 0.50);
+    var p80 = invertAtProb(stoch.sCurve, 0.80);
+    var p90 = invertAtProb(stoch.sCurve, 0.90);
+    var simN = stoch.iterations || '';
+    document.getElementById('stochKpis').innerHTML = [
+      { ttl:'P50', val: fmtDays(p50), sub:'Median duration' },
+      { ttl:'P80', val: fmtDays(p80), sub:'80% confidence' },
+      { ttl:'P90', val: fmtDays(p90), sub:'90% confidence' },
+      simN ? { ttl:'Simulations', val: simN.toLocaleString(), sub:'Monte Carlo iterations' } : null
+    ].filter(Boolean).map(function(k){
+      return '<div class="kpi"><div class="ttl">'+k.ttl+'</div><div class="val" style="font-size:14px;">'+k.val+'</div><div class="sub">'+k.sub+'</div></div>';
+    }).join('');
+  }
+}
+
+// ── Schedule Health Score ─────────────────────────────────────
+function renderHealthScore(health) {
+  if (!health || health.score == null) {
+    document.getElementById('tab-health').style.display = 'none';
+    return;
+  }
+  var g = health.grade;
+  document.getElementById('healthCardMain').innerHTML =
+    '<div class="grade-circle grade-' + g + '">' + g + '</div>' +
+    '<div class="health-score">' + health.score + '/100</div>' +
+    '<div class="health-interp">' + (health.interpretation || '') + '</div>';
+
+  var f = health.factors || {};
+  var factorDefs = [
+    { key:'nearCriticalFraction', label:'Near-critical tasks',      desc:'% of tasks with float < 10% of project duration. High = little buffer anywhere.',           invert:true  },
+    { key:'convergenceDensity',   label:'Merge-point density',      desc:'% of tasks that are convergence points (multiple predecessors). High = merge-bias risk.',   invert:true  },
+    { key:'graphDensity',         label:'Network density',          desc:'Edges / max possible edges. Higher = more task interdependencies.',                          invert:true  },
+    { key:'criticalitySpread',    label:'Path concentration',       desc:'How concentrated risk is on one path. High = most iterations share the same critical path — little schedule flexibility.', invert:true },
+    { key:'hasNegativeFloat',     label:'Negative float',           desc:'Any task with negative float means the schedule is already behind the deadline.',            invert:true, binary:true }
+  ];
+  var fHtml = '<h2 style="margin-bottom:10px;">Risk Factors</h2>';
+  factorDefs.forEach(function(fd) {
+    var v = f[fd.key];
+    if (v == null) return;
+    var dispVal, barFill;
+    if (fd.binary) {
+      dispVal = v ? 'Yes — schedule is behind' : 'No';
+      barFill = v ? 100 : 0;
+    } else {
+      dispVal = (Number(v) * 100).toFixed(0) + '%';
+      barFill = Math.round(Number(v) * 100);
+    }
+    var fillColor = barFill > 60 ? '#FCA5A5' : barFill > 30 ? '#FDE68A' : '#6EE7B7';
+    fHtml += '<div class="factor-row">' +
+      '<span class="factor-name" title="' + fd.desc + '">' + fd.label + '</span>' +
+      '<div class="factor-bar-track"><div class="factor-bar-fill" style="width:' + barFill + '%;background:' + fillColor + ';"></div></div>' +
+      '<span class="factor-val">' + dispVal + '</span>' +
+      '</div>';
+  });
+  document.getElementById('healthFactors').innerHTML = fHtml;
+}
+
+// ── Top Critical Paths ────────────────────────────────────────
+function renderTopPaths(tasks, stoch, det) {
+  var panel = document.getElementById('topPathsPanel');
+  var el    = document.getElementById('topPathsRows');
+  if (!panel || !el) return;
+
+  var paths = stoch.topCriticalPaths;
+  if (!paths || paths.length === 0) { panel.style.display = 'none'; return; }
+
+  var nameById = {};
+  tasks.forEach(function(t){ nameById[t.id] = t.task || t.id; });
+  (det.tasks && Object.keys(det.tasks).forEach(function(id){
+    if (det.tasks[id].name) nameById[id] = det.tasks[id].name;
+  }));
+
+  var maxFreq = paths[0].frequency || paths[0].freq || 0;
+  var total   = stoch.iterations || 1;
+
+  var html = '';
+  paths.forEach(function(p, i) {
+    var freq  = p.frequency || p.freq || 0;
+    var pctV  = total > 0 ? (freq / total * 100).toFixed(1) : '—';
+    var barW  = maxFreq > 0 ? Math.round(freq / maxFreq * 100) : 0;
+    // Resolve IDs to names in the path string
+    var pathStr = (p.path || p.id || '').replace(/([^→\s]+)/g, function(id){
+      return nameById[id] || id;
+    });
+    html += '<div class="path-row">' +
+      '<span style="min-width:18px;font-size:11px;font-weight:700;color:var(--muted);">' + (i+1) + '</span>' +
+      '<span class="path-chain" title="' + esc(pathStr) + '">' + esc(pathStr) + '</span>' +
+      '<div class="path-bar-track"><div class="path-bar-fill" style="width:' + barW + '%;"></div></div>' +
+      '<span class="path-freq">' + pctV + '%</span>' +
+      '</div>';
+  });
+  el.innerHTML = html;
+  panel.style.display = '';
+}
+
+// ── Merge Bottleneck ──────────────────────────────────────────
+function renderMergeBottleneck(stoch, det) {
+  var panel = document.getElementById('mergeBottleneckPanel');
+  var el    = document.getElementById('mergeBottleneckRows');
+  if (!panel || !el) return;
+
+  var mb = stoch.mergeBottleneck;
+  if (!mb || Object.keys(mb).length === 0) { panel.style.display = 'none'; return; }
+
+  var nameById = {};
+  if (det && det.tasks) {
+    Object.keys(det.tasks).forEach(function(id){
+      if (det.tasks[id].name) nameById[id] = det.tasks[id].name;
+    });
+  }
+  function nm(id) { return nameById[id] || id; }
+
+  var html = '';
+  Object.keys(mb).forEach(function(nodeId) {
+    var entry = mb[nodeId];
+    if (!entry) return;
+    var topPred = entry.topPredecessor || entry.predecessor || '—';
+    var freq    = entry.frequency || entry.freq || 0;
+    var total   = stoch.iterations || 1;
+    var pct     = total > 0 ? (freq / total * 100).toFixed(0) + '%' : '—';
+    html += '<div class="mb-row">' +
+      '<span class="mb-node">' + esc(nm(nodeId)) + '</span>' +
+      '<span class="mb-pred">← binding: <strong>' + esc(nm(topPred)) + '</strong></span>' +
+      '<span class="mb-freq">' + pct + ' of runs</span>' +
+      '</div>';
+  });
+
+  if (!html) { panel.style.display = 'none'; return; }
+  el.innerHTML = html;
+  panel.style.display = '';
+}
+
+// ── Correlation Audit ─────────────────────────────────────────
+function renderCorrelationAudit(tasks, stoch, sacoResults) {
+  var corrTab = document.getElementById('corrTab');
+  var ca = stoch && stoch.correlationAudit;
+  if (!ca) {
+    if (corrTab) corrTab.style.display = 'none';
+    return;
+  }
+  if (corrTab) corrTab.style.display = '';
+
+  // ── Weights panel ──
+  var w = ca.weights || {};
+  var weightDefs = [
+    { key:'wD', label:'Risk Signals' },
+    { key:'wG', label:'Graph Proximity' },
+    { key:'wC', label:'Critical Path' },
+    { key:'wM', label:'Merge Ancestry' },
+    { key:'wR', label:'Resource' },
+    { key:'wP', label:'Phase' }
+  ];
+  var wHtml = '<h2 style="margin-bottom:8px;">Component Weights</h2>';
+  wHtml += '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Normalised to sum=1. Zero weight = signal absent from input; redistributed to active components.</div>';
+  var maxW = Math.max.apply(null, weightDefs.map(function(d){ return w[d.key] || 0; }));
+  weightDefs.forEach(function(d) {
+    var v = w[d.key] || 0;
+    var barW = maxW > 0 ? Math.round(v / maxW * 100) : 0;
+    var active = v > 0.001;
+    wHtml += '<div class="factor-row">' +
+      '<span class="factor-name">' + d.label + (active ? '' : ' <span style="font-size:9px;color:var(--muted);">(inactive)</span>') + '</span>' +
+      '<div class="factor-bar-track"><div class="factor-bar-fill" style="width:' + barW + '%;background:' + (active ? 'var(--cdf)' : 'var(--line)') + ';"></div></div>' +
+      '<span class="factor-val">' + (v * 100).toFixed(0) + '%</span>' +
+      '</div>';
+  });
+  var wp = document.getElementById('corrWeightsPanel');
+  if (wp) wp.innerHTML = wHtml;
+
+  // ── Heatmap ──
+  var rMatrix = ca.rMatrix || ca.correlationMatrix;
+  var hpEl = document.getElementById('corrHeatmapPanel');
+  if (hpEl) {
+    if (rMatrix && tasks.length <= 12) {
+      var n = tasks.length;
+      var cellPx = Math.max(28, Math.min(48, Math.floor(300 / n)));
+      var hHtml = '<h2 style="margin-bottom:8px;">Correlation Matrix R</h2>';
+      hHtml += '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Pairwise task correlation used in the Gaussian copula sampler. Red = strong positive correlation; blue = near-zero.</div>';
+      hHtml += '<div style="overflow-x:auto;"><div class="corr-heatmap" style="display:grid;grid-template-columns:' +
+        'auto repeat(' + n + ',' + cellPx + 'px);width:fit-content;">';
+      // Header row
+      hHtml += '<div></div>';
+      tasks.forEach(function(t){
+        var nm = (t.task||t.id||'').slice(0,4);
+        hHtml += '<div class="corr-label" style="width:' + cellPx + 'px;height:' + cellPx + 'px;" title="' + esc(t.task||t.id) + '">' + esc(nm) + '</div>';
+      });
+      // Data rows
+      for (var ri = 0; ri < n; ri++) {
+        var rowLbl = (tasks[ri].task||tasks[ri].id||'').slice(0,8);
+        hHtml += '<div class="corr-label" style="text-align:right;padding-right:4px;height:' + cellPx + 'px;" title="' + esc(tasks[ri].task||tasks[ri].id) + '">' + esc(rowLbl) + '</div>';
+        for (var ci2 = 0; ci2 < n; ci2++) {
+          var rho = rMatrix[ri] ? (rMatrix[ri][ci2] || 0) : 0;
+          var r = Math.round(255 * (1 - rho));
+          var g = Math.round(255 * (1 - rho));
+          var b = 255;
+          if (rho > 0) {
+            r = 255; g = Math.round(255 * (1 - rho)); b = Math.round(255 * (1 - rho));
+          }
+          var bg = 'rgb(' + r + ',' + g + ',' + b + ')';
+          var fg2 = rho > 0.5 ? '#fff' : (rho < -0.3 ? '#fff' : '#111');
+          hHtml += '<div class="corr-cell" style="background:' + bg + ';color:' + fg2 + ';width:' + cellPx + 'px;height:' + cellPx + 'px;" title="ρ=' + rho.toFixed(3) + '">' +
+            (ri === ci2 ? '1' : rho.toFixed(2)) + '</div>';
+        }
+      }
+      hHtml += '</div></div>';
+      hpEl.innerHTML = hHtml;
+    } else if (rMatrix && tasks.length > 12) {
+      hpEl.innerHTML = '<p style="font-size:12px;color:var(--muted);padding:8px 0;">Correlation heatmap omitted — ' + tasks.length + ' tasks would make the matrix too large to read. Use the Correlation Audit data below.</p>';
+    } else {
+      hpEl.innerHTML = '';
+    }
+  }
+
+  // ── Sensitivity ──
+  var sensEl = document.getElementById('corrSensContent');
+  if (sensEl && ca.independentP90 != null && ca.correlatedP90 != null) {
+    var iP90 = ca.independentP90;
+    var cP90 = ca.correlatedP90;
+    var delta = cP90 - iP90;
+    var deltaCls = delta > 0.5 ? 'sens-delta-pos' : 'sens-delta-neg';
+    sensEl.innerHTML =
+      '<div class="sens-row">' +
+      '<div class="sens-item"><div class="s-lbl">Independent P90</div><div class="s-val">' + fmtDays(iP90) + '</div><div class="s-sub">Tasks sampled independently</div></div>' +
+      '<div class="sens-item"><div class="s-lbl">Correlated P90</div><div class="s-val">' + fmtDays(cP90) + '</div><div class="s-sub">Gaussian copula sampling</div></div>' +
+      '<div class="sens-item"><div class="s-lbl">Correlation Impact</div><div class="s-val ' + deltaCls + '">' + (delta > 0 ? '+' : '') + fmtDays(delta) + '</div><div class="s-sub">P90 inflation from task coupling</div></div>' +
+      '</div>' +
+      '<p style="font-size:11px;color:var(--muted);margin-top:8px;">' +
+      (delta > 1 ? 'Correlation meaningfully inflates the tail — tasks finishing late tend to slip together. The correlated P90 is the more realistic planning target.' :
+       delta > 0.1 ? 'Modest correlation effect — coupling adds a small tail inflation. Use the correlated P90 for safety margins.' :
+       'Low correlation impact — tasks are largely independent. Both estimates are similar.') +
+      '</p>';
+  } else if (sensEl) {
+    sensEl.innerHTML = '<p style="font-size:12px;color:var(--muted);">Sensitivity comparison not available for this run (single task or correlation engine returned no independent baseline).</p>';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Input form (manual entry, no ?data= param)
+// ═══════════════════════════════════════════════════════════════
+var _formTaskCount = 0;
+
+function addTaskRow(defaults) {
+  _formTaskCount++;
+  var idx = _formTaskCount;
+  var d = defaults || {};
+  var row = document.createElement('div');
+  row.className = 'task-row';
+  row.id = 'taskRow_' + idx;
+  row.innerHTML =
+    '<input type="text"   name="task_name_'  +idx+'" placeholder="Task name"        value="'+(d.task||'')+'" />' +
+    '<input type="number" name="task_O_'     +idx+'" placeholder="O"    min="0.1" step="0.1" value="'+(d.O||'')+'" />' +
+    '<input type="number" name="task_M_'     +idx+'" placeholder="M"    min="0.1" step="0.1" value="'+(d.M||'')+'" />' +
+    '<input type="number" name="task_P_'     +idx+'" placeholder="P"    min="0.1" step="0.1" value="'+(d.P||'')+'" />' +
+    '<div class="pred-col"><input type="text" name="task_pred_'+idx+'" placeholder="Predecessors (e.g. A,B)" value="'+(d.predecessors||'')+'" /></div>' +
+    '<button class="remove-btn" onclick="removeTaskRow('+idx+')" title="Remove">×</button>';
+  document.getElementById('taskRows').appendChild(row);
+
+  // Add matching enrichment row
+  var eRow = document.createElement('div');
+  eRow.id = 'enrichRow_' + idx;
+  eRow.style.cssText = 'margin-bottom:6px;';
+  eRow.innerHTML = '<div style="font-size:10px;font-weight:600;color:var(--muted);margin-bottom:3px;">' + (d.task ? esc(d.task) : 'Task ' + idx) + ' enrichment</div>' +
+    '<div class="enrich-grid">' +
+    '<input type="text" name="enrich_resource_'+idx+'" placeholder="Resource / team" value="'+(d.resource||'')+'" />' +
+    '<input type="text" name="enrich_phase_'+idx+'" placeholder="Phase (e.g. Design)" value="'+(d.phase||'')+'" />' +
+    '<input type="text" name="enrich_signals_'+idx+'" placeholder="Risk tags (comma-sep)" value="'+(d.riskSignals ? (Array.isArray(d.riskSignals) ? d.riskSignals.join(',') : d.riskSignals) : '')+'" />' +
+    '</div>';
+  var enrichContainer = document.getElementById('enrichRows');
+  if (enrichContainer) enrichContainer.appendChild(eRow);
+
+  return row;
+}
+
+function removeTaskRow(idx) {
+  var r = document.getElementById('taskRow_' + idx);
+  if (r) r.remove();
+  var e = document.getElementById('enrichRow_' + idx);
+  if (e) e.remove();
+}
+
+function _toggleEnrichment() {
+  var sec = document.getElementById('enrichSection');
+  var tog = document.querySelector('.enrich-toggle');
+  if (!sec) return;
+  var open = sec.classList.toggle('open');
+  if (tog) tog.textContent = (open ? '▾' : '▸') + ' Optional: risk signals, resource, phase (improves correlation model)';
+}
+
+function buildFormTasks() {
+  var rows = document.querySelectorAll('#taskRows .task-row');
+  var tasks = [];
+  rows.forEach(function(row) {
+    var idx  = row.id.replace('taskRow_','');
+    var name = (row.querySelector('[name="task_name_'+idx+'"]') || {}).value || '';
+    var O    = parseFloat((row.querySelector('[name="task_O_'   +idx+'"]') || {}).value) || 0;
+    var M    = parseFloat((row.querySelector('[name="task_M_'   +idx+'"]') || {}).value) || 0;
+    var P    = parseFloat((row.querySelector('[name="task_P_'   +idx+'"]') || {}).value) || 0;
+    var pred = (row.querySelector('[name="task_pred_'+idx+'"]') || {}).value || '';
+    if (!name || !O || !M || !P) return;
+
+    // Optional enrichment fields
+    var resource = ((document.querySelector('[name="enrich_resource_'+idx+'"]') || {}).value || '').trim() || null;
+    var phase    = ((document.querySelector('[name="enrich_phase_'+idx+'"]')    || {}).value || '').trim() || null;
+    var sigRaw   = ((document.querySelector('[name="enrich_signals_'+idx+'"]') || {}).value || '').trim();
+    var riskSignals = sigRaw ? sigRaw.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : null;
+
+    var task = {
+      id:   name.replace(/\s+/g,'_').toLowerCase(),
+      task: name,
+      O: O, M: M, P: P,
+      predecessors: pred ? pred.split(',').map(function(s){return s.trim().replace(/\s+/g,'_').toLowerCase();}).filter(Boolean) : []
+    };
+    if (resource)    task.resource    = resource;
+    if (phase)       task.phase       = phase;
+    if (riskSignals) task.riskSignals = riskSignals;
+    tasks.push(task);
+  });
+  return tasks;
+}
+
+function runFromForm() {
+  var tasks = buildFormTasks();
+  if (tasks.length < 2) { showError('Enter at least 2 tasks with O/M/P values.'); return; }
+  _cpmTasks = tasks;
+  computeAndRender(tasks, null);
+}
+
+// ── Pre-populate some example tasks in the form ───────────────
+function prefillExampleTasks() {
+  var examples = [
+    { task:'Requirements',     O:3,  M:5,  P:8  },
+    { task:'Design',           O:4,  M:7,  P:12, predecessors:'requirements'         },
+    { task:'Development',      O:10, M:16, P:25, predecessors:'design'               },
+    { task:'Testing',          O:4,  M:6,  P:10, predecessors:'development'          },
+    { task:'Documentation',    O:2,  M:4,  P:6,  predecessors:'design'               },
+    { task:'Deployment',       O:1,  M:2,  P:4,  predecessors:'testing,documentation'},
+  ];
+  examples.forEach(function(e){ addTaskRow(e); });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Named Datasets — 13 examples covering all CPM graph properties
+// ═══════════════════════════════════════════════════════════════
+var NAMED_DATASETS = [
+
+  // ── VALID NETWORKS ───────────────────────────────────────────────
+
+  { id:'linear', label:'Linear Chain', category:'valid', icon:'⛓',
+    tagline:'Four tasks in strict sequence — Design → Build → Test → Deploy',
+    mathProp:'Path Graph P₄ · Unique topological ordering · No merge-point bias',
+    mathExplain:[
+      'A path graph Pₙ is a DAG with exactly one directed path from source to sink.',
+      'Topological order: Design → Build → Test → Deploy  (unique — no branching choices)',
+      '',
+      'Key CPM properties:',
+      '  TF = 0 for every task  (single path — any slip delays the project end)',
+      '  Convergence count = 0  (no merge nodes → no merge-point bias)',
+      '  PERT project duration = Σ(Oᵢ+4Mᵢ+Pᵢ)/6',
+      '    = (2+12+5)/6 + (5+32+13)/6 + (3+16+7)/6 + (1+4+2)/6',
+      '    = 3.17 + 8.33 + 4.33 + 1.17 = 17.0 d',
+      '  Criticality Index = 1.0 for all tasks',
+      '  Stochastic P50 ≈ deterministic (no convergence nodes to inflate the tail)',
+      '',
+      'QA assertions:  status=ok · cpLen=4 · convCount=0 · no orphans · no errors'
+    ].join('\n'),
+    expectedOutcome:'Critical path: all 4 tasks · TF=0 everywhere · Health grade A or B',
+    qa:{ status:'ok', cpLen:4, convCount:0, orphanGroupsEmpty:true, noValidationErrors:true },
+    tasks:[
+      { id:'design', task:'Design', O:2, M:3,  P:5  },
+      { id:'build',  task:'Build',  O:5, M:8,  P:13, predecessors:'design' },
+      { id:'test',   task:'Test',   O:3, M:4,  P:7,  predecessors:'build'  },
+      { id:'deploy', task:'Deploy', O:1, M:1,  P:2,  predecessors:'test'   }
+    ]
+  },
+
+  { id:'diamond', label:'Diamond Network', category:'valid', icon:'💎',
+    tagline:'Two paths converge at Finish — demonstrates merge-point bias',
+    mathProp:'Merge-point bias · E[max(T_A, T_B)] > max(E[T_A], E[T_B])',
+    mathExplain:[
+      'The diamond is the smallest graph demonstrating merge-point bias.',
+      '',
+      'Structure:  Start → Path A ↘',
+      '            Start → Path B ↗  Finish',
+      '',
+      'PERT means:  Path A = (4+24+10)/6 = 6.33 d',
+      '             Path B = (3+32+11)/6 = 7.67 d  ← critical',
+      '',
+      'Deterministic CP:  Start(2.0) + Path B(7.67) + Finish(2.0) = 11.67 d',
+      'Path A float:      11.67 − (2.0+6.33+2.0) = 1.34 d',
+      '',
+      'MERGE-POINT BIAS:',
+      'CPM uses max(EF_A, EF_B) = 9.67 as Finish start.',
+      'True expected start = E[max(T_A, T_B)] where T_A,T_B are random.',
+      'Jensen inequality:  E[max(X,Y)] ≥ max(E[X],E[Y])',
+      'The gap grows with variance — stochastic P50 will EXCEED 11.67 d.',
+      '',
+      'QA assertions:  status=ok · convCount=1 · stochastic P50 > deterministic'
+    ].join('\n'),
+    expectedOutcome:'CP: Start → Path B → Finish · convCount=1 · Stochastic P50 > 11.67 d',
+    qa:{ status:'ok', convCount:1, orphanGroupsEmpty:true, stochGtDet:true },
+    tasks:[
+      { id:'start',  task:'Start',  O:1, M:2, P:3  },
+      { id:'path_a', task:'Path A', O:4, M:6, P:10, predecessors:'start' },
+      { id:'path_b', task:'Path B', O:3, M:8, P:11, predecessors:'start' },
+      { id:'finish', task:'Finish', O:1, M:2, P:3,  predecessors:'path_a,path_b' }
+    ]
+  },
+
+  { id:'full_project', label:'Full Project', category:'valid', icon:'🏗',
+    tagline:'6 tasks with dependencies, resources, phases, risk signals',
+    mathProp:'Multi-path DAG · 5-component Gaussian copula · Merge at Deployment',
+    mathExplain:[
+      'The reference project exercises all engine features simultaneously.',
+      '',
+      'Graph structure:',
+      '  Requirements → Design → Development → Testing ↘',
+      '                Design → Documentation         ↗  Deployment',
+      '',
+      'PERT means (rounded):',
+      '  Requirements(5.0) → Design(7.33) → Development(16.5) → Testing(6.33)',
+      '                   → Documentation(3.83)  → Deployment(2.0)',
+      '',
+      'Critical path:  Requirements → Design → Development → Testing → Deployment',
+      'Documentation float:  ~9.5 d  (starts early, finishes long before Testing)',
+      '',
+      'SACO/Copula features active:',
+      '  riskSignals on Development → higher inter-task correlation',
+      '  resource sharing (Dev Team) → coupled MC sampling for Dev + Docs',
+      '  phase grouping → soft correlation bonus within Build phase',
+      '',
+      'QA:  status=ok · development on critical path · convCount=1'
+    ].join('\n'),
+    expectedOutcome:'CP: … → Development → Testing → Deployment · convCount=1 · Correlation tab active',
+    qa:{ status:'ok', cpIncludes:'development', convCount:1, orphanGroupsEmpty:true },
+    tasks:[
+      { id:'requirements',  task:'Requirements',  O:3,  M:5,  P:8  },
+      { id:'design',        task:'Design',        O:4,  M:7,  P:12, predecessors:'requirements', phase:'Discovery' },
+      { id:'development',   task:'Development',   O:10, M:16, P:25, predecessors:'design', resource:'Dev Team', phase:'Build', riskSignals:['vendor-dependency','single-resource'] },
+      { id:'testing',       task:'Testing',       O:4,  M:6,  P:10, predecessors:'development', resource:'QA Team', phase:'Build' },
+      { id:'documentation', task:'Documentation', O:2,  M:4,  P:6,  predecessors:'design', resource:'Dev Team', phase:'Build' },
+      { id:'deployment',    task:'Deployment',    O:1,  M:2,  P:4,  predecessors:'testing,documentation', phase:'Release', riskSignals:['regulatory-approval'] }
+    ]
+  },
+
+  { id:'parallel_streams', label:'Parallel Streams', category:'valid', icon:'🔀',
+    tagline:'Two workstreams — Stream B is critical by a razor-thin margin',
+    mathProp:'Two-path convergence · Near-critical float · Path comparison',
+    mathExplain:[
+      'Two independent streams both feed Integration:',
+      '',
+      '  Stream A:  SA-Start(3.17) + SA-Mid(6.17) + SA-End(5.0)  = 14.34 d total',
+      '  Stream B:  SB-Start(5.17) + SB-End(10.33)                = 15.50 d  ← critical',
+      '',
+      'Integration(3.17) + Release(2.0) = 5.17 d common tail',
+      '',
+      'Critical path duration:  15.50 + 5.17 = 20.67 d',
+      'Stream A total float:     20.67 − 14.34 − 5.17 = 1.16 d',
+      '',
+      'Near-critical threshold (10% of 20.67):  2.07 d',
+      'Stream A float = 1.16 d < 2.07 d → ALL Stream A tasks are near-critical.',
+      '',
+      'The stochastic simulation frequently finds Stream A on the critical path',
+      'because SA-End variance (3→7 range) can easily exceed 1.16 d extra.',
+      'This is a "dual critical path" scenario in practice.',
+      '',
+      'QA:  status=ok · convCount=1 · Stream A tasks near-critical'
+    ].join('\n'),
+    expectedOutcome:'CP: SB Start → SB End → Integration → Release · Stream A near-critical (TF ≈ 1.16d)',
+    qa:{ status:'ok', convCount:1, orphanGroupsEmpty:true },
+    tasks:[
+      { id:'sa_start',    task:'SA Start',    O:2, M:3,  P:5  },
+      { id:'sa_mid',      task:'SA Mid',      O:4, M:6,  P:9,  predecessors:'sa_start' },
+      { id:'sa_end',      task:'SA End',      O:3, M:5,  P:7,  predecessors:'sa_mid' },
+      { id:'sb_start',    task:'SB Start',    O:3, M:5,  P:8  },
+      { id:'sb_end',      task:'SB End',      O:7, M:10, P:15, predecessors:'sb_start' },
+      { id:'integration', task:'Integration', O:2, M:3,  P:5,  predecessors:'sa_end,sb_end' },
+      { id:'release',     task:'Release',     O:1, M:2,  P:3,  predecessors:'integration' }
+    ]
+  },
+
+  { id:'three_point_only', label:'Three-Point Only', category:'valid', icon:'📊',
+    tagline:'Five independent tasks — no dependencies, pure parallel portfolio',
+    mathProp:'Edgeless DAG · CP = longest single task · No merge-point bias',
+    mathExplain:[
+      'With no predecessor edges, each task is both a source and a sink.',
+      'The graph is a valid DAG (trivially — no edges means no cycles possible).',
+      '',
+      'PERT means:',
+      '  Alpha(8.33) · Beta(6.17) · Gamma(12.33) · Delta(4.17) · Epsilon(9.50)',
+      '',
+      'CPM on an edgeless graph:',
+      '  Project duration = max(PERT_meani) = 12.33 d (Task Gamma)',
+      '  Critical path    = [Task Gamma] only (length 1)',
+      '  Total Float_i    = 12.33 − PERT_meani  (positive for all others)',
+      '  Convergence count = 0',
+      '',
+      'Float by task:',
+      '  Gamma:   0.00 d (critical)',
+      '  Epsilon: 2.83 d',
+      '  Alpha:   4.00 d',
+      '  Beta:    6.16 d',
+      '  Delta:   8.16 d',
+      '',
+      'Stochastic: tasks are sampled independently (no copula for edgeless graphs).',
+      'QA:  status=ok · cpLen=1 · convCount=0'
+    ].join('\n'),
+    expectedOutcome:'CP: [Task Gamma] only · All others TF > 0 · convCount=0',
+    qa:{ status:'ok', cpLen:1, convCount:0, orphanGroupsEmpty:false },
+    tasks:[
+      { id:'alpha',   task:'Task Alpha',   O:5, M:8,  P:13 },
+      { id:'beta',    task:'Task Beta',    O:3, M:6,  P:10 },
+      { id:'gamma',   task:'Task Gamma',   O:8, M:12, P:18 },
+      { id:'delta',   task:'Task Delta',   O:2, M:4,  P:7  },
+      { id:'epsilon', task:'Task Epsilon', O:6, M:9,  P:15 }
+    ]
+  },
+
+  { id:'star_convergence', label:'Star Convergence', category:'valid', icon:'⭐',
+    tagline:'Four feeders all converge at Review — maximum merge-point bias',
+    mathProp:'In-degree 4 merge node · Order statistics · E[max of 4 RVs]',
+    mathExplain:[
+      'Review has in-degree 4 — all four workstreams must finish before it starts.',
+      '',
+      'PERT means reaching Review (including Kickoff = 2.0 d):',
+      '  via Research:   2.0 + 5.17  =  7.17 d',
+      '  via Legal:      2.0 + 8.50  = 10.50 d  ← critical',
+      '  via Technical:  2.0 + 6.33  =  8.33 d',
+      '  via Commercial: 2.0 + 5.17  =  7.17 d',
+      '',
+      'Deterministic: Review starts at 10.50 d  (Legal finishes last)',
+      '',
+      'TRUE expected start = E[max(T_R, T_L, T_T, T_C)]',
+      'By order statistics, E[X_(n:n)] grows with n (number of inputs).',
+      'With n=4, the merge bias is LARGER than the 2-input diamond case.',
+      '',
+      'The three non-critical tasks (Research, Technical, Commercial) still contribute',
+      'to inflation because they occasionally exceed Legal duration.',
+      '',
+      'Health score: D or F (high convergence density + large merge bias).',
+      'QA:  status=ok · Legal on CP · convCount=1 · large stochastic inflation'
+    ].join('\n'),
+    expectedOutcome:'CP: Kickoff → Legal → Review → Launch · convCount=1 · Health grade D–F · Large stoch gap',
+    qa:{ status:'ok', cpIncludes:'legal', convCount:1, orphanGroupsEmpty:true },
+    tasks:[
+      { id:'kickoff',    task:'Kickoff',    O:1, M:2,  P:3  },
+      { id:'research',   task:'Research',   O:3, M:5,  P:8,  predecessors:'kickoff' },
+      { id:'legal',      task:'Legal',      O:5, M:8,  P:14, predecessors:'kickoff' },
+      { id:'technical',  task:'Technical',  O:4, M:6,  P:10, predecessors:'kickoff' },
+      { id:'commercial', task:'Commercial', O:3, M:5,  P:8,  predecessors:'kickoff' },
+      { id:'review',     task:'Review',     O:2, M:3,  P:5,  predecessors:'research,legal,technical,commercial' },
+      { id:'launch',     task:'Launch',     O:1, M:2,  P:3,  predecessors:'review' }
+    ]
+  },
+
+  { id:'near_critical', label:'Near-Critical Schedule', category:'valid', icon:'⚠',
+    tagline:'Tight schedule — most tasks have float < 10% of project duration',
+    mathProp:'High near-critical fraction · Low Health Score · High NCI values',
+    mathExplain:[
+      'A fragile schedule where almost every task has TF < near-critical threshold.',
+      '',
+      'PERT means (Build Core vs Build Ext run in parallel after Design):',
+      '  Foundation(10.0) → Design(9.0) → Build Core(10.67) → Integration(8.0) → Sign-off(6.0)',
+      '                               → Build Ext(9.67)  ↗',
+      '',
+      'Build Ext float ≈ 10.67 − 9.67 = 1.0 d',
+      'Project duration ≈ 10+9+10.67+8+6 = 43.67 d',
+      'Near-critical threshold = 10% × 43.67 = 4.37 d',
+      'Build Ext TF = 1.0 d << 4.37 d → near-critical.',
+      '',
+      'All tasks on the main sequence have TF = 0 (critical).',
+      'Build Ext is near-critical in every simulation → high NCI.',
+      '',
+      'Health Score factors:',
+      '  nearCriticalFraction ≈ 83% (5 of 6 tasks)',
+      '  convergenceDensity = 1/6 = 17%',
+      '  No negative float, but still grade D or F.',
+      '',
+      'QA:  status=ok · health grade D or F · multiple near-critical tasks'
+    ].join('\n'),
+    expectedOutcome:'CP: Foundation→…→Sign-off · Build Ext near-critical · Health grade D or F',
+    qa:{ status:'ok', healthGradeLow:true, orphanGroupsEmpty:true },
+    tasks:[
+      { id:'foundation',  task:'Foundation', O:8,  M:10, P:12 },
+      { id:'design',      task:'Design',     O:7,  M:9,  P:11, predecessors:'foundation' },
+      { id:'build_core',  task:'Build Core', O:8,  M:11, P:12, predecessors:'design' },
+      { id:'build_ext',   task:'Build Ext',  O:7,  M:10, P:11, predecessors:'design' },
+      { id:'integration', task:'Integration',O:6,  M:8,  P:10, predecessors:'build_core,build_ext' },
+      { id:'signoff',     task:'Sign-off',   O:5,  M:6,  P:7,  predecessors:'integration' }
+    ]
+  },
+
+  // ── INVALID / ERROR CASES ─────────────────────────────────────────
+
+  { id:'cycle_direct', label:'Direct Cycle  A ↔ B', category:'invalid', icon:'🔄',
+    tagline:'Task A depends on B AND Task B depends on A — topological sort impossible',
+    mathProp:'Tarjan\'s SCC · Directed cycle · Not a DAG',
+    mathExplain:[
+      'A Directed Acyclic Graph (DAG) has NO directed cycles.',
+      'This dataset creates edges:  task_a → task_b  AND  task_b → task_a',
+      '',
+      'Tarjan\'s Strongly Connected Components (SCC) algorithm:',
+      '  Uses DFS + index/lowlink bookkeeping.',
+      '  Any SCC of size > 1 indicates a directed cycle.',
+      '',
+      'Trace on {task_a, task_b, task_c}:',
+      '  1. DFS(task_a): index=0, lowlink=0. Visit edge to task_b.',
+      '  2. DFS(task_b): index=1, lowlink=1. Visit edge back to task_a (on stack).',
+      '     → lowlink[task_b] = min(1, index[task_a]) = min(1,0) = 0.',
+      '  3. task_b finishes: lowlink=0 ≠ index=1 → not SCC root.',
+      '  4. task_a finishes: lowlink=0 == index=0 → SCC root.',
+      '     Pop stack: {task_b, task_a} → SCC of size 2 = CYCLE detected.',
+      '',
+      'Also:  task_c has predecessor task_b (valid edge), but since task_b is inside',
+      'the cycle, the ENTIRE network is rejected.',
+      '',
+      'Engine returns:  status=\'error\'  code=CYCLES_DETECTED  cycles=[[task_b,task_a]]',
+      'No forward/backward pass is attempted.'
+    ].join('\n'),
+    expectedOutcome:'status=\'error\' · code=CYCLES_DETECTED · cycles contains [task_b, task_a]',
+    qa:{ status:'error', errorCode:'CYCLES_DETECTED', cyclesGt0:true },
+    tasks:[
+      { id:'task_a', task:'Task A', O:3, M:5, P:8, predecessors:'task_b' },
+      { id:'task_b', task:'Task B', O:4, M:6, P:9, predecessors:'task_a' },
+      { id:'task_c', task:'Task C', O:2, M:3, P:5, predecessors:'task_b' }
+    ]
+  },
+
+  { id:'cycle_indirect', label:'Indirect Cycle  A→B→C→A', category:'invalid', icon:'🔁',
+    tagline:'Three-node cycle spanning Alpha, Beta, Gamma — no valid schedule exists',
+    mathProp:'Tarjan\'s SCC · 3-node directed cycle · Delta is valid but unreachable',
+    mathExplain:[
+      'An indirect cycle spans three or more nodes in a directed circuit.',
+      '',
+      'Edges (from predecessor declarations):',
+      '  gamma → alpha  (Alpha depends on Gamma)',
+      '  alpha → beta   (Beta depends on Alpha)',
+      '  beta  → gamma  (Gamma depends on Beta)',
+      '  gamma → delta  (Delta depends on Gamma — valid downstream)',
+      '',
+      'This forms the 3-cycle:  alpha → beta → gamma → alpha',
+      '',
+      'Tarjan trace:',
+      '  DFS(alpha): index=0. Visit alpha→beta.',
+      '  DFS(beta):  index=1. Visit beta→gamma.',
+      '  DFS(gamma): index=2. Visit gamma→alpha (on stack).',
+      '    → lowlink[gamma] = min(2, index[alpha]) = 0.',
+      '    Visit gamma→delta.',
+      '  DFS(delta): index=3, lowlink=3. Own SCC, size=1 (not a cycle).',
+      '  gamma finishes: lowlink=0 ≠ index=2 → not root.',
+      '  beta finishes:  lowlink=0 ≠ index=1 → not root.',
+      '  alpha finishes: lowlink=0 == index=0 → SCC root.',
+      '    Pop: {gamma, beta, alpha} → size 3 = CYCLE.',
+      '',
+      'Delta is structurally valid but is rejected because it references gamma',
+      'which is inside the cycle.  All tasks in the network are rejected.',
+      '',
+      'Engine returns:  status=\'error\'  code=CYCLES_DETECTED'
+    ].join('\n'),
+    expectedOutcome:'status=\'error\' · code=CYCLES_DETECTED · SCC: [gamma, beta, alpha]',
+    qa:{ status:'error', errorCode:'CYCLES_DETECTED', cyclesGt0:true },
+    tasks:[
+      { id:'alpha', task:'Alpha', O:2, M:3, P:5, predecessors:'gamma' },
+      { id:'beta',  task:'Beta',  O:3, M:5, P:8, predecessors:'alpha' },
+      { id:'gamma', task:'Gamma', O:4, M:6, P:9, predecessors:'beta'  },
+      { id:'delta', task:'Delta', O:1, M:2, P:3, predecessors:'gamma' }
+    ]
+  },
+
+  { id:'self_loop', label:'Self-Loop', category:'invalid', icon:'↩',
+    tagline:'Task C lists itself as its own predecessor — SELF_REFERENCE validation error',
+    mathProp:'Self-edge (v,v) · Validation error · Edge silently dropped — CPM proceeds',
+    mathExplain:[
+      'A self-loop is an edge from a vertex to itself: (v,v) ∈ E.',
+      'In CPM: a task cannot depend on its own completion.',
+      '',
+      'Engine behaviour (two-step):',
+      '  Step 1 — cpmBuildGraph:',
+      '    Detects fromId === toId  →  self-edge is SILENTLY DROPPED.',
+      '    The edge is never added to adjacency or reverseAdj.',
+      '',
+      '  Step 2 — cpmValidateGraph:',
+      '    Detects fromId === taskId  →  adds SELF_REFERENCE error to validationErrors.',
+      '    The error is surfaced in the Schedule Overview panel.',
+      '',
+      'Graph after dropping the self-edge:  task_a→task_b,  task_b→task_d,  task_c→task_d',
+      'This is a valid diamond-like DAG — CPM proceeds normally.',
+      '',
+      'Critical path:  task_a → task_c → task_d  (PERT: 3.17+7.0+2.0=12.17)',
+      '            vs  task_a → task_b → task_d  (PERT: 3.17+6.17+2.0=11.34)',
+      'task_c path is critical (task_c PERT mean = (4+24+9)/6 = 6.17? no: (4+6+9)/6=19/6=3.17? let me recalculate: O=4,M=6,P=9 → (4+24+9)/6=37/6=6.17)',
+      '',
+      'WARNING: The Schedule Overview shows the SELF_REFERENCE alert.',
+      'Engine status is \'ok\' but the input error must be corrected.'
+    ].join('\n'),
+    expectedOutcome:'status=\'ok\' · validationErrors: [{code:SELF_REFERENCE, taskId:\'task_c\'}] · CPM runs normally',
+    qa:{ status:'ok', hasValidationError:'SELF_REFERENCE' },
+    tasks:[
+      { id:'task_a', task:'Task A', O:2, M:3, P:5 },
+      { id:'task_b', task:'Task B', O:3, M:5, P:8, predecessors:'task_a' },
+      { id:'task_c', task:'Task C', O:4, M:6, P:9, predecessors:'task_c' },
+      { id:'task_d', task:'Task D', O:1, M:2, P:3, predecessors:'task_b,task_c' }
+    ]
+  },
+
+  { id:'unknown_pred', label:'Unknown Predecessor', category:'invalid', icon:'❓',
+    tagline:'Task C references "task_xyz" which does not exist — ghost dependency',
+    mathProp:'MISSING_PREDECESSOR validation error · Edge silently dropped · Optimistic bias',
+    mathExplain:[
+      'Task C references predecessor "task_xyz" which is not in the task list.',
+      '',
+      'Engine behaviour:',
+      '  cpmBuildGraph:  if (!nodes[fromId]) return  →  ghost edge silently dropped.',
+      '  cpmValidateGraph:  !taskIds[fromId]  →  MISSING_PREDECESSOR error added.',
+      '',
+      'Graph after dropping the ghost edge:',
+      '  task_a → task_b → task_d',
+      '  task_a → task_c → task_d  (task_xyz edge removed)',
+      '',
+      'DANGER: Task C now starts as soon as Task A finishes — the missing constraint',
+      '        (whatever task_xyz was supposed to represent) is gone.',
+      '        The schedule appears VALID but is OPTIMISTICALLY BIASED.',
+      '',
+      'This is the most dangerous type of CPM input error:',
+      '  → No engine failure, results look reasonable, but a predecessor is missing.',
+      '  → Common cause: renamed task ID, copy-paste typo, deleted task.',
+      '',
+      'Always treat MISSING_PREDECESSOR as a blocking error before trusting output.',
+      '',
+      'QA:  status=ok · validationErrors includes MISSING_PREDECESSOR for task_c'
+    ].join('\n'),
+    expectedOutcome:'status=\'ok\' · validationErrors: [{code:MISSING_PREDECESSOR, taskId:\'task_c\'}]',
+    qa:{ status:'ok', hasValidationError:'MISSING_PREDECESSOR' },
+    tasks:[
+      { id:'task_a', task:'Task A', O:2, M:3, P:5 },
+      { id:'task_b', task:'Task B', O:3, M:5, P:8, predecessors:'task_a' },
+      { id:'task_c', task:'Task C', O:4, M:6, P:9, predecessors:'task_a,task_xyz' },
+      { id:'task_d', task:'Task D', O:1, M:2, P:3, predecessors:'task_b,task_c' }
+    ]
+  },
+
+  { id:'omp_violation', label:'O > M Violation', category:'invalid', icon:'⛔',
+    tagline:'Broken Task has O=10, M=5 — optimistic exceeds most-likely (impossible)',
+    mathProp:'Invalid PERT parametrisation · Beta(α,β) undefined when O > M',
+    mathExplain:[
+      'A valid three-point estimate requires  O ≤ M ≤ P.',
+      '',
+      'The PERT distribution is a scaled Beta(α, β) where:',
+      '  μ  = (O + 4M + P) / 6         (weighted mean)',
+      '  α  = 6·(μ − O) / (P − O)      (shape parameter)',
+      '  β  = 6·(P − μ) / (P − O)      (shape parameter)',
+      '',
+      'Beta(α,β) is only defined for  α > 0  AND  β > 0.',
+      '',
+      'For Broken Task (O=10, M=5, P=8):',
+      '  Note: O=10 > P=8 as well — BOTH constraints violated!',
+      '  μ  = (10 + 20 + 8)/6 = 6.33',
+      '  P − O = 8 − 10 = −2  (negative denominator!)',
+      '  α  = 6·(6.33−10)/(−2) = 6·(−3.67)/(−2) = +11.0  (accidentally positive)',
+      '  β  = 6·(8−6.33)/(−2) = 6·(1.67)/(−2)   = −5.0   (NEGATIVE → invalid)',
+      '',
+      'The engine computes a PERT mean of 6.33 d — numerically valid but wrong.',
+      'The underlying distribution is undefined; SACO/stochastic sampling breaks.',
+      '',
+      'This dataset is flagged by client-side UI validation (orange warning banner).',
+      'The CPM still computes deterministic results, but they cannot be trusted.'
+    ].join('\n'),
+    expectedOutcome:'UI O>M warning displayed · PERT mean 6.33 d computed but invalid · Stochastic unreliable',
+    qa:{ status:'ok', ompViolation:true },
+    tasks:[
+      { id:'task_a', task:'Valid Task',   O:3, M:5, P:8 },
+      { id:'task_b', task:'Broken Task',  O:10,M:5, P:8, predecessors:'task_a' },
+      { id:'task_c', task:'Another Task', O:2, M:4, P:7, predecessors:'task_a' },
+      { id:'task_d', task:'Final',        O:1, M:2, P:3, predecessors:'task_b,task_c' }
+    ]
+  },
+
+  { id:'disconnected', label:'Disconnected Graph', category:'warn', icon:'🔌',
+    tagline:'Orphan A + Orphan B have no path to the project end — undefined float',
+    mathProp:'Weakly disconnected DAG · cpmFindOrphans · Orphan float is meaningless',
+    mathExplain:[
+      'A weakly connected graph has a path (ignoring edge direction) between every pair',
+      'of vertices. This graph has TWO weakly connected components:',
+      '',
+      '  Component 1 (main): Main Start → Main Mid → Main End',
+      '  Component 2 (orphan): Orphan A → Orphan B',
+      '',
+      'CPM on disconnected graphs:',
+      '  Main component: scheduled normally, project duration from Main End.',
+      '  Orphan tasks: LF fallback = project_dur (no constraint to sink).',
+      '  Orphan TF = project_dur − own_duration  (large, meaningless value).',
+      '  Orphan Criticality Index ≈ 0 (never on any path to project end).',
+      '',
+      'Engine: cpmFindOrphans traverses backward from sinks to find which tasks',
+      'cannot reach any sink node. These are added to orphanGroups[].',
+      'The Schedule Overview shows a "Disconnected tasks" warning.',
+      '',
+      'Root cause: almost always a missing dependency link.',
+      'Example fix: add predecessors:\'main_end\' to Orphan A.',
+      '',
+      'QA:  status=ok · orphanGroups non-empty · Disconnected warning in Overview'
+    ].join('\n'),
+    expectedOutcome:'status=\'ok\' · orphanGroups: [[orphan_a, orphan_b]] · Warning in Schedule Overview',
+    qa:{ status:'ok', hasOrphans:true },
+    tasks:[
+      { id:'main_start', task:'Main Start', O:2, M:3, P:5 },
+      { id:'main_mid',   task:'Main Mid',   O:4, M:6, P:9,  predecessors:'main_start' },
+      { id:'main_end',   task:'Main End',   O:2, M:3, P:5,  predecessors:'main_mid'   },
+      { id:'orphan_a',   task:'Orphan A',   O:3, M:5, P:8 },
+      { id:'orphan_b',   task:'Orphan B',   O:2, M:4, P:6,  predecessors:'orphan_a'  }
+    ]
+  }
+
+]; // end NAMED_DATASETS
+
+// ── Dataset Picker ────────────────────────────────────────────
+function openDatasetPicker() {
+  var modal = document.getElementById('datasetPickerModal');
+  if (!modal) return;
+
+  // Populate grid
+  var body = document.getElementById('datasetPickerBody');
+  var html = '';
+
+  var cats = [
+    { key:'valid',   label:'Valid Networks — demonstrates correct CPM properties' },
+    { key:'warn',    label:'Warnings — valid network with structural issues' },
+    { key:'invalid', label:'Error Cases — intentionally broken inputs' }
+  ];
+  cats.forEach(function(cat) {
+    var ds = NAMED_DATASETS.filter(function(d){ return d.category === cat.key; });
+    if (!ds.length) return;
+    html += '<div class="dsp-cat">' + cat.label + '</div>';
+    html += '<div class="dsp-grid">';
+    ds.forEach(function(d) {
+      html += '<button class="dsp-card cat-' + d.category + '" onclick="loadNamedDataset(\'' + d.id + '\');closeDatasetPicker();">' +
+        '<div class="dsp-card-hdr">' +
+          '<span class="dsp-icon">' + d.icon + '</span>' +
+          '<span class="dsp-name">' + esc(d.label) + '</span>' +
+          '<span class="dsp-badge ' + d.category + '">' + (d.category === 'valid' ? '✓ Valid' : d.category === 'invalid' ? '✕ Error' : '⚠ Warning') + '</span>' +
+        '</div>' +
+        '<div class="dsp-tagline">' + esc(d.tagline) + '</div>' +
+        '<div class="dsp-mathprop">' + esc(d.mathProp) + '</div>' +
+        '</button>';
+    });
+    html += '</div>';
+  });
+  body.innerHTML = html;
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDatasetPicker() {
+  var modal = document.getElementById('datasetPickerModal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+// ── Load a named dataset and show math panel ──────────────────
+function loadNamedDataset(id) {
+  var ds = NAMED_DATASETS.find(function(d){ return d.id === id; });
+  if (!ds) return;
+
+  // Check for O>M violations (UI-level validation)
+  var ompErrors = [];
+  ds.tasks.forEach(function(t) {
+    if (t.O > t.M || t.M > t.P) {
+      ompErrors.push(t.task + ' (O=' + t.O + ' M=' + t.M + ' P=' + t.P + ')');
+    }
+  });
+
+  // Build tasks and run
+  var tasks = normaliseTasks({ tasks: ds.tasks });
+  _cpmTasks = tasks;
+
+  // Show math panel BEFORE running
+  _showMathPanel(ds, ompErrors);
+
+  // Hide example banner (this is a named dataset, not the generic example)
+  var banner = document.getElementById('exampleBanner');
+  if (banner) banner.style.display = 'none';
+
+  // Clear existing results if they are from a different dataset
+  document.getElementById('resultsSection').style.display = 'none';
+
+  // Hide QA panel
+  document.getElementById('qaPanel').style.display = 'none';
+
+  // Run the engine (even for invalid datasets — the engine will return an error)
+  computeAndRender(tasks, null);
+}
+
+function _showMathPanel(ds, ompErrors) {
+  var mp = document.getElementById('mathPanel');
+  if (!mp) return;
+
+  document.getElementById('mathPanelIcon').textContent = ds.icon + '  ';
+  document.getElementById('mathPanelTitle').textContent = ds.label;
+  document.getElementById('mathPanelPropBadge').textContent = ds.mathProp;
+  document.getElementById('mathPanelBody').textContent = ds.mathExplain;
+
+  var expEl   = document.getElementById('mathPanelExpected');
+  var expText = document.getElementById('mathPanelExpectedText');
+  if (ds.expectedOutcome) {
+    expText.textContent = ds.expectedOutcome;
+    expEl.style.display = '';
+  } else {
+    expEl.style.display = 'none';
+  }
+
+  // O>M warning
+  if (ompErrors.length) {
+    var warn = document.createElement('div');
+    warn.style.cssText = 'background:#FEF9C3;border:1px solid #FDE68A;border-radius:6px;padding:6px 10px;font-size:11px;color:#854D0E;margin-top:8px;';
+    warn.textContent = '⚠ O > M or M > P violation: ' + ompErrors.join('; ') + '. Results are computed but the PERT distribution is invalid — stochastic output unreliable.';
+    document.getElementById('mathPanelBody').parentNode.insertBefore(warn, expEl);
+  }
+
+  // Dataset badge colour
+  mp.style.borderLeftColor = ds.category === 'valid' ? 'var(--safe)' : ds.category === 'invalid' ? 'var(--crit)' : 'var(--near)';
+  mp.style.background      = ds.category === 'valid' ? '#F0FDF4' : ds.category === 'invalid' ? '#FEF2F2' : '#FFFBEB';
+  mp.style.borderColor     = ds.category === 'valid' ? '#BBF7D0' : ds.category === 'invalid' ? '#FCA5A5' : '#FDE68A';
+
+  mp.style.display = 'block';
+  mp.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+// ── QA Suite ──────────────────────────────────────────────────
+function runQASuite() {
+  var panel = document.getElementById('qaPanel');
+  var results = document.getElementById('qaResults');
+  var summary = document.getElementById('qaSummary');
+  if (!panel || !results) return;
+
+  panel.style.display = 'block';
+  results.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:4px 0;">Running ' + NAMED_DATASETS.length + ' datasets…</div>';
+  summary.textContent = '';
+
+  setTimeout(function() {
+    var pass = 0, fail = 0, rows = '';
+
+    NAMED_DATASETS.forEach(function(ds, i) {
+      var tasks  = normaliseTasks({ tasks: ds.tasks });
+      var result = null;
+      var checks = [];
+      var allOk  = true;
+
+      try {
+        result = runCPEngine(tasks, null, { cpmPercentile:0.80, stochastic:true, stochasticN:500 });
+      } catch(e) {
+        checks.push('ENGINE THREW: ' + e.message);
+        allOk = false;
+      }
+
+      if (result) {
+        var qa   = ds.qa;
+        var det  = result.deterministic;
+        var stch = result.stochastic;
+
+        // status check
+        if (qa.status && result.status !== qa.status) {
+          checks.push('status=' + result.status + ' (expected ' + qa.status + ')'); allOk = false;
+        } else if (qa.status) {
+          checks.push('status=' + result.status + ' ✓');
+        }
+
+        // error code
+        if (qa.errorCode && result.code !== qa.errorCode) {
+          checks.push('code=' + (result.code||'?') + ' (expected ' + qa.errorCode + ')'); allOk = false;
+        }
+
+        // cycles
+        if (qa.cyclesGt0 != null) {
+          var nc = (result.cycles||[]).length;
+          if ((nc > 0) !== qa.cyclesGt0) { checks.push('cycles=' + nc + ' (expected >0: ' + qa.cyclesGt0 + ')'); allOk = false; }
+          else { checks.push('cycles=' + nc + ' ✓'); }
+        }
+
+        if (result.status === 'ok' && det) {
+          var cp   = det.criticalPath || [];
+          var gm   = det.graphMetrics || {};
+          var orph = (det.orphanGroups||[]).filter(function(g){ return g.length > 0; });
+          var vErr = det.validationErrors || [];
+
+          // CP length
+          if (qa.cpLen != null && cp.length !== qa.cpLen) {
+            checks.push('cpLen=' + cp.length + ' (expected ' + qa.cpLen + ')'); allOk = false;
+          } else if (qa.cpLen != null) {
+            checks.push('cpLen=' + cp.length + ' ✓');
+          }
+
+          // CP includes
+          if (qa.cpIncludes) {
+            var found = cp.indexOf(qa.cpIncludes) >= 0;
+            if (!found) { checks.push('"' + qa.cpIncludes + '" NOT on CP (got: ' + cp.join(',') + ')'); allOk = false; }
+            else { checks.push('"' + qa.cpIncludes + '" on CP ✓'); }
+          }
+
+          // convCount
+          if (qa.convCount != null && gm.convergenceCount !== qa.convCount) {
+            checks.push('convCount=' + gm.convergenceCount + ' (expected ' + qa.convCount + ')'); allOk = false;
+          } else if (qa.convCount != null) {
+            checks.push('convCount=' + gm.convergenceCount + ' ✓');
+          }
+
+          // orphans
+          if (qa.orphanGroupsEmpty === true && orph.length > 0) {
+            checks.push('unexpected orphans: ' + orph.map(function(g){return g.join(',');}).join('; ')); allOk = false;
+          } else if (qa.orphanGroupsEmpty === true) {
+            checks.push('no orphans ✓');
+          }
+          if (qa.hasOrphans === true && orph.length === 0) {
+            checks.push('expected orphans, found none'); allOk = false;
+          } else if (qa.hasOrphans === true) {
+            checks.push('orphans present ✓: ' + orph.map(function(g){return g.join(',');}).join('; '));
+          }
+
+          // validation errors
+          if (qa.noValidationErrors === true && vErr.length > 0) {
+            checks.push('unexpected validationErrors: ' + vErr.map(function(e){return e.code;}).join(',')); allOk = false;
+          } else if (qa.noValidationErrors === true) {
+            checks.push('no validationErrors ✓');
+          }
+          if (qa.hasValidationError) {
+            var found2 = vErr.some(function(e){ return e.code === qa.hasValidationError; });
+            if (!found2) { checks.push('expected ' + qa.hasValidationError + ' in validationErrors (got: ' + vErr.map(function(e){return e.code;}).join(',') + ')'); allOk = false; }
+            else { checks.push(qa.hasValidationError + ' in validationErrors ✓'); }
+          }
+
+          // O>M violation (client-side check)
+          if (qa.ompViolation === true) {
+            var hasViolation = ds.tasks.some(function(t){ return t.O > t.M || t.M > t.P; });
+            if (!hasViolation) { checks.push('expected O>M violation in task definitions'); allOk = false; }
+            else { checks.push('O>M violation confirmed ✓'); }
+          }
+
+          // stochastic P50 > deterministic (for merge-bias test)
+          if (qa.stochGtDet === true && stch && stch.status === 'ok' && stch.sCurve) {
+            var stochP50 = invertAtProb(stch.sCurve, 0.50);
+            var detDur   = det.projectDuration;
+            if (stochP50 <= detDur) {
+              checks.push('stoch P50=' + fmtDays(stochP50) + ' NOT > det=' + fmtDays(detDur) + ' (merge bias not observed)'); allOk = false;
+            } else {
+              checks.push('stoch P50=' + fmtDays(stochP50) + ' > det=' + fmtDays(detDur) + ' ✓ (merge bias confirmed)');
+            }
+          }
+
+          // health grade low (D or F)
+          if (qa.healthGradeLow === true && result.healthScore) {
+            var grade = result.healthScore.grade;
+            if (grade !== 'D' && grade !== 'F') {
+              checks.push('health grade=' + grade + ' (expected D or F)'); allOk = false;
+            } else {
+              checks.push('health grade=' + grade + ' ✓ (fragile schedule confirmed)');
+            }
+          }
+        }
+      }
+
+      if (allOk) pass++; else fail++;
+
+      rows += '<div class="qa-row">' +
+        '<span class="qa-num">' + (i+1) + '</span>' +
+        '<span class="qa-ds-name">' + ds.icon + ' ' + esc(ds.label) + '</span>' +
+        '<span class="qa-status ' + (allOk ? 'qa-pass' : 'qa-fail') + '">' + (allOk ? 'PASS' : 'FAIL') + '</span>' +
+        '<span class="qa-detail">' + esc(checks.join(' · ')) + '</span>' +
+        '<span class="qa-load-link" onclick="loadNamedDataset(\'' + ds.id + '\')" title="Load this dataset">Load →</span>' +
+        '</div>';
+    });
+
+    results.innerHTML = rows;
+    summary.textContent = pass + '/' + (pass+fail) + ' passed' + (fail > 0 ? ' · ' + fail + ' failed' : ' ✓');
+    summary.style.color = fail === 0 ? 'var(--safe)' : 'var(--crit)';
+    panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }, 20);
+}
+
+// ── Example data ─────────────────────────────────────────────
+var EXAMPLE_TASKS = [
+  { id:'requirements',  task:'Requirements',  O:3,  M:5,  P:8  },
+  { id:'design',        task:'Design',        O:4,  M:7,  P:12, predecessors:'requirements',              phase:'Discovery' },
+  { id:'development',   task:'Development',   O:10, M:16, P:25, predecessors:'design',      resource:'Dev Team', phase:'Build', riskSignals:['vendor-dependency','single-resource'] },
+  { id:'testing',       task:'Testing',       O:4,  M:6,  P:10, predecessors:'development', resource:'QA Team',  phase:'Build' },
+  { id:'documentation', task:'Documentation', O:2,  M:4,  P:6,  predecessors:'design',      resource:'Dev Team', phase:'Build' },
+  { id:'deployment',    task:'Deployment',    O:1,  M:2,  P:4,  predecessors:'testing,documentation',              phase:'Release', riskSignals:['regulatory-approval'] }
+];
+
+function loadExampleData() {
+  // Delegate to the full_project named dataset so it gets the math panel too
+  var ds = NAMED_DATASETS.find(function(d){ return d.id === 'full_project'; });
+  if (ds) {
+    ds.tasks.forEach(function(e){ addTaskRow(e); });
+  } else {
+    clearForm();
+    EXAMPLE_TASKS.forEach(function(e){ addTaskRow(e); });
+  }
+}
+
+function clearAndShowForm() {
+  document.getElementById('resultsSection').style.display = 'none';
+  var banner = document.getElementById('exampleBanner');
+  if (banner) banner.style.display = 'none';
+  clearForm();
+  document.getElementById('inputSection').style.display = '';
+  window.scrollTo(0, 0);
+}
+
+function clearForm() {
+  document.getElementById('taskRows').innerHTML = '';
+  var er = document.getElementById('enrichRows');
+  if (er) er.innerHTML = '';
+  _formTaskCount = 0;
+}
+
+// ── CSV / Excel / Google Sheets import ───────────────────────
+function toggleGsImport() {
+  var row = document.getElementById('gsImportRow');
+  if (row) row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+}
+
+function importFromFile(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  var ext = file.name.split('.').pop().toLowerCase();
+  setImportStatus('Reading ' + file.name + '…');
+
+  if (ext === 'xlsx' || ext === 'xls') {
+    _loadXlsx(function() {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          var wb = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
+          var ws = wb.Sheets[wb.SheetNames[0]];
+          var csv = XLSX.utils.sheet_to_csv(ws);
+          _applyCSV(csv, file.name);
+        } catch(err) {
+          setImportStatus('Could not parse Excel file: ' + err.message, true);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  } else {
+    var reader = new FileReader();
+    reader.onload = function(e) { _applyCSV(e.target.result, file.name); };
+    reader.readAsText(file);
+  }
+  input.value = '';
+}
+
+function importFromGoogleSheets() {
+  var raw = (document.getElementById('gsUrlInput') || {}).value || '';
+  raw = raw.trim();
+  if (!raw) return;
+
+  // Convert share URL → CSV export URL
+  var csvUrl = raw;
+  var m = raw.match(/\/spreadsheets\/d\/([^/]+)/);
+  if (m) {
+    var gid = '';
+    var gidM = raw.match(/[?&]gid=(\d+)/);
+    if (gidM) gid = '&gid=' + gidM[1];
+    csvUrl = 'https://docs.google.com/spreadsheets/d/' + m[1] + '/export?format=csv' + gid;
+  }
+
+  setImportStatus('Fetching from Google Sheets…');
+  fetch(csvUrl)
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(function(csv) { _applyCSV(csv, 'Google Sheets'); })
+    .catch(function(err) {
+      setImportStatus('Could not fetch: ' + err.message + '. Make sure the sheet is published to the web (File → Share → Publish to web → CSV).', true);
+    });
+}
+
+function _loadXlsx(cb) {
+  if (window.XLSX) { cb(); return; }
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+  s.onload = cb;
+  s.onerror = function() { setImportStatus('Could not load Excel parser library.', true); };
+  document.head.appendChild(s);
+}
+
+function _applyCSV(csv, sourceName) {
+  var rows = csv.trim().split(/\r?\n/).map(function(l){ return l.split(',').map(function(c){ return c.trim().replace(/^["']|["']$/g,''); }); });
+  if (rows.length < 2) { setImportStatus('CSV has no data rows.', true); return; }
+
+  // Detect header row
+  var headers = rows[0].map(function(h){ return h.toLowerCase(); });
+  var colIdx = {
+    task:        headers.findIndex(function(h){ return /task|name/i.test(h); }),
+    O:           headers.findIndex(function(h){ return /^o$|optim/i.test(h); }),
+    M:           headers.findIndex(function(h){ return /^m$|likely|most/i.test(h); }),
+    P:           headers.findIndex(function(h){ return /^p$|pessim/i.test(h); }),
+    pred:        headers.findIndex(function(h){ return /pred|depend|prev/i.test(h); }),
+    resource:    headers.findIndex(function(h){ return /resource|team|owner/i.test(h); }),
+    phase:       headers.findIndex(function(h){ return /phase|stage/i.test(h); }),
+    riskSignals: headers.findIndex(function(h){ return /risk|signal|tag/i.test(h); })
+  };
+
+  var hasHeader = colIdx.task >= 0 || colIdx.O >= 0;
+  var dataRows = hasHeader ? rows.slice(1) : rows;
+  if (!hasHeader) {
+    // Assume: task,O,M,P,predecessors,...
+    colIdx = { task:0, O:1, M:2, P:3, pred:4, resource:5, phase:6, riskSignals:7 };
+  }
+
+  var parsed = [];
+  var warnings = [];
+  dataRows.forEach(function(r, i) {
+    if (r.every(function(c){ return !c; })) return;
+    var task = r[colIdx.task] || ('Task ' + (i+1));
+    var O = parseFloat(r[colIdx.O]);
+    var M = parseFloat(r[colIdx.M]);
+    var P = parseFloat(r[colIdx.P]);
+    var ok = Number.isFinite(O) && Number.isFinite(M) && Number.isFinite(P) && O <= M && M <= P;
+    if (!ok) { warnings.push({ row: i+2, task: task, issue: !Number.isFinite(O) ? 'Missing O/M/P' : 'O ≤ M ≤ P violated' }); return; }
+    var entry = { task:task, O:O, M:M, P:P };
+    if (colIdx.pred >= 0 && r[colIdx.pred]) entry.predecessors = r[colIdx.pred];
+    if (colIdx.resource >= 0 && r[colIdx.resource]) entry.resource = r[colIdx.resource];
+    if (colIdx.phase >= 0 && r[colIdx.phase]) entry.phase = r[colIdx.phase];
+    if (colIdx.riskSignals >= 0 && r[colIdx.riskSignals]) entry.riskSignals = r[colIdx.riskSignals];
+    parsed.push(entry);
+  });
+
+  if (parsed.length === 0) { setImportStatus('No valid rows found in ' + sourceName + '.', true); return; }
+
+  // Show preview before applying
+  var previewHtml = '<table><thead><tr><th>Task</th><th>O</th><th>M</th><th>P</th><th>Predecessors</th><th>Status</th></tr></thead><tbody>';
+  parsed.slice(0,10).forEach(function(t){
+    previewHtml += '<tr class="row-ok"><td>' + esc(t.task) + '</td><td>' + t.O + '</td><td>' + t.M + '</td><td>' + t.P + '</td><td>' + esc(t.predecessors||'') + '</td><td style="color:var(--safe);">✓</td></tr>';
+  });
+  warnings.slice(0,5).forEach(function(w){
+    previewHtml += '<tr class="row-err"><td colspan="5">' + esc(w.task) + ' (row ' + w.row + '): ' + w.issue + '</td><td>✕</td></tr>';
+  });
+  if (parsed.length > 10) previewHtml += '<tr><td colspan="6" style="color:var(--muted);font-style:italic;">… and ' + (parsed.length-10) + ' more tasks</td></tr>';
+  previewHtml += '</tbody></table>';
+  previewHtml += '<div style="margin-top:8px;display:flex;gap:8px;">' +
+    '<button class="import-btn primary" onclick="_confirmImport()">Apply ' + parsed.length + ' tasks</button>' +
+    '<button class="import-btn" onclick="_cancelImport()">Cancel</button></div>';
+
+  window._pendingImport = parsed;
+  setImportStatus('Found ' + parsed.length + ' valid task' + (parsed.length !== 1 ? 's' : '') +
+    (warnings.length ? ' (' + warnings.length + ' rows skipped)' : '') + ' from ' + sourceName + ':');
+  var prev = document.getElementById('importPreview');
+  if (prev) { prev.innerHTML = previewHtml; prev.style.display = ''; }
+}
+
+function _confirmImport() {
+  var tasks = window._pendingImport;
+  if (!tasks) return;
+  clearForm();
+  tasks.forEach(function(t){ addTaskRow(t); });
+  window._pendingImport = null;
+  var prev = document.getElementById('importPreview');
+  if (prev) prev.style.display = 'none';
+  setImportStatus('');
+}
+
+function _cancelImport() {
+  window._pendingImport = null;
+  var prev = document.getElementById('importPreview');
+  if (prev) prev.style.display = 'none';
+  setImportStatus('');
+}
+
+function setImportStatus(msg, isError) {
+  var el = document.getElementById('importStatus');
+  if (!el) return;
+  if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
+  el.textContent = msg;
+  el.style.color = isError ? 'var(--crit)' : 'var(--muted)';
+  el.style.display = '';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Boot — runs after all synchronous scripts have executed
+// ═══════════════════════════════════════════════════════════════
+function _cpmBoot() {
+  var bootstrap = window._cpmBootstrap;
+  var session   = window._cpmSession;
+
+  // Surface decode errors on-screen
+  if (window._cpmDecodeError && !bootstrap && !session) {
+    showError('Could not decode ?data= parameter: ' + window._cpmDecodeError);
+    document.getElementById('inputSection').style.display = '';
+    loadExampleData();
+    return;
+  }
+
+  if (bootstrap) {
+    var tasks = normaliseTasks(bootstrap);
+    if (tasks.length === 0) {
+      showError('No valid tasks found in URL data parameter.');
+      document.getElementById('inputSection').style.display = '';
+      loadExampleData();
+      return;
+    }
+    _cpmTasks = tasks;
+    computeAndRender(tasks, null);
+    if (session) startSessionPoll(session);
+
+  } else if (session) {
+    setStatus('Waiting for session data…', 'computing');
+    document.getElementById('statusBadge').style.display = '';
+    startSessionPoll(session);
+
+  } else {
+    // No params — auto-run the Full Project example so the page is immediately useful
+    var banner = document.getElementById('exampleBanner');
+    if (banner) { banner.style.display = 'flex'; }
+    loadNamedDataset('full_project');
+  }
+}
+
+// Use DOMContentLoaded — all synchronous scripts (Chart.js, Vis.js, CPM engine)
+// are guaranteed parsed and executed before this fires, unlike window.load
+// which can fire before deferred scripts complete.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _cpmBoot);
+} else {
+  _cpmBoot(); // already past DOMContentLoaded (e.g. script injected late)
+}
+</script>
+</body>
+</html>
