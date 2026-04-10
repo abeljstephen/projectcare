@@ -13058,6 +13058,19 @@ window.TM = {
       var pertG = computeBetaPertDist_(_s.O, _s.M, _s.P);
       _s.trianglePdf = triG.pdf;  _s.triangleCdf = triG.cdf;
       _s.betaPertPdf = pertG.pdf; _s.betaPertCdf = pertG.cdf;
+
+      // ── Auto-set target to P50 (median) of this group's distribution ──────
+      // Every time the group composition changes (task added/removed) the target
+      // and probability reset to the natural centre of the new distribution so
+      // the user sees a meaningful baseline before they manually adjust sliders.
+      // P50 from the aggregate MC CDF is the most representative default;
+      // fall back to PERT mean if the CDF isn't populated yet.
+      var _p50Default = (agg.cdfPoints && agg.cdfPoints.length && typeof interpX === 'function')
+        ? interpX(agg.cdfPoints, 0.50)
+        : agg.groupPert;
+      _s.target     = _p50Default != null ? _p50Default : agg.groupPert;
+      _s.targetProb = 0.50;  // P50 → 50% completion probability by definition
+
       // Default curve visibility for Group mode
       if (!_s.progress) _s.progress = {};
       _s.progress.triOn  = true;   // show Triangle from groupO/M/P
@@ -13103,9 +13116,9 @@ window.TM = {
     }
     if (typeof window.pselUpdate === 'function') window.pselUpdate();
 
-    // Update target slider range to [groupO, groupP] — the correct span for Group mode.
-    // This is mathematically sound: groupO (sum of best cases) → P≈0%,
-    // groupP (sum of worst cases) → P≈100%, since Monte Carlo samples are bounded by [O,P] per task.
+    // Update target slider range to [groupO, groupP] — the span for this group's distribution.
+    // Target has already been set to P50 above; slider will position itself there.
+    // User can drag to explore any value or switch to probability mode.
     if (typeof window.updateTargetSlider === 'function') window.updateTargetSlider();
 
     // Refresh target display, KPI chips, charts, description, and recommendation
