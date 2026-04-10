@@ -7212,10 +7212,16 @@
             });
             window.TM.initialized = true;
             window.TM._lastAggResult = null; // clear stale aggregate from previous demo
+            // Mark as clean so "unsaved" badge doesn't appear for demo-loaded data
+            if (typeof window.TM._clearDirty === 'function') window.TM._clearDirty();
             if (typeof window.TM._updateBar === 'function') window.TM._updateBar();
-            // If already in Group mode, refresh the group picker to show the new tasks
-            if (window.TM.mode === 'aggregate' && typeof window.TM._renderGroupPicker === 'function') {
-              window.TM._renderGroupPicker();
+            // If already in Group mode, refresh picker and auto-run aggregate
+            if (window.TM.mode === 'aggregate') {
+              if (typeof window.TM._renderGroupPicker === 'function') window.TM._renderGroupPicker();
+              // Defer saveAndRun so the group picker renders first
+              setTimeout(function() {
+                if (typeof window.TM.saveAndRun === 'function') window.TM.saveAndRun();
+              }, 50);
             }
           }
 
@@ -12904,26 +12910,60 @@ window.TM = {
         var engineResult = pmcEstimatorAPI([aggTaskParam]);
         var item = Array.isArray(engineResult && engineResult.results) ? engineResult.results[0] : engineResult;
         if (!item) throw new Error('No engine result');
-        // Build pseudo-aggregate payload and call _showAggregateResult
-        function pickArr(obj, paths) {
-          for (var i=0;i<paths.length;i++) {
-            var v = paths[i].split('.').reduce(function(o,k){ return (o&&k in o)?o[k]:null; }, obj);
-            if (v) return v;
-          }
-          return [];
+
+        // Path-safe getter matching the single-task engine callback
+        function _gp(obj, path) {
+          var parts = path.split('.'), cur = obj;
+          for (var i=0;i<parts.length;i++) { if (!cur || !(parts[i] in cur)) return null; cur = cur[parts[i]]; }
+          return cur;
         }
-        var cdfPts = pickArr(item, ['baselineReshapedPoints.cdfPoints','baseline.cdf']);
-        var pdfPts = pickArr(item, ['baselineReshapedPoints.pdfPoints','baseline.pdf']);
+        function _pick(obj, paths) {
+          for (var i=0;i<paths.length;i++) { var v=_gp(obj,paths[i]); if (v!=null) return v; }
+          return null;
+        }
+        // Normalise raw point arrays (same logic as single-task path)
+        function _normPts(arr, isPdf) {
+          if (!Array.isArray(arr)) return [];
+          var out=[];
+          for (var i=0;i<arr.length;i++) { var p=arr[i]||{}; var x=Number(p.x),y=Number(p.y); if(isFinite(x)&&isFinite(y)) out.push({x:x,y:y}); }
+          out.sort(function(a,b){return a.x-b.x;});
+          if (isPdf && out.length>=2) {
+            if (out[0].y!==0) out.unshift({x:out[0].x-0.01,y:0});
+            if (out[out.length-1].y!==0) out.push({x:out[out.length-1].x+0.01,y:0});
+          }
+          return out;
+        }
+        // Interpolate percentile from CDF
+        function _interpX(cdf, p) {
+          if (!cdf||!cdf.length) return null;
+          var s=cdf.slice().sort(function(a,b){return a.x-b.x;});
+          for (var i=1;i<s.length;i++) { if (p<=s[i].y) { var r=(p-s[i-1].y)/(s[i].y-s[i-1].y||1e-9); return s[i-1].x+r*(s[i].x-s[i-1].x); } }
+          return s[s.length-1].x;
+        }
+        function _interpY(cdf, x) {
+          if (!cdf||!cdf.length) return null;
+          var s=cdf.slice().sort(function(a,b){return a.x-b.x;});
+          for (var i=1;i<s.length;i++) { if (x<=s[i].x) { var r=(x-s[i-1].x)/(s[i].x-s[i-1].x||1e-9); return s[i-1].y+r*(s[i].y-s[i-1].y); } }
+          return s[s.length-1].y;
+        }
+
+        var baseCdfRaw = _pick(item, ['targetProbabilityOriginalCdf.value','baselineReshapedPoints.cdfPoints','baseline.cdf','baseline.points.cdf']);
+        var basePdfRaw = _pick(item, ['targetProbabilityOriginalPdf.value','baselineReshapedPoints.pdfPoints','baseline.pdf','baseline.points.pdf']);
+        var cdfPts = _normPts(baseCdfRaw, false);
+        var pdfPts = _normPts(basePdfRaw, true);
         var pertMean = (sumO + 4*sumM + sumP) / 6;
+        var p50 = _interpX(cdfPts, 0.50);
+        var p80 = _interpX(cdfPts, 0.80);
+        var p90 = _interpX(cdfPts, 0.90);
         var aggPayload = {
           cdfPoints:    cdfPts,
           pdfPoints:    pdfPts,
           mean:         pertMean,
-          probAtTarget: (tau != null && cdfPts.length) ? (function(cdf,x){
-            var sorted=cdf.slice().sort(function(a,b){return a.x-b.x;});
-            for(var i2=1;i2<sorted.length;i2++){ if(x<=sorted[i2].x){ var r=(x-sorted[i2-1].x)/(sorted[i2].x-sorted[i2-1].x||1); return sorted[i2-1].y+r*(sorted[i2].y-sorted[i2-1].y); } }
-            return sorted[sorted.length-1].y;
-          })(cdfPts, tau) : null,
+          p50:          p50,
+          p80:          p80,
+          p90:          p90,
+          taskCount:    activeTasks.length,
+          probAtTarget: (tau != null && cdfPts.length) ? _interpY(cdfPts, tau) : null,
           groupO: sumO, groupM: sumM, groupP: sumP, groupPert: pertMean
         };
         self._lastAggResult = aggPayload;
@@ -12932,7 +12972,8 @@ window.TM = {
         self._updateBar();
         self._showAggregateResult(aggPayload);
         if (typeof window.setStatus === 'function') window.setStatus('Ready');
-        if (typeof window._sacoSetActiveSource === 'function') window._sacoSetActiveSource('user');
+        // Do NOT override active source here — source is set when tasks are loaded
+        // (demo source stays as 'demo:x'; user source set in single mode or explicit user save)
       } catch(e) {
         alert('Aggregate computation failed: ' + e.message);
       }
