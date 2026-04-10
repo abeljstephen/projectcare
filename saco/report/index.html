@@ -371,14 +371,25 @@
 
     root.innerHTML = html;
 
-    // Wire up nav links with session token
+    // Wire up nav links
     var sess = payload.session || getParam('session');
+    var pl = document.getElementById('plot-link');
+    var cl = document.getElementById('cpm-link');
     if (sess) {
-      var pl = document.getElementById('plot-link');
       if (pl) pl.href = '/projectcare/saco/plot/?session=' + encodeURIComponent(sess);
-      var cl = document.getElementById('cpm-link');
       if (cl) cl.href = '/projectcare/cpm/plot/?session=' + encodeURIComponent(sess);
     }
+
+    // Always encode task OMP data into the CPM link so clicking it pre-loads the tasks
+    try {
+      var cpmPayload = { tasks: tasks.map(function(t) {
+        return { task: t.task || 'Task', O: t.O || 1, M: t.M || 2, P: t.P || 3, predecessors: [] };
+      })};
+      var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(cpmPayload))));
+      var cpmHref = '/projectcare/cpm/plot/?data=' + b64;
+      if (sess) cpmHref += '&session=' + encodeURIComponent(sess);
+      if (cl) cl.href = cpmHref;
+    } catch(e) { /* leave href as-is */ }
   }
 
   // ── Demo payloads ──────────────────────────────────────────────

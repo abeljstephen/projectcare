@@ -8951,10 +8951,51 @@
       mathExplain:'A three-point estimate requires O ≤ M ≤ P (strictly).\n\nThis estimate has O=20 > M=10 > P=8 — all constraints violated.\n\nConsequences:\n  P − O = 8 − 20 = −12  (negative denominator)\n  σ² = (P−O)²/36 = 144/36 = 4  (accidentally positive — misleading!)\n  α  = 6·(μ−O)/(P−O):  μ=(20+40+8)/6=11.33,  α=6·(11.33−20)/(−12) = +4.33\n  β  = 6·(P−μ)/(P−O):  β=6·(8−11.33)/(−12) = +1.67\n  Both positive — but the distribution is REFLECTED (runs right-to-left)!\n\nThe PERT CDF is mathematically invalid. SACO will error or produce garbage.\nAlways validate O ≤ M ≤ P before submitting to the engine.',
       O:20, M:10, P:8, task:'Invalid Estimate' },
     { id:'portfolio', label:'Full Project Portfolio', category:'multi', icon:'🏗',
-      tagline:'All 6 tasks loaded as a portfolio — same data as the CPM example',
+      tagline:'6 tasks — Requirements → Design → Dev → Test → Docs → Deploy',
       mathProp:'Portfolio mode · Independent PERT distributions · No CPM correlation',
       mathExplain:'Loads all 6 tasks from the Full Project example as a SACO portfolio.\n\nEach task is analysed independently with its own PERT distribution.\nThe SACO Plot shows one task at a time (use the task selector dropdown).\n\nFor critical path analysis and inter-task correlation,\nuse the Critical Path page: abeljstephen.github.io/projectcare/cpm/plot/',
-      isMulti:true }
+      tasks:[
+        { task:'Requirements',  optimistic:3,  mostLikely:5,  pessimistic:8  },
+        { task:'Design',        optimistic:4,  mostLikely:7,  pessimistic:12 },
+        { task:'Development',   optimistic:10, mostLikely:16, pessimistic:25 },
+        { task:'Testing',       optimistic:4,  mostLikely:6,  pessimistic:10 },
+        { task:'Documentation', optimistic:2,  mostLikely:4,  pessimistic:6  },
+        { task:'Deployment',    optimistic:1,  mostLikely:2,  pessimistic:4  }
+      ]},
+    { id:'software_team', label:'Software Team Sprint', category:'multi', icon:'🚀',
+      tagline:'5 tasks — Backlog → Design → Build → QA → Release',
+      mathProp:'Classic sprint pattern · right-skewed build/QA · fast handoffs',
+      mathExplain:'A typical 2-week software sprint with realistic Hofstadter skew on Build and QA.\n\nEach task is analysed independently in SACO Plot.\nUse the task selector dropdown to switch between tasks.\n\nFor critical path and dependency analysis, open the CPM Diagram.',
+      tasks:[
+        { task:'Backlog Grooming', optimistic:1, mostLikely:2,  pessimistic:4  },
+        { task:'Design & Spec',    optimistic:2, mostLikely:4,  pessimistic:8  },
+        { task:'Build',            optimistic:5, mostLikely:10, pessimistic:22 },
+        { task:'QA & Testing',     optimistic:3, mostLikely:6,  pessimistic:14 },
+        { task:'Release & Deploy', optimistic:1, mostLikely:2,  pessimistic:5  }
+      ]},
+    { id:'construction', label:'Construction Project', category:'multi', icon:'🏗',
+      tagline:'6 tasks — Site Prep → Foundation → Structure → MEP → Fit-out → Commissioning',
+      mathProp:'Multi-phase construction · right-skewed at each phase · high uncertainty mid-project',
+      mathExplain:'A six-phase construction project. Each phase has characteristic right-skew due to contractor delays, supply chain issues, and weather.\n\nUse the task selector to compare phases. Group mode shows the combined portfolio duration.',
+      tasks:[
+        { task:'Site Preparation',  optimistic:3,  mostLikely:5,  pessimistic:9  },
+        { task:'Foundation',        optimistic:8,  mostLikely:14, pessimistic:22 },
+        { task:'Structure',         optimistic:12, mostLikely:20, pessimistic:35 },
+        { task:'MEP Rough-in',      optimistic:6,  mostLikely:10, pessimistic:18 },
+        { task:'Interior Fit-out',  optimistic:8,  mostLikely:14, pessimistic:24 },
+        { task:'Commissioning',     optimistic:2,  mostLikely:4,  pessimistic:8  }
+      ]},
+    { id:'rd_pipeline', label:'R&D / Product Launch', category:'multi', icon:'🔬',
+      tagline:'5 tasks — Discovery → Prototype → Validation → Regulatory → Launch',
+      mathProp:'Extreme right-skew · Regulatory long-tail · High uncertainty throughout',
+      mathExplain:'An R&D-to-launch pipeline. Discovery and Prototype phases have very wide ranges. Regulatory Clearance is a classic extreme-skew estimate (government/legal timelines).\n\nGroup mode shows the aggregate portfolio risk. Each task has its own PERT distribution.',
+      tasks:[
+        { task:'Research & Discovery',  optimistic:4,  mostLikely:12, pessimistic:40 },
+        { task:'Prototype Build',        optimistic:6,  mostLikely:14, pessimistic:30 },
+        { task:'Validation Testing',     optimistic:5,  mostLikely:10, pessimistic:25 },
+        { task:'Regulatory Clearance',   optimistic:30, mostLikely:60, pessimistic:180},
+        { task:'Scale-up & Launch',      optimistic:8,  mostLikely:16, pessimistic:32 }
+      ]}
   ];
 
   function openSacoDatasetPicker() {
@@ -8963,10 +9004,10 @@
     var body = document.getElementById('sacoPickerBody');
     var html = '';
     var cats = [
-      { key:'valid',   label:'Valid Estimates — different distribution shapes' },
-      { key:'warn',    label:'Edge Cases' },
-      { key:'invalid', label:'Invalid Inputs' },
-      { key:'multi',   label:'Multi-Task Portfolio' }
+      { key:'multi',   label:'Multi-Task Portfolios — Group mode &amp; task selector work here' },
+      { key:'valid',   label:'Single-Task — valid distribution shapes' },
+      { key:'warn',    label:'Single-Task — edge cases' },
+      { key:'invalid', label:'Single-Task — invalid inputs (engine error demos)' }
     ];
     cats.forEach(function(cat) {
       var ds = SACO_DATASETS.filter(function(d){ return d.category === cat.key; });
@@ -9008,16 +9049,24 @@
       toast.style.display = 'block';
     }
 
+    // Multi-task demos: inject all tasks directly
+    if (ds.tasks && ds.tasks.length > 0) {
+      _sacoSetActiveSource('demo:' + id);
+      _pmcInjectTasks(ds.tasks, 'demo:' + id);
+      return;
+    }
+
+    // Legacy isMulti (fallback)
     if (ds.isMulti) {
       _sacoSetActiveSource('demo:' + id);
       pmcLoadExample();
       return;
     }
 
-    // O>M validation — show in form but don't run
+    // Single-task demos
     var ompErr = ds.O > ds.M || ds.M > ds.P;
 
-    // Always fill the no-data form fields so the user can see/edit the values
+    // Fill the no-data form fields so the user can see/edit the values
     var taskEl = document.getElementById('nd_task');
     var oEl    = document.getElementById('nd_O');
     var mEl    = document.getElementById('nd_M');
@@ -9037,7 +9086,7 @@
       return; // do not auto-run invalid estimates
     }
 
-    // Track active demo then inject directly — avoids form-read race condition
+    // Inject single task
     _sacoSetActiveSource('demo:' + id);
     _pmcInjectTasks([{ task: ds.task || ds.label, optimistic: ds.O, mostLikely: ds.M, pessimistic: ds.P }], 'demo:' + id);
   }
@@ -9120,10 +9169,10 @@
 
   /* ── SACO import helpers ─────────────────────────────── */
 
-  /* Load example portfolio (same 6-task project used on CPM page) */
+  /* Load example portfolio on cold-open — uses the portfolio entry from SACO_DATASETS */
   function pmcLoadExample() {
-    if (typeof _sacoSetActiveSource === 'function') { _sacoSetActiveSource('demo:portfolio'); }
-    var example = [
+    var ds = (typeof SACO_DATASETS !== 'undefined') && SACO_DATASETS.find(function(d){ return d.id === 'portfolio'; });
+    var example = (ds && ds.tasks) ? ds.tasks : [
       { task:'Requirements',  optimistic:3,  mostLikely:5,  pessimistic:8  },
       { task:'Design',        optimistic:4,  mostLikely:7,  pessimistic:12 },
       { task:'Development',   optimistic:10, mostLikely:16, pessimistic:25 },
@@ -12817,6 +12866,7 @@ window.TM = {
         self._updateBar();
         self._showAggregateResult(aggPayload);
         if (typeof window.setStatus === 'function') window.setStatus('Ready');
+        if (typeof window._sacoSetActiveSource === 'function') window._sacoSetActiveSource('user');
       } catch(e) {
         alert('Aggregate computation failed: ' + e.message);
       }
@@ -12827,6 +12877,8 @@ window.TM = {
     self._clearDirty();
     self._syncToLegacy();
     self._updateBar();
+    // Mark as user data — they just saved their own tasks
+    if (typeof window._sacoSetActiveSource === 'function') window._sacoSetActiveSource('user');
     if (typeof window.onTaskChange === 'function') window.onTaskChange();
   },
 
