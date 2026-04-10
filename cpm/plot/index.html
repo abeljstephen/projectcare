@@ -360,6 +360,7 @@
       <button onclick="clearAndShowForm()" style="background:none;border:none;font-size:11px;font-weight:700;color:#1D4ED8;cursor:pointer;padding:0;text-decoration:underline;">Enter your own →</button>
     </div>
     <a href="../../saco/plot/" class="back-link">← SACO Plot</a>
+    <a href="../../saco/report/" class="back-link">📋 Report</a>
   </div>
 
   <!-- Input form (no data param) -->
@@ -662,9 +663,9 @@ function pct(v) {
   if (v == null || !Number.isFinite(v)) return '—';
   return (v * 100).toFixed(0) + '%';
 }
-function showError(msg) {
+function showError(msg, isHtml) {
   var el = document.getElementById('errorPanel');
-  el.textContent = msg;
+  if (isHtml) { el.innerHTML = msg; } else { el.textContent = msg; }
   el.style.display = 'block';
 }
 function hideError() {
@@ -841,7 +842,38 @@ function computeAndRender(tasks, sacoResults, sliderContext) {
       hideError();
 
       if (result.status === 'error') {
-        showError('CPM error: ' + (result.message || 'unknown'));
+        var errHtml = '';
+        var cycles = result.cycles || [];
+        if (result.errorCode === 'CYCLES_DETECTED' || cycles.length > 0) {
+          errHtml += '<strong>&#9888; Directed Cycle Detected — Network is Not a Valid DAG</strong>';
+          errHtml += '<p style="margin:6px 0 4px;">A valid schedule must be a Directed Acyclic Graph (DAG). One or more tasks reference each other in a loop, making it impossible to compute a critical path.</p>';
+          if (cycles.length > 0) {
+            errHtml += '<div style="margin:8px 0 6px;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:#7F1D1D;">Cycle' + (cycles.length > 1 ? 's' : '') + ' found:</div>';
+            cycles.forEach(function(cyc, i) {
+              var chain = cyc.concat([cyc[0]]).map(function(id) {
+                var t = tasks.find(function(x){ return x.id === id || x.task === id; });
+                return esc((t && t.task) ? t.task : id);
+              }).join(' → ');
+              errHtml += '<div style="margin:4px 0;padding:5px 8px;background:#FEE2E2;border-radius:5px;font-family:monospace;font-size:11px;">' + chain + '</div>';
+            });
+          }
+          errHtml += '<div style="margin-top:10px;font-size:11px;color:#7F1D1D;"><strong>How to fix:</strong> Find the dependency that closes the loop and remove or reverse it. Each task in a cycle should have its predecessor list reviewed — look for a task that directly or indirectly depends on itself.</div>';
+        } else if (result.errorCode === 'SELF_REFERENCE') {
+          errHtml += '<strong>&#9888; Self-Reference Error</strong><p style="margin:6px 0 0;">One or more tasks list themselves as a predecessor. A task cannot depend on itself. Remove the self-reference from the predecessor list.</p>';
+        } else {
+          errHtml += '<strong>&#9888; Schedule Error</strong><p style="margin:6px 0 0;">' + esc(result.message || 'Unknown error') + '</p>';
+        }
+        // Show validation errors (missing predecessors, etc.) alongside
+        var ve = result.validationErrors || [];
+        if (ve.length > 0) {
+          errHtml += '<div style="margin-top:10px;border-top:1px solid #FCA5A5;padding-top:8px;">';
+          ve.forEach(function(e) {
+            var msg = (typeof e === 'string') ? e : (e.message || JSON.stringify(e));
+            errHtml += '<div style="margin:3px 0;font-size:11px;">&#8250; ' + esc(msg) + '</div>';
+          });
+          errHtml += '</div>';
+        }
+        showError(errHtml, true);
         setStatus('Error', 'error');
         document.getElementById('loadingOverlay').classList.remove('visible');
         return;
@@ -942,9 +974,22 @@ function renderGraphIntegrity(det, stoch) {
   var alerts = [];
   var gm = det.graphMetrics || {};
 
-  // Validation errors (unknown predecessors, self-references)
+  // Cycles (if engine surfaces them on det)
+  (det.cycles || []).forEach(function(cyc) {
+    var chain = cyc.concat([cyc[0]]).map(function(id) {
+      return (det.tasks[id] && det.tasks[id].name) ? esc(det.tasks[id].name) : esc(id);
+    }).join(' → ');
+    alerts.push({ cls:'alert-error', icon:'🔄', html:'<strong>Directed cycle:</strong> <code style="font-size:10px;">' + chain + '</code> — remove the dependency that closes this loop.' });
+  });
+
+  // Validation errors (missing predecessors, self-references)
   (det.validationErrors || []).forEach(function(e) {
-    alerts.push({ cls:'alert-error', icon:'✕', html:'<strong>Input error:</strong> ' + esc(e) });
+    var msg = (typeof e === 'string') ? e : (e.message || JSON.stringify(e));
+    var code = (typeof e === 'object' && e.code) ? e.code : null;
+    var icon = (code === 'SELF_REFERENCE') ? '↩' : (code === 'MISSING_PREDECESSOR') ? '?' : '✕';
+    var label = (code === 'SELF_REFERENCE') ? 'Self-reference' : (code === 'MISSING_PREDECESSOR') ? 'Missing predecessor' : 'Input error';
+    var taskId = (typeof e === 'object' && e.taskId) ? ' (task: <strong>' + esc(e.taskId) + '</strong>)' : '';
+    alerts.push({ cls:'alert-error', icon: icon, html: '<strong>' + label + '</strong>' + taskId + ': ' + esc(msg) });
   });
 
   // Orphan groups

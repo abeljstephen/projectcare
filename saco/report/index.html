@@ -110,7 +110,18 @@
       letter-spacing: 0.08em; color: #9CA3AF; margin-bottom: 0.75rem;
     }
     .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+    @media(min-width:640px){ .demo-grid { grid-template-columns: 1fr 1fr 1fr; } }
     @media(max-width:480px){ .demo-grid { grid-template-columns: 1fr; } }
+    .page-nav {
+      display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;
+      font-size: 0.75rem; margin-bottom: 1.25rem; padding: 0.5rem 0.75rem;
+      background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px;
+    }
+    .page-nav .pn-label { color: #9CA3AF; font-weight: 500; margin-right: 0.25rem; }
+    .page-nav a { color: #4B5563; text-decoration: none; padding: 0.2rem 0.5rem; border-radius: 5px; font-weight: 500; }
+    .page-nav a:hover { background: #E5E7EB; }
+    .page-nav a.active { background: #111827; color: #fff; }
+    .page-nav .pn-sep { color: #D1D5DB; }
     .demo-card {
       background: #fff; border: 1px solid #E5E7EB; border-radius: 10px;
       padding: 0.9rem 1rem; cursor: pointer; text-align: left;
@@ -139,6 +150,14 @@
 </head>
 <body>
 <div class="container">
+  <nav class="page-nav">
+    <span class="pn-label">ProjectCare:</span>
+    <a href="/projectcare/saco/plot/">📊 SACO Plot</a>
+    <span class="pn-sep">·</span>
+    <a href="/projectcare/saco/report/" class="active">📋 SACO Report</a>
+    <span class="pn-sep">·</span>
+    <a href="/projectcare/cpm/plot/">🔗 Critical Path</a>
+  </nav>
   <div class="header">
     <h1>ProjectCare by iCareNOW</h1>
     <div class="subtitle">SACO Probability-Based Estimation Report</div>
@@ -178,6 +197,36 @@
           <div class="demo-card-badge badge-edge">Edge case</div>
           <div class="demo-card-title">⚖️ Symmetric Estimate</div>
           <div class="demo-card-sub">M = (O+P)/2. Balanced Beta-PERT with equal optimistic/pessimistic tails. Rare in practice.</div>
+        </button>
+        <button class="demo-card" onclick="loadDemo('right_skewed')">
+          <div class="demo-card-badge badge-single">Single task</div>
+          <div class="demo-card-title">📈 Right-Skewed Estimate</div>
+          <div class="demo-card-sub">Mode near optimistic end, long pessimistic tail. Most common real-world pattern in software and procurement.</div>
+        </button>
+        <button class="demo-card" onclick="loadDemo('high_uncertainty')">
+          <div class="demo-card-badge badge-single">Single task</div>
+          <div class="demo-card-title">🌊 High Uncertainty</div>
+          <div class="demo-card-sub">CV > 46%. Extreme spread O=2, M=10, P=40. P90 is 6× P10. Typical for R&amp;D or novel technology.</div>
+        </button>
+        <button class="demo-card" onclick="loadDemo('near_certain')">
+          <div class="demo-card-badge badge-edge">Edge case</div>
+          <div class="demo-card-title">🎯 Near-Certain Estimate</div>
+          <div class="demo-card-sub">CV = 3.3%. O=9, M=10, P=11. Almost no uncertainty — well-understood repeatable task. P90 ≈ P10.</div>
+        </button>
+        <button class="demo-card" onclick="loadDemo('degenerate')">
+          <div class="demo-card-badge badge-edge">Edge case</div>
+          <div class="demo-card-title">📍 Point Estimate</div>
+          <div class="demo-card-sub">O=M=P=10. Zero variance — SACO cannot optimize. Collapses to a Dirac delta. Overconfident in practice.</div>
+        </button>
+        <button class="demo-card" onclick="loadDemo('construction')">
+          <div class="demo-card-badge badge-portfolio">6 tasks</div>
+          <div class="demo-card-title">🏗 Construction Project</div>
+          <div class="demo-card-sub">Site Prep → Foundation → Structure → MEP → Fit-out → Commissioning. Right-skewed at each phase.</div>
+        </button>
+        <button class="demo-card" onclick="loadDemo('rd_project')">
+          <div class="demo-card-badge badge-portfolio">5 tasks</div>
+          <div class="demo-card-title">🔬 R&amp;D / Product Launch</div>
+          <div class="demo-card-sub">Discovery → Prototype → Validation → Regulatory → Scale-up. Extreme tails throughout pipeline.</div>
         </button>
       </div>
     </div>
@@ -356,6 +405,43 @@
     symmetric: {
       schemaVersion: 1, session: null,
       tasks: [{ task:'Symmetric Task', O:8, M:12, P:16, target:13, baselineProb:0.68, adjustedProb:0.75, optimizedProb:0.82, p10:9.3, p50:12.0, p90:14.7 }]
+    },
+    right_skewed: {
+      schemaVersion: 1, session: null,
+      tasks: [{ task:'Right-Skewed Estimate', O:5, M:8, P:20, target:11, baselineProb:0.57, adjustedProb:0.69, optimizedProb:0.79, p10:5.8, p50:8.7, p90:14.1 }]
+    },
+    high_uncertainty: {
+      schemaVersion: 1, session: null,
+      tasks: [{ task:'High-Uncertainty Task', O:2, M:10, P:40, target:15, baselineProb:0.52, adjustedProb:0.63, optimizedProb:0.73, p10:3.9, p50:10.8, p90:22.6 }]
+    },
+    near_certain: {
+      schemaVersion: 1, session: null,
+      tasks: [{ task:'Near-Certain Task', O:9, M:10, P:11, target:11, baselineProb:0.88, adjustedProb:0.93, optimizedProb:0.96, p10:9.4, p50:10.0, p90:10.6 }]
+    },
+    degenerate: {
+      schemaVersion: 1, session: null,
+      tasks: [{ task:'Point Estimate (Zero Variance)', O:10, M:10, P:10, target:10, baselineProb:0.50, adjustedProb:0.50, optimizedProb:0.50, p10:10.0, p50:10.0, p90:10.0 }]
+    },
+    construction: {
+      schemaVersion: 1, session: null,
+      tasks: [
+        { task:'Site Preparation',   O:3,  M:5,  P:9,  target:6,  baselineProb:0.62, adjustedProb:0.74, optimizedProb:0.83, p10:3.5,  p50:5.3,  p90:7.6  },
+        { task:'Foundation',         O:8,  M:14, P:22, target:16, baselineProb:0.57, adjustedProb:0.69, optimizedProb:0.79, p10:9.4,  p50:14.4, p90:19.3 },
+        { task:'Structure',          O:12, M:20, P:35, target:24, baselineProb:0.54, adjustedProb:0.66, optimizedProb:0.77, p10:14.1, p50:21.2, p90:29.8 },
+        { task:'MEP Rough-in',       O:6,  M:10, P:18, target:12, baselineProb:0.58, adjustedProb:0.70, optimizedProb:0.80, p10:7.2,  p50:10.6, p90:15.4 },
+        { task:'Interior Fit-out',   O:8,  M:14, P:24, target:16, baselineProb:0.55, adjustedProb:0.67, optimizedProb:0.77, p10:9.5,  p50:14.7, p90:20.6 },
+        { task:'Commissioning',      O:2,  M:4,  P:8,  target:5,  baselineProb:0.63, adjustedProb:0.75, optimizedProb:0.84, p10:2.5,  p50:4.1,  p90:6.5  }
+      ]
+    },
+    rd_project: {
+      schemaVersion: 1, session: null,
+      tasks: [
+        { task:'Research & Discovery', O:4,  M:12, P:40, target:16, baselineProb:0.46, adjustedProb:0.59, optimizedProb:0.70, p10:5.6,  p50:13.2, p90:27.8 },
+        { task:'Prototype Build',      O:6,  M:14, P:30, target:18, baselineProb:0.51, adjustedProb:0.63, optimizedProb:0.74, p10:7.8,  p50:15.1, p90:24.3 },
+        { task:'Validation Testing',   O:5,  M:10, P:25, target:14, baselineProb:0.55, adjustedProb:0.67, optimizedProb:0.77, p10:6.3,  p50:10.9, p90:19.2 },
+        { task:'Regulatory Clearance', O:30, M:60, P:180,target:90, baselineProb:0.61, adjustedProb:0.70, optimizedProb:0.79, p10:40.1, p50:65.4, p90:128.6 },
+        { task:'Scale-up / Launch',    O:8,  M:16, P:32, target:20, baselineProb:0.53, adjustedProb:0.65, optimizedProb:0.76, p10:9.8,  p50:17.0, p90:26.5 }
+      ]
     }
   };
 
