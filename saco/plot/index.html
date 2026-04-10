@@ -4641,7 +4641,7 @@
             + ' modelled as combined 3-point estimate (O=' + gO + ', M=' + gM + ', P=' + gP + ')';
           var parts = [];
           parts.push(
-            'The group is modelled as a single aggregated 3-point estimate using the <strong>sum</strong> of each task\'s individual values: '
+            'The group is modelled as a single aggregated 3-point estimate using the <strong>average</strong> of each task\'s individual values: '
             + '<strong>O=' + gO + '</strong> (sum of best cases), '
             + '<strong>M=' + gM + '</strong> (sum of most likely), '
             + '<strong>P=' + gP + '</strong> (sum of worst cases). '
@@ -5070,7 +5070,7 @@
             var gP = s.P != null ? Number(s.P).toFixed(1) : '?';
             ctx += 'This is the combined baseline for <strong>' + nActive + ' task' + (nActive !== 1 ? 's' : '') + '</strong>, '
                  + 'modelled as a single 3-point estimate <strong>O=' + gO + ', M=' + gM + ', P=' + gP + '</strong> '
-                 + '(the <em>sum</em> of each task\'s individual O, M, P values — standard PERT aggregation for sequential tasks). '
+                 + '(the <em>average</em> of each task\'s individual O, M, P values — the representative risk profile for the portfolio). '
                  + 'The Monte Carlo baseline samples all tasks together to give an accurate combined distribution. '
                  + 'Activate strategies below to reshape the group distribution using project-level decision levers.';
           } else {
@@ -12894,15 +12894,20 @@ window.TM = {
     var tau = s.target != null ? s.target : null;
 
     if (this.mode === 'aggregate') {
-      // Compute aggregate locally: sum O/M/P across active tasks, run engine
+      // Compute aggregate locally: average O/M/P across active tasks, run engine.
+      // Average (not sum) gives the representative portfolio estimate — the typical
+      // risk profile for the group. Summing would imply strict sequential execution,
+      // which is CPM's job, not SACO's.
+      var n = activeTasks.length;
       var sumO = 0, sumM = 0, sumP = 0;
       activeTasks.forEach(function(t) { sumO += t.best_case; sumM += t.most_likely; sumP += t.worst_case; });
+      var avgO = sumO / n, avgM = sumM / n, avgP = sumP / n;
       var aggTaskParam = {
-        task:        'Group (' + activeTasks.length + ' tasks)',
-        optimistic:  sumO,
-        mostLikely:  sumM,
-        pessimistic: sumP,
-        targetValue: tau || sumM,
+        task:        'Group (' + n + ' tasks)',
+        optimistic:  avgO,
+        mostLikely:  avgM,
+        pessimistic: avgP,
+        targetValue: tau || avgM,
         optimize:    false, mode: 'view',
         reshapeTriangle: true, reshapeBetaPert: true
       };
@@ -12951,7 +12956,7 @@ window.TM = {
         var basePdfRaw = _pick(item, ['targetProbabilityOriginalPdf.value','baselineReshapedPoints.pdfPoints','baseline.pdf','baseline.points.pdf']);
         var cdfPts = _normPts(baseCdfRaw, false);
         var pdfPts = _normPts(basePdfRaw, true);
-        var pertMean = (sumO + 4*sumM + sumP) / 6;
+        var pertMean = (avgO + 4*avgM + avgP) / 6;
         var p50 = _interpX(cdfPts, 0.50);
         var p80 = _interpX(cdfPts, 0.80);
         var p90 = _interpX(cdfPts, 0.90);
@@ -12962,9 +12967,9 @@ window.TM = {
           p50:          p50,
           p80:          p80,
           p90:          p90,
-          taskCount:    activeTasks.length,
+          taskCount:    n,
           probAtTarget: (tau != null && cdfPts.length) ? _interpY(cdfPts, tau) : null,
-          groupO: sumO, groupM: sumM, groupP: sumP, groupPert: pertMean
+          groupO: avgO, groupM: avgM, groupP: avgP, groupPert: pertMean
         };
         self._lastAggResult = aggPayload;
         self._clearDirty();
@@ -13015,10 +13020,10 @@ window.TM = {
         : (agg.probAtTarget != null ? Number(agg.probAtTarget) : null);
     }
 
-    // ── Virtual group task: PERT aggregation (sum of individual O/M/P) ─────────
-    // This is mathematically sound for sequential independent tasks.
-    // Setting s.O/M/P/task lets requestVariant() run SACO on the group's
-    // combined distribution, and lets the Triangle canvas render the group shape.
+    // ── Virtual group task: PERT aggregation (average of individual O/M/P) ─────
+    // Average gives the representative portfolio estimate — the typical risk
+    // profile across the selected tasks. Setting s.O/M/P/task lets requestVariant()
+    // run SACO on the group's combined distribution and render the Triangle shape.
     if (agg.groupO != null) {
       var nT = agg.taskCount || 0;
       _s.O = agg.groupO;
