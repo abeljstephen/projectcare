@@ -46,7 +46,7 @@ Explain the spread: if P90 − P10 is large relative to P50 (>50% of P50), note 
 
 ## 4c. Three-Way Probability Table
 
-Source: `results[i].targetProbability.value` — fields: `original`, `adjusted`, `adjustedOptimized`
+Source: `results[i].targetProbability.value` — fields: `original`, `adjusted`, `adjustedOptimized`, `adaptiveOptimized`
 
 Only show when a `targetValue` was provided. This is the core differentiator of ProjectCare by iCareNOW.
 
@@ -54,14 +54,16 @@ Always format as a comparison table:
 ```
 Baseline (no context):     [original × 100]%
 Your management context:   [adjusted × 100]%    (+X pp vs baseline)
-SACO optimized:            [adjustedOptimized × 100]%    (+Y pp vs baseline)
+SACO optimized:            [best_optimized × 100]%    (+Y pp vs baseline)
 ```
+
+Where `best_optimized` = `max(adjustedOptimized, adaptiveOptimized)`. If they differ by ≥ 1 pp, add a note: "*(Adaptive pass improved by [delta] pp over fixed optimization.)*"
 
 Rules:
 - Round all values to one decimal place
 - Show delta vs baseline in parentheses with sign (e.g. "+12 pp" or "−3 pp")
 - If `adjusted` = `original` (no sliders were sent), omit the middle row entirely and add: "*(Management context not provided — your context row would appear here. I can collect it now at no extra credit cost.)*"
-- If `adjustedOptimized` < `adjusted`: explain that SACO found the user's slider settings were already near-optimal, or that the distribution shape limits further improvement
+- If `best_optimized` < `adjusted`: explain that SACO found the user's slider settings were already near-optimal, or that the distribution shape limits further improvement
 - The "pp" abbreviation stands for percentage points — spell it out if the audience seems non-technical
 
 Interpretation guidance to always include:
@@ -245,7 +247,7 @@ Most impactful levers for hitting your target:
 3. userConfidence       — each +1 point raises P(target) by ~0.1 pp  ↑
 ```
 
-Always name the top lever explicitly in the Next Actions menu (Step 4p).
+Always name the top lever explicitly in the Next Actions menu (see Next Actions Menu section below).
 
 If `sensitivitySkipped: true`: "Sensitivity analysis was skipped for this task (exceeded the 5-task limit). Re-run this task individually to get lever rankings."
 

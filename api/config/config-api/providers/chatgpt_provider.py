@@ -3,7 +3,11 @@ ChatGPT Provider Implementation (Scaffolded)
 Uses OpenAI's GPT API
 """
 
+import logging
+
 from ..base_provider import BaseProvider, APIResponse
+
+logger = logging.getLogger(__name__)
 
 
 class ChatGPTProvider(BaseProvider):
@@ -75,12 +79,17 @@ class ChatGPTProvider(BaseProvider):
 
     def calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
         """
-        Calculate ChatGPT cost based on current pricing.
+        Calculate ChatGPT cost based on config billing rates.
 
-        Pricing (as of Feb 2025):
-        - GPT-4 Turbo: $10/$30 per MTok
-        - GPT-4: $30/$60 per MTok
-        - GPT-3.5 Turbo: $0.50/$1.50 per MTok
+        NOTE: The config fields are named `input_per_mtok` / `output_per_mtok` but the
+        values stored in agency-config.json are $/1k-token rates (divided by 1000 here),
+        NOT per-million-token rates. This naming is a legacy inconsistency — do not update
+        the config values to actual $/MTok rates without also changing the divisor to 1_000_000.
+
+        Reference rates (update agency-config.json billing section when pricing changes):
+        - gpt-4o: $2.50/$10.00 per MTok → store as input_per_mtok: 0.0025, output_per_mtok: 0.01
+        - gpt-4-turbo: $10/$30 per MTok  → store as input_per_mtok: 0.01, output_per_mtok: 0.03
+        - gpt-3.5-turbo: $0.50/$1.50 per MTok → store as 0.0005, 0.0015
 
         Args:
             input_tokens: Input token count
@@ -98,18 +107,15 @@ class ChatGPTProvider(BaseProvider):
         """
         Test ChatGPT API key validity.
 
-        Makes a minimal API call to verify credentials.
+        Uses models.list() — a read-only, non-billable endpoint — rather than
+        a completion call, so validation incurs no token cost or rate-limit usage.
 
         Returns:
             True if key is valid, False otherwise
         """
         try:
-            response = self.client.chat.completions.create(
-                model=self.config["model"],
-                max_tokens=10,
-                messages=[{"role": "user", "content": "test"}],
-            )
-            return bool(response)
+            models = self.client.models.list()
+            return bool(models)
         except Exception as e:
-            print(f"ChatGPT API key validation failed: {e}")
+            logger.warning("ChatGPT API key validation failed: %s", type(e).__name__)
             return False

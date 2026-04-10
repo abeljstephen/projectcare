@@ -97,8 +97,12 @@ Default for any omitted slider is 50 (UI units). After SACO runs, `decisionRepor
 - Status: ✅ FULL
 
 **Q5: What does a feasibility score of 62 mean?**
-- API fields: `results[i].feasibilityScore` is the number; interpretation is GPT-side (score 62 = moderate feasibility with tail risk)
-- Data path: GPT interprets per the scoring logic: <50 = low, 50–70 = moderate, >70 = high. No narrative field for feasibilityScore specifically.
+- API fields: `results[i].feasibilityScore` is the number; interpretation is GPT-side
+- Data path: GPT interprets using the canonical 4-band scale (matches knowledge-step4-display.md):
+  - 80–100: High confidence — strong probability of hitting target
+  - 60–79: Moderate confidence — achievable with disciplined execution
+  - 40–59: Challenging — stretch target, review SACO recommendations
+  - <40: High risk — revisit target, expand schedule, or adjust scope
 - Status: ⚠️ PARTIAL — no machine interpretation field; GPT must explain based on score value
 
 **Q6: What probability does the baseline give me at my target, before any optimization?**
@@ -512,7 +516,7 @@ GPT must enforce these rules before every `call_api` call:
 **Not in the API response:**
 - The PERT mean is not returned as a named field (GPT can compute it: (O + 4M + P) / 6)
 - Per-task charts for tasks 2–10 in multi-task calls (`_charts` only covers task[0])
-- Distribution shape type (the engine always uses Beta-PERT/KDE; no field says "your distribution is right-skewed")
+- A dedicated distribution shape type field (no field says "right-skewed" directly) — however, shape characteristics ARE surfaced indirectly via `decisionReports[].counterIntuition` (e.g. "right-skewed distribution increases tail risk") and `decisionReports[].diagnostics.monotonicityAtTarget` (warns of irregular shape near target). GPT can infer and describe distribution shape from these fields.
 - Raw Monte Carlo simulation data points (only CDF percentiles and S-curve points are returned)
 - The actual Beta α/β parameters used internally
 - Optimizer convergence path or iteration count for SACO (only final result returned)

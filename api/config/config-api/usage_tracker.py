@@ -163,16 +163,31 @@ class UsageTracker:
 
     def check_cost_limit(self) -> tuple[bool, float, float]:
         """
-        Check if total cost exceeds hard limit.
+        Check if current calendar-month cost exceeds the hard limit.
+
+        Uses a rolling monthly window so the limit resets each month.
+        Previously this summed all-time cost, which would permanently block
+        API calls after the first month's limit was hit.
 
         Returns:
-            (within_limit: bool, current_cost: float, limit: float)
+            (within_limit: bool, current_month_cost: float, limit: float)
         """
         limit = self.config.get("usage_control", {}).get("cost_tracking", {}).get("hard_limit_dollars", 100)
-        summary = self.get_usage_summary()
-        current = summary["total_cost"]
+        logs = self._load_logs()
+        now = datetime.now()
+        current_month_cost = 0.0
 
-        return (current < limit, current, limit)
+        for log in logs:
+            if log.get("status") != "success":
+                continue
+            try:
+                log_dt = datetime.fromisoformat(log["timestamp"])
+                if log_dt.year == now.year and log_dt.month == now.month:
+                    current_month_cost += log.get("cost_usd", 0)
+            except (ValueError, KeyError):
+                continue
+
+        return (current_month_cost < limit, current_month_cost, limit)
 
     def check_requests_per_agent_per_day(self, agent_name: str) -> tuple[bool, int, int]:
         """

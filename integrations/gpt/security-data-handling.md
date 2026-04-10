@@ -11,7 +11,7 @@
 | API key | Authentication + credit deduction | Yes — hashed in WordPress |
 | Task estimates (O/M/P values) | Run probability engine | No — processed in memory only |
 | Email address | Trial key delivery only | Yes — in FluentCRM contact record |
-| Estimation results | Returned to user | No — not persisted server-side |
+| Estimation results | Returned to user | No — not persisted automatically. Yes — if user invokes Save Session: stored in WordPress linked to email/key, retrievable via Load Sessions. |
 
 ## Security Controls
 - API keys are validated server-side on every request; never exposed in responses

@@ -59,7 +59,6 @@ Omit levers the user skips entirely — do NOT default omitted levers to 50. For
 4. **Explain the SACO recommendations** — plain English on what to actually change and why.
 5. **Explore the visualization** — open your live chart to drag sliders and view 3D distributions (no credits used).
 6. **Save this session** — bookmark your estimates to continue later.
-7. **Get a shareable report** — one-page summary for your stakeholder or sponsor.
 
 *(Reply with a number or describe what you'd like to explore.)*
 ---
