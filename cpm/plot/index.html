@@ -842,39 +842,114 @@ function computeAndRender(tasks, sacoResults, sliderContext) {
       hideError();
 
       if (result.status === 'error') {
-        var errHtml = '';
         var cycles = result.cycles || [];
+        var ve = result.validationErrors || [];
+
+        // ── Build the error banner (top of page) ──────────────────
+        var errHtml = '';
         if (result.errorCode === 'CYCLES_DETECTED' || cycles.length > 0) {
           errHtml += '<strong>&#9888; Directed Cycle Detected — Network is Not a Valid DAG</strong>';
-          errHtml += '<p style="margin:6px 0 4px;">A valid schedule must be a Directed Acyclic Graph (DAG). One or more tasks reference each other in a loop, making it impossible to compute a critical path.</p>';
+          errHtml += '<p style="margin:6px 0 4px;">A valid schedule must be a Directed Acyclic Graph (DAG). One or more tasks reference each other in a loop, so no topological sort and no critical path is possible.</p>';
           if (cycles.length > 0) {
-            errHtml += '<div style="margin:8px 0 6px;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:#7F1D1D;">Cycle' + (cycles.length > 1 ? 's' : '') + ' found:</div>';
-            cycles.forEach(function(cyc, i) {
+            cycles.forEach(function(cyc) {
               var chain = cyc.concat([cyc[0]]).map(function(id) {
                 var t = tasks.find(function(x){ return x.id === id || x.task === id; });
                 return esc((t && t.task) ? t.task : id);
               }).join(' → ');
-              errHtml += '<div style="margin:4px 0;padding:5px 8px;background:#FEE2E2;border-radius:5px;font-family:monospace;font-size:11px;">' + chain + '</div>';
+              errHtml += '<div style="margin:6px 0;padding:5px 8px;background:#FEE2E2;border-radius:5px;font-family:monospace;font-size:11px;">&#128260; ' + chain + '</div>';
             });
           }
-          errHtml += '<div style="margin-top:10px;font-size:11px;color:#7F1D1D;"><strong>How to fix:</strong> Find the dependency that closes the loop and remove or reverse it. Each task in a cycle should have its predecessor list reviewed — look for a task that directly or indirectly depends on itself.</div>';
+          errHtml += '<div style="margin-top:8px;font-size:11px;color:#7F1D1D;"><strong>Fix:</strong> Find the predecessor link that closes the loop and remove or reverse it. See the Schedule Integrity panel below.</div>';
         } else if (result.errorCode === 'SELF_REFERENCE') {
-          errHtml += '<strong>&#9888; Self-Reference Error</strong><p style="margin:6px 0 0;">One or more tasks list themselves as a predecessor. A task cannot depend on itself. Remove the self-reference from the predecessor list.</p>';
+          errHtml += '<strong>&#9888; Self-Reference Error</strong><p style="margin:6px 0 0;">A task lists itself as a predecessor. Remove the self-reference. See Schedule Integrity below.</p>';
         } else {
           errHtml += '<strong>&#9888; Schedule Error</strong><p style="margin:6px 0 0;">' + esc(result.message || 'Unknown error') + '</p>';
         }
-        // Show validation errors (missing predecessors, etc.) alongside
-        var ve = result.validationErrors || [];
-        if (ve.length > 0) {
-          errHtml += '<div style="margin-top:10px;border-top:1px solid #FCA5A5;padding-top:8px;">';
-          ve.forEach(function(e) {
-            var msg = (typeof e === 'string') ? e : (e.message || JSON.stringify(e));
-            errHtml += '<div style="margin:3px 0;font-size:11px;">&#8250; ' + esc(msg) + '</div>';
-          });
-          errHtml += '</div>';
-        }
         showError(errHtml, true);
         setStatus('Error', 'error');
+
+        // ── Populate graphIntegrityPanel with full DAG check report ─
+        var gip = document.getElementById('graphIntegrityPanel');
+        if (gip) {
+          var alerts = [];
+
+          // Cycles
+          cycles.forEach(function(cyc) {
+            var chain = cyc.concat([cyc[0]]).map(function(id) {
+              var t = tasks.find(function(x){ return x.id === id || x.task === id; });
+              return esc((t && t.task) ? t.task : id);
+            }).join(' → ');
+            alerts.push({ cls:'alert-error', icon:'🔄',
+              html:'<strong>Directed cycle:</strong> <code style="font-size:10px;">' + chain + '</code>' +
+                   '<div style="margin-top:4px;font-size:11px;"><strong>Fix:</strong> Open "Example Datasets", choose this dataset, then remove the predecessor that closes the loop (the last arrow in the chain above points back to the first node).</div>'
+            });
+          });
+
+          // Validation errors
+          ve.forEach(function(e) {
+            var msg  = (typeof e === 'string') ? e : (e.message || JSON.stringify(e));
+            var code = (typeof e === 'object' && e.code) ? e.code : null;
+            var tid  = (typeof e === 'object' && e.taskId) ? e.taskId : null;
+            var tname = tid ? (function(){ var t = tasks.find(function(x){return x.id===tid||x.task===tid;}); return t ? (t.task||tid) : tid; })() : null;
+            if (code === 'SELF_REFERENCE') {
+              alerts.push({ cls:'alert-error', icon:'↩',
+                html:'<strong>Self-reference:</strong> Task <strong>' + esc(tname||tid||'') + '</strong> lists itself as a predecessor.' +
+                     '<div style="margin-top:4px;font-size:11px;"><strong>Fix:</strong> Remove "' + esc(tname||tid||'') + '" from its own predecessor list.</div>'
+              });
+            } else if (code === 'MISSING_PREDECESSOR') {
+              alerts.push({ cls:'alert-error', icon:'❓',
+                html:'<strong>Missing predecessor:</strong> Task <strong>' + esc(tname||tid||'') + '</strong> references a task ID that does not exist.' +
+                     '<div style="margin-top:4px;font-size:11px;"><strong>Fix:</strong> Check for a renamed or deleted task. Update the predecessor reference to a valid task ID.</div>'
+              });
+            } else {
+              alerts.push({ cls:'alert-error', icon:'✕',
+                html:'<strong>Input error:</strong> ' + esc(msg)
+              });
+            }
+          });
+
+          // Task-level O>M/M>P violations
+          tasks.forEach(function(t) {
+            if (t.optimistic > t.mostLikely || t.mostLikely > t.pessimistic) {
+              alerts.push({ cls:'alert-error', icon:'⛔',
+                html:'<strong>Invalid PERT estimate:</strong> <strong>' + esc(t.task||t.id) + '</strong> has O=' + t.optimistic + ' M=' + t.mostLikely + ' P=' + t.pessimistic +
+                     ' — requires O ≤ M ≤ P.' +
+                     '<div style="margin-top:4px;font-size:11px;"><strong>Fix:</strong> Correct the three-point estimate so the optimistic value is less than or equal to the most-likely, which is less than or equal to the pessimistic.</div>'
+              });
+            }
+          });
+
+          // Summary header
+          var intHtml = '<h2 style="margin-bottom:8px;">Schedule Integrity <span style="font-size:11px;font-weight:400;color:#991B1B;margin-left:6px;">&#9888; ' + alerts.length + ' check' + (alerts.length !== 1 ? 's' : '') + ' failed</span></h2>';
+
+          // All-tasks checklist
+          intHtml += '<div style="margin-bottom:10px;padding:8px 10px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;">';
+          intHtml += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:#7F1D1D;margin-bottom:6px;">DAG Validation Checks</div>';
+          var allChecks = [
+            { label:'No directed cycles (Tarjan SCC)',      pass: cycles.length === 0 },
+            { label:'No self-referencing tasks',            pass: !ve.some(function(e){ return (e.code||e) === 'SELF_REFERENCE'; }) },
+            { label:'All predecessors exist',               pass: !ve.some(function(e){ return (e.code||e) === 'MISSING_PREDECESSOR'; }) },
+            { label:'All estimates satisfy O ≤ M ≤ P',     pass: !tasks.some(function(t){ return t.optimistic > t.mostLikely || t.mostLikely > t.pessimistic; }) },
+            { label:'Topological sort possible',            pass: cycles.length === 0 },
+            { label:'Forward/backward pass computable',     pass: result.status !== 'error' }
+          ];
+          allChecks.forEach(function(c) {
+            intHtml += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px;">' +
+              '<span style="color:' + (c.pass ? '#166534' : '#991B1B') + ';font-weight:700;width:14px;text-align:center;">' + (c.pass ? '✓' : '✕') + '</span>' +
+              '<span style="color:' + (c.pass ? '#166534' : '#991B1B') + ';">' + c.label + '</span>' +
+              '</div>';
+          });
+          intHtml += '</div>';
+
+          alerts.forEach(function(a) {
+            intHtml += '<div class="alert ' + a.cls + '" style="margin-bottom:6px;"><span class="alert-icon">' + a.icon + '</span><span>' + a.html + '</span></div>';
+          });
+
+          gip.innerHTML = intHtml;
+        }
+
+        // Show results section so user can see the Schedule Integrity tab
+        document.getElementById('resultsSection').style.display = 'block';
         document.getElementById('loadingOverlay').classList.remove('visible');
         return;
       }
@@ -2139,9 +2214,11 @@ var NAMED_DATASETS = [
     expectedOutcome:'status=\'error\' · code=CYCLES_DETECTED · cycles contains [task_b, task_a]',
     qa:{ status:'error', errorCode:'CYCLES_DETECTED', cyclesGt0:true },
     tasks:[
-      { id:'task_a', task:'Task A', O:3, M:5, P:8, predecessors:'task_b' },
-      { id:'task_b', task:'Task B', O:4, M:6, P:9, predecessors:'task_a' },
-      { id:'task_c', task:'Task C', O:2, M:3, P:5, predecessors:'task_b' }
+      { id:'req',    task:'Requirements', O:1, M:2, P:4 },
+      { id:'design', task:'Design',       O:2, M:4, P:6, predecessors:'req' },
+      { id:'task_a', task:'Task A (Build)',      O:3, M:5, P:8, predecessors:'task_b,design' },
+      { id:'task_b', task:'Task B (Integrate)',  O:4, M:6, P:9, predecessors:'task_a' },
+      { id:'task_c', task:'Task C (Deploy)',     O:2, M:3, P:5, predecessors:'task_b' }
     ]
   },
 
@@ -2179,10 +2256,11 @@ var NAMED_DATASETS = [
     expectedOutcome:'status=\'error\' · code=CYCLES_DETECTED · SCC: [gamma, beta, alpha]',
     qa:{ status:'error', errorCode:'CYCLES_DETECTED', cyclesGt0:true },
     tasks:[
-      { id:'alpha', task:'Alpha', O:2, M:3, P:5, predecessors:'gamma' },
-      { id:'beta',  task:'Beta',  O:3, M:5, P:8, predecessors:'alpha' },
-      { id:'gamma', task:'Gamma', O:4, M:6, P:9, predecessors:'beta'  },
-      { id:'delta', task:'Delta', O:1, M:2, P:3, predecessors:'gamma' }
+      { id:'alpha',   task:'Alpha',   O:2, M:3, P:5, predecessors:'gamma' },
+      { id:'beta',    task:'Beta',    O:3, M:5, P:8, predecessors:'alpha' },
+      { id:'gamma',   task:'Gamma',   O:4, M:6, P:9, predecessors:'beta'  },
+      { id:'delta',   task:'Delta',   O:1, M:2, P:3, predecessors:'gamma' },
+      { id:'epsilon', task:'Epsilon', O:2, M:3, P:5, predecessors:'delta' }
     ]
   },
 
@@ -2218,7 +2296,8 @@ var NAMED_DATASETS = [
       { id:'task_a', task:'Task A', O:2, M:3, P:5 },
       { id:'task_b', task:'Task B', O:3, M:5, P:8, predecessors:'task_a' },
       { id:'task_c', task:'Task C', O:4, M:6, P:9, predecessors:'task_c' },
-      { id:'task_d', task:'Task D', O:1, M:2, P:3, predecessors:'task_b,task_c' }
+      { id:'task_d', task:'Task D', O:1, M:2, P:3, predecessors:'task_b,task_c' },
+      { id:'task_e', task:'Task E', O:2, M:3, P:5, predecessors:'task_d' }
     ]
   },
 
@@ -2254,7 +2333,8 @@ var NAMED_DATASETS = [
       { id:'task_a', task:'Task A', O:2, M:3, P:5 },
       { id:'task_b', task:'Task B', O:3, M:5, P:8, predecessors:'task_a' },
       { id:'task_c', task:'Task C', O:4, M:6, P:9, predecessors:'task_a,task_xyz' },
-      { id:'task_d', task:'Task D', O:1, M:2, P:3, predecessors:'task_b,task_c' }
+      { id:'task_d', task:'Task D', O:1, M:2, P:3, predecessors:'task_b,task_c' },
+      { id:'task_e', task:'Task E', O:2, M:4, P:6, predecessors:'task_d' }
     ]
   },
 
@@ -2287,7 +2367,8 @@ var NAMED_DATASETS = [
     expectedOutcome:'UI O>M warning displayed · PERT mean 6.33 d computed but invalid · Stochastic unreliable',
     qa:{ status:'ok', ompViolation:true },
     tasks:[
-      { id:'task_a', task:'Valid Task',   O:3, M:5, P:8 },
+      { id:'task_r', task:'Requirements', O:1, M:2, P:4 },
+      { id:'task_a', task:'Valid Task',   O:3, M:5, P:8, predecessors:'task_r' },
       { id:'task_b', task:'Broken Task',  O:10,M:5, P:8, predecessors:'task_a' },
       { id:'task_c', task:'Another Task', O:2, M:4, P:7, predecessors:'task_a' },
       { id:'task_d', task:'Final',        O:1, M:2, P:3, predecessors:'task_b,task_c' }
