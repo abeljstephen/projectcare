@@ -628,7 +628,10 @@ function _netToggleLock() {
   var btn  = document.getElementById('netLockBtn');
   var hint = document.getElementById('netHint');
   if (_network) {
-    _network.setOptions({ interaction: { dragView: !_netPanLocked, zoomView: true } });
+    _network.setOptions({ interaction: {
+      hover: true, navigationButtons: false, keyboard: false,
+      tooltipDelay: 100, zoomView: true, dragView: !_netPanLocked
+    }});
   }
   if (btn) btn.textContent = _netPanLocked ? '🔒 Pan Locked' : '🔓 Pan Unlocked';
   if (hint) hint.textContent = _netPanLocked
