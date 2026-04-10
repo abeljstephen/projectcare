@@ -5,7 +5,7 @@
   <title>ProjectCare by iCareNOW — Live Plot</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- CSP: allow CDN scripts + icarenow.io for session polling -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' blob: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://abeljstephen.github.io; style-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self' https://icarenow.io; font-src https://cdn.jsdelivr.net data:; worker-src blob:;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' blob: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://abeljstephen.github.io; style-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self' https://icarenow.io https://docs.google.com https://sheets.googleapis.com; font-src https://cdn.jsdelivr.net data:; worker-src blob:;" />
 
   <!-- URL param bootstrap — runs before any other JS -->
   <script>
@@ -2003,6 +2003,45 @@
     #pmcNoDataOverlay .nd-row3 > div { flex: 1; }
     #pmcNoDataOverlay .nd-err { color: #DC2626; font-size: 12px; display: none; }
     #pmcNoDataOverlay .nd-hint { font-size: 11px; color: #9CA3AF; margin-top: 2px; }
+    #pmcNoDataOverlay .nd-import-bar {
+      display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+      background: #F3F4F6; border-radius: 8px; padding: 10px 12px;
+    }
+    #pmcNoDataOverlay .nd-import-bar .ib-lbl { font-size: 10px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: .3px; width: 100%; margin-bottom: 4px; }
+    #pmcNoDataOverlay .nd-ib-btn {
+      padding: 5px 11px; border: 1px solid #D1D5DB; border-radius: 7px;
+      font-size: 11px; cursor: pointer; background: #fff; font-family: inherit;
+    }
+    #pmcNoDataOverlay .nd-ib-btn:hover { background: #BFDBFE; }
+    #pmcNoDataOverlay .nd-ib-btn.example { background: #111827; color: #fff; border-color: #111827; }
+    #pmcNoDataOverlay .nd-gs-row { display: flex; gap: 6px; width: 100%; margin-top: 4px; }
+    #pmcNoDataOverlay .nd-gs-row input { flex: 1; padding: 6px 9px; border: 1px solid #D1D5DB; border-radius: 7px; font-size: 11px; font-family: inherit; }
+    #pmcNoDataOverlay .nd-or { font-size: 11px; color: #9CA3AF; font-weight: 600; align-self: center; }
+    #pmcNoDataOverlay .nd-import-status { font-size: 11px; color: #6B7280; width: 100%; display: none; }
+
+    /* ── SACO Dataset Picker ── */
+    #sacoPickerModal { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:1001; display:flex; align-items:center; justify-content:center; padding:16px; }
+    .saco-dsp-panel  { background:#fff; border-radius:14px; max-width:640px; width:100%; max-height:85vh; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.2); }
+    .saco-dsp-hdr    { padding:14px 18px; border-bottom:1px solid #E5E7EB; display:flex; align-items:center; gap:10px; flex-shrink:0; }
+    .saco-dsp-body   { overflow-y:auto; padding:14px 18px 18px; flex:1; }
+    .saco-dsp-grid   { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    @media(max-width:480px){.saco-dsp-grid{grid-template-columns:1fr;}}
+    .saco-dsp-card   { border:1px solid #E5E7EB; border-radius:10px; padding:10px 12px; cursor:pointer; text-align:left; background:#fff; font-family:inherit; width:100%; display:flex; flex-direction:column; gap:4px; transition:border-color .12s,background .12s; }
+    .saco-dsp-card:hover { border-color:#3B82F6; background:#F0F7FF; }
+    .saco-dsp-card.cat-valid   { border-left:3px solid #10B981; }
+    .saco-dsp-card.cat-invalid { border-left:3px solid #DC2626; }
+    .saco-dsp-card.cat-multi   { border-left:3px solid #6D28D9; }
+    .saco-card-hdr   { display:flex; align-items:center; gap:6px; }
+    .saco-card-icon  { font-size:14px; }
+    .saco-card-name  { font-size:12px; font-weight:700; flex:1; }
+    .saco-card-badge { font-size:9px; font-weight:700; padding:2px 6px; border-radius:999px; }
+    .saco-card-badge.valid   { background:#F0FDF4; color:#166534; border:1px solid #86EFAC; }
+    .saco-card-badge.invalid { background:#FEF2F2; color:#991B1B; border:1px solid #FCA5A5; }
+    .saco-card-badge.multi   { background:#EDE9FE; color:#5B21B6; border:1px solid #C4B5FD; }
+    .saco-card-tag   { font-size:10px; color:#6B7280; line-height:1.4; }
+    .saco-card-math  { font-size:10px; color:#3B82F6; font-weight:600; }
+    .saco-math-toast { background:#F0F7FF; border:1px solid #BFDBFE; border-left:4px solid #3B82F6; border-radius:10px; padding:10px 14px; margin-top:10px; font-size:11px; color:#374151; display:none; }
+    #ndMathToast     { background:#F0F7FF; border:1px solid #BFDBFE; border-left:4px solid #3B82F6; border-radius:8px; padding:9px 12px; margin-top:8px; font-size:11px; line-height:1.6; color:#374151; display:none; white-space:pre-wrap; font-family:'SF Mono',Consolas,monospace; }
 
     /* Persistent task toolbar */
     .pct-title-row {
@@ -2116,32 +2155,54 @@
 
   <!-- No-data overlay (shown when page opened without params) -->
   <div id="pmcNoDataOverlay">
-    <div class="nd-title">ProjectCare</div>
-    <div class="nd-sub">Enter your three-point estimate to get started. All computation runs locally in your browser — no data is sent anywhere.</div>
-    <div class="nd-form">
+    <div class="nd-title">ProjectCare by iCareNOW</div>
+    <div class="nd-sub">Enter your three-point estimate — or load the example project to see the full analysis instantly. All computation runs locally in your browser.</div>
+
+    <!-- Import bar -->
+    <div class="nd-form" style="max-width:440px;">
+      <div class="nd-import-bar">
+        <span class="ib-lbl">Start with:</span>
+        <button class="nd-ib-btn example" onclick="openSacoDatasetPicker()">✨ Example Datasets</button>
+        <span class="nd-or">or</span>
+        <label class="nd-ib-btn" title="Upload CSV or Excel: columns task, O, M, P (required), predecessors, target, resource, phase">
+          📄 Upload CSV / Excel
+          <input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="pmcImportFromFile(this)" />
+        </label>
+        <button class="nd-ib-btn" onclick="pmcToggleGsRow()" title="Paste a Google Sheets published URL">📊 Google Sheets</button>
+        <div class="nd-gs-row" id="ndGsRow" style="display:none;">
+          <input type="text" id="ndGsUrl" placeholder="Paste Google Sheets or published CSV URL…" />
+          <button class="nd-ib-btn" onclick="pmcImportFromGSheets()" style="white-space:nowrap;">Fetch</button>
+        </div>
+        <div class="nd-import-status" id="ndImportStatus"></div>
+      </div>
+
+      <div style="font-size:11px;color:#9CA3AF;text-align:center;">— or enter a single estimate manually —</div>
+
       <div>
         <label for="nd_task">Task name</label>
-        <input type="text" id="nd_task" placeholder="e.g. Design Phase" value="My Estimate" />
+        <input type="text" id="nd_task" placeholder="e.g. Development Phase" value="Development Phase" />
       </div>
       <div class="nd-row3">
         <div>
           <label for="nd_O">Optimistic (O)</label>
-          <input type="number" id="nd_O" placeholder="e.g. 8" step="any" />
+          <input type="number" id="nd_O" placeholder="e.g. 10" step="any" value="10" />
           <div class="nd-hint">Best case</div>
         </div>
         <div>
           <label for="nd_M">Most Likely (M)</label>
-          <input type="number" id="nd_M" placeholder="e.g. 12" step="any" />
+          <input type="number" id="nd_M" placeholder="e.g. 16" step="any" value="16" />
           <div class="nd-hint">Most likely</div>
         </div>
         <div>
           <label for="nd_P">Pessimistic (P)</label>
-          <input type="number" id="nd_P" placeholder="e.g. 20" step="any" />
+          <input type="number" id="nd_P" placeholder="e.g. 25" step="any" value="25" />
           <div class="nd-hint">Worst case</div>
         </div>
       </div>
       <div class="nd-err" id="nd_err"></div>
-      <button class="nd-btn" id="nd_run" onclick="pmcRunFromForm()" style="width:100%; justify-content:center;">Run Estimate</button>
+      <button class="nd-btn" id="nd_run" onclick="pmcRunFromForm()" style="width:100%; justify-content:center;">Run Estimate →</button>
+      <div style="font-size:10px;color:#9CA3AF;text-align:center;">Want full multi-task CPM analysis? <a href="../../cpm/plot/" style="color:#3B82F6;">Open Critical Path →</a></div>
+      <div id="ndMathToast"></div>
     </div>
   </div>
 
@@ -2187,6 +2248,7 @@
       <!-- Manage + Settings -->
       <button class="stp1-meta-btn" id="btnManageTasks" onclick="TM.openManager()" title="View, add, edit tasks. In Group mode: select which tasks to include.">Manage tasks</button>
       <button class="stp1-meta-btn" id="btnTMSettings" onclick="TM.openSettings()" title="Task settings">&#9881;</button>
+      <button class="stp1-meta-btn" id="btnDemoDatasets" onclick="openSacoDatasetPicker()" title="Load an example dataset to explore the four optimization strategies" style="color:#5B21B6;border-color:#A78BFA;background:#F5F3FF;">✨ Demo</button>
       <div class="pct-sep"></div>
       <!-- Mode toggle -->
       <div class="tm-mode-toggle" title="Single: analyze one task. Group: combine multiple tasks into one distribution.">
@@ -8840,13 +8902,150 @@
     }
   }
 
+  // ── SACO Named Datasets ───────────────────────────────────
+  var SACO_DATASETS = [
+    { id:'symmetric', label:'Symmetric Estimate', category:'valid', icon:'⚖',
+      tagline:'O=8, M=12, P=16  —  M is exactly midpoint, balanced uncertainty',
+      mathProp:'Beta-PERT α=β  · symmetric distribution · no skew',
+      mathExplain:'When M = (O+P)/2, the Beta-PERT is symmetric (α=β=3).\nSACO mean = PERT mean = 12.0. The distribution is balanced — equal probability of finishing early or late.\nThis is the least common real-world case; most estimates are right-skewed.',
+      O:8, M:12, P:16, task:'Symmetric Task' },
+    { id:'right_skewed', label:'Right-Skewed  (Optimistic Mode)', category:'valid', icon:'📈',
+      tagline:'O=5, M=8, P=20  —  Long pessimistic tail, most likely near the optimistic end',
+      mathProp:'Beta-PERT α > β  · right skew · P90 >> deterministic mean',
+      mathExplain:'When M is closer to O than to P, the PERT distribution is RIGHT-SKEWED:\n  μ = (5+32+20)/6 = 9.5  but  mode = M = 8 (lower than mean)\n  σ² = (P−O)²/36 = 225/36 = 6.25\nThe long pessimistic tail inflates P90 significantly above the mode.\nThis is the most common real-world pattern (software estimates, procurement).',
+      O:5, M:8, P:20, task:'Right-Skewed Task' },
+    { id:'high_uncertainty', label:'Very High Uncertainty', category:'valid', icon:'🌊',
+      tagline:'O=2, M=10, P=40  —  Coefficient of Variation > 50%, extreme spread',
+      mathProp:'Wide PERT range · High σ · P90/P10 ratio > 8×',
+      mathExplain:'With range P−O = 38:\n  μ  = (2+40+40)/6 = 13.67\n  σ² = (38)²/36 = 40.1,  σ ≈ 6.33\n  CV = σ/μ ≈ 0.46  (46% coefficient of variation)\n\nSACO reshaping will significantly widen the confidence interval.\nThe gap between P10 and P90 represents the epistemic uncertainty range.\nTypical for early-stage estimates, R&D, or novel technology.',
+      O:2, M:10, P:40, task:'High-Uncertainty Task' },
+    { id:'near_certain', label:'Near-Certain Estimate', category:'valid', icon:'🎯',
+      tagline:'O=9, M=10, P=11  —  Very tight range, high confidence',
+      mathProp:'Narrow PERT range · Low σ · Sharply peaked distribution',
+      mathExplain:'With range P−O = 2:\n  μ  = (9+40+11)/6 = 10.0\n  σ² = 4/36 = 0.11,  σ ≈ 0.33\n  CV = 0.033  (3.3% — very tight)\n\nThe distribution is extremely peaked around M=10.\nP10 ≈ 9.5, P90 ≈ 10.5 — almost no uncertainty.\nTypical for well-understood, repeatable tasks (e.g. deployment scripts, known build times).',
+      O:9, M:10, P:11, task:'Near-Certain Task' },
+    { id:'software_sprint', label:'Software Sprint', category:'valid', icon:'💻',
+      tagline:'O=5, M=8, P=25  —  Classic software estimate: low mode, fat pessimistic tail',
+      mathProp:'High kurtosis tail · "Hofstadter bias" · SACO optimizes aggressively',
+      mathExplain:'The classic software estimation pattern:\n  μ  = (5+32+25)/6 = 10.33  (much higher than mode 8)\n  σ² = (20)²/36 = 11.1,  σ ≈ 3.33\n\nHofstadter's Law: "It always takes longer than you expect, even when you take into account Hofstadter's Law."\n\nThe P=25 tail represents scope creep, dependency delays, integration issues.\nSACO's SACO_GEOMETRY reshaping will detect the high skew and recommend process/scope levers.\nP90 will be significantly above the PERT mean.',
+      O:5, M:8, P:25, task:'Software Sprint' },
+    { id:'regulatory', label:'Regulatory Approval', category:'valid', icon:'⚖',
+      tagline:'O=30, M=60, P=180  —  Extreme right tail: government/legal timelines',
+      mathProp:'Extreme skew · Long-tailed PERT · P90 near 150d',
+      mathExplain:'Regulatory and legal timelines are notoriously right-skewed:\n  μ  = (30+240+180)/6 = 75  (much higher than mode 60)\n  σ² = (150)²/36 = 625,  σ = 25\n  CV = 25/75 = 33%\n\nThe pessimistic tail (180d) represents full regulatory delay.\nP90 ≈ 105–120d. The deterministic estimate (60d) severely underestimates expected duration.\n\nSACO's UC lever (uncertainty/complexity) and BF lever (bureaucracy/process) are the most relevant.',
+      O:30, M:60, P:180, task:'Regulatory Approval' },
+    { id:'degenerate', label:'Zero Variance (Point)', category:'warn', icon:'📍',
+      tagline:'O=M=P=10  —  Degenerate estimate: no uncertainty at all',
+      mathProp:'Degenerate distribution · σ=0 · Beta(∞,∞) limit · SACO cannot optimize',
+      mathExplain:'When O=M=P, the PERT range is zero:\n  μ = 10,  σ² = 0,  σ = 0\n\nThe distribution collapses to a Dirac delta at x=10.\nThis is mathematically valid but practically problematic:\n  • SACO has no variance to reshape — all levers have zero effect\n  • Monte Carlo sampling degenerates to a constant\n  • The "distribution" plot is a spike, not a curve\n\nWhen is this valid? For truly deterministic tasks (e.g. a 10-minute automated test).\nFor human-performed work, a zero-variance estimate is almost always overconfident.',
+      O:10, M:10, P:10, task:'Point Estimate' },
+    { id:'invalid_omp', label:'Invalid: O > P', category:'invalid', icon:'⛔',
+      tagline:'O=20, M=10, P=8  —  Impossible: optimistic EXCEEDS pessimistic',
+      mathProp:'β-distribution undefined · P−O < 0 · negative variance',
+      mathExplain:'A three-point estimate requires O ≤ M ≤ P (strictly).\n\nThis estimate has O=20 > M=10 > P=8 — all constraints violated.\n\nConsequences:\n  P − O = 8 − 20 = −12  (negative denominator)\n  σ² = (P−O)²/36 = 144/36 = 4  (accidentally positive — misleading!)\n  α  = 6·(μ−O)/(P−O):  μ=(20+40+8)/6=11.33,  α=6·(11.33−20)/(−12) = +4.33\n  β  = 6·(P−μ)/(P−O):  β=6·(8−11.33)/(−12) = +1.67\n  Both positive — but the distribution is REFLECTED (runs right-to-left)!\n\nThe PERT CDF is mathematically invalid. SACO will error or produce garbage.\nAlways validate O ≤ M ≤ P before submitting to the engine.',
+      O:20, M:10, P:8, task:'Invalid Estimate' },
+    { id:'portfolio', label:'Full Project Portfolio', category:'multi', icon:'🏗',
+      tagline:'All 6 tasks loaded as a portfolio — same data as the CPM example',
+      mathProp:'Portfolio mode · Independent PERT distributions · No CPM correlation',
+      mathExplain:'Loads all 6 tasks from the Full Project example as a SACO portfolio.\n\nEach task is analysed independently with its own PERT distribution.\nThe SACO Plot shows one task at a time (use the task selector dropdown).\n\nFor critical path analysis and inter-task correlation,\nuse the Critical Path page: abeljstephen.github.io/projectcare/cpm/plot/',
+      isMulti:true }
+  ];
+
+  function openSacoDatasetPicker() {
+    var modal = document.getElementById('sacoPickerModal');
+    if (!modal) return;
+    var body = document.getElementById('sacoPickerBody');
+    var html = '';
+    var cats = [
+      { key:'valid',   label:'Valid Estimates — different distribution shapes' },
+      { key:'warn',    label:'Edge Cases' },
+      { key:'invalid', label:'Invalid Inputs' },
+      { key:'multi',   label:'Multi-Task Portfolio' }
+    ];
+    cats.forEach(function(cat) {
+      var ds = SACO_DATASETS.filter(function(d){ return d.category === cat.key; });
+      if (!ds.length) return;
+      html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#6B7280;margin:12px 0 7px;display:flex;align-items:center;gap:8px;">' + cat.label + '<span style="flex:1;height:1px;background:#E5E7EB;display:inline-block;"></span></div>';
+      html += '<div class="saco-dsp-grid">';
+      ds.forEach(function(d) {
+        html += '<button class="saco-dsp-card cat-' + d.category + '" onclick="loadSacoDataset(\'' + d.id + '\');closeSacoDatasetPicker();">' +
+          '<div class="saco-card-hdr">' +
+            '<span class="saco-card-icon">' + d.icon + '</span>' +
+            '<span class="saco-card-name">' + d.label + '</span>' +
+            '<span class="saco-card-badge ' + d.category + '">' + (d.category==='valid'?'✓':d.category==='invalid'?'✕':d.category==='warn'?'⚠':'★') + '</span>' +
+          '</div>' +
+          '<div class="saco-card-tag">' + d.tagline + '</div>' +
+          '<div class="saco-card-math">' + d.mathProp + '</div>' +
+          '</button>';
+      });
+      html += '</div>';
+    });
+    body.innerHTML = html;
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeSacoDatasetPicker() {
+    var modal = document.getElementById('sacoPickerModal');
+    if (modal) modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  function loadSacoDataset(id) {
+    var ds = SACO_DATASETS.find(function(d){ return d.id === id; });
+    if (!ds) return;
+
+    // Show math toast in overlay
+    var toast = document.getElementById('ndMathToast');
+    if (toast && ds.mathExplain) {
+      toast.textContent = ds.icon + '  ' + ds.label + '\n' + ds.mathProp + '\n\n' + ds.mathExplain;
+      toast.style.display = 'block';
+    }
+
+    if (ds.isMulti) {
+      pmcLoadExample();
+      return;
+    }
+
+    // O>M validation
+    var ompErr = ds.O > ds.M || ds.M > ds.P;
+
+    // Fill form fields
+    var taskEl = document.getElementById('nd_task');
+    var oEl    = document.getElementById('nd_O');
+    var mEl    = document.getElementById('nd_M');
+    var pEl    = document.getElementById('nd_P');
+    var errEl  = document.getElementById('nd_err');
+    if (taskEl) taskEl.value = ds.task || ds.label;
+    if (oEl)    oEl.value    = ds.O;
+    if (mEl)    mEl.value    = ds.M;
+    if (pEl)    pEl.value    = ds.P;
+    if (errEl)  errEl.style.display = 'none';
+
+    if (ompErr) {
+      if (errEl) {
+        errEl.textContent = '⛔ Invalid: O=' + ds.O + ' M=' + ds.M + ' P=' + ds.P + ' — requires O ≤ M ≤ P. Showing form but engine results will be unreliable.';
+        errEl.style.display = 'block';
+      }
+      return; // do not auto-run invalid estimates
+    }
+
+    // Auto-run
+    pmcRunFromForm();
+  }
+
+  // Expose picker functions globally so toolbar button can reach them
+  window.openSacoDatasetPicker  = openSacoDatasetPicker;
+  window.closeSacoDatasetPicker = closeSacoDatasetPicker;
+  window.loadSacoDataset        = loadSacoDataset;
+
   /* Show no-data overlay (input form) */
   function showNoDataMessage() {
     var overlay = document.getElementById('pmcNoDataOverlay');
     if (overlay) overlay.classList.add('visible');
     var pl = document.getElementById('pageLoader');
     if (pl) pl.style.display = 'none';
-    // Pre-fill inputs from URL params if present (O, M, P, task)
+    // Pre-fill from URL params (override defaults)
     var params = new URLSearchParams(window.location.search);
     var pO = params.get('O') || params.get('o') || params.get('optimistic');
     var pM = params.get('M') || params.get('m') || params.get('mostLikely');
@@ -8856,6 +9055,124 @@
     if (pM) { var el = document.getElementById('nd_M'); if (el) el.value = pM; }
     if (pP) { var el = document.getElementById('nd_P'); if (el) el.value = pP; }
     if (pT) { var el = document.getElementById('nd_task'); if (el) el.value = pT; }
+  }
+
+  /* ── SACO import helpers ─────────────────────────────── */
+
+  /* Load example portfolio (same 6-task project used on CPM page) */
+  function pmcLoadExample() {
+    var example = [
+      { task:'Requirements',  optimistic:3,  mostLikely:5,  pessimistic:8  },
+      { task:'Design',        optimistic:4,  mostLikely:7,  pessimistic:12 },
+      { task:'Development',   optimistic:10, mostLikely:16, pessimistic:25 },
+      { task:'Testing',       optimistic:4,  mostLikely:6,  pessimistic:10 },
+      { task:'Documentation', optimistic:2,  mostLikely:4,  pessimistic:6  },
+      { task:'Deployment',    optimistic:1,  mostLikely:2,  pessimistic:4  }
+    ];
+    _pmcInjectTasks(example);
+  }
+
+  function pmcToggleGsRow() {
+    var r = document.getElementById('ndGsRow');
+    if (r) r.style.display = r.style.display === 'none' ? 'flex' : 'none';
+  }
+
+  function pmcImportFromFile(input) {
+    var file = input.files && input.files[0];
+    if (!file) return;
+    var ext = file.name.split('.').pop().toLowerCase();
+    _pmcSetImportStatus('Reading ' + file.name + '…');
+    if (ext === 'xlsx' || ext === 'xls') {
+      _pmcLoadXlsx(function() {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          try {
+            var wb = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
+            var ws = wb.Sheets[wb.SheetNames[0]];
+            _pmcApplyCSV(XLSX.utils.sheet_to_csv(ws), file.name);
+          } catch(err) { _pmcSetImportStatus('Excel parse error: ' + err.message, true); }
+        };
+        reader.readAsArrayBuffer(file);
+      });
+    } else {
+      var reader = new FileReader();
+      reader.onload = function(e) { _pmcApplyCSV(e.target.result, file.name); };
+      reader.readAsText(file);
+    }
+    input.value = '';
+  }
+
+  function pmcImportFromGSheets() {
+    var raw = ((document.getElementById('ndGsUrl') || {}).value || '').trim();
+    if (!raw) return;
+    var csvUrl = raw;
+    var m = raw.match(/\/spreadsheets\/d\/([^/]+)/);
+    if (m) {
+      var gidM = raw.match(/[?&]gid=(\d+)/);
+      csvUrl = 'https://docs.google.com/spreadsheets/d/' + m[1] + '/export?format=csv' + (gidM ? '&gid=' + gidM[1] : '');
+    }
+    _pmcSetImportStatus('Fetching from Google Sheets…');
+    fetch(csvUrl)
+      .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(function(csv) { _pmcApplyCSV(csv, 'Google Sheets'); })
+      .catch(function(err) { _pmcSetImportStatus('Could not fetch. Make sure the sheet is published to web (File → Share → Publish to web → CSV). Error: ' + err.message, true); });
+  }
+
+  function _pmcLoadXlsx(cb) {
+    if (window.XLSX) { cb(); return; }
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    s.onload = cb;
+    s.onerror = function() { _pmcSetImportStatus('Could not load Excel parser.', true); };
+    document.head.appendChild(s);
+  }
+
+  function _pmcApplyCSV(csv, src) {
+    var rows = csv.trim().split(/\r?\n/).map(function(l){
+      return l.split(',').map(function(c){ return c.trim().replace(/^["']|["']$/g,''); });
+    });
+    if (rows.length < 2) { _pmcSetImportStatus('No data rows found in ' + src + '.', true); return; }
+    var headers = rows[0].map(function(h){ return h.toLowerCase(); });
+    var iTask   = headers.findIndex(function(h){ return /task|name/i.test(h); });
+    var iO      = headers.findIndex(function(h){ return /^o$|optim/i.test(h); });
+    var iM      = headers.findIndex(function(h){ return /^m$|likely|most/i.test(h); });
+    var iP      = headers.findIndex(function(h){ return /^p$|pessim/i.test(h); });
+    var iTgt    = headers.findIndex(function(h){ return /target/i.test(h); });
+    var hasHdr  = iTask >= 0 || iO >= 0;
+    var data    = hasHdr ? rows.slice(1) : rows;
+    if (!hasHdr) { iTask=0; iO=1; iM=2; iP=3; iTgt=4; }
+    var tasks = [];
+    data.forEach(function(r, i) {
+      if (r.every(function(c){ return !c; })) return;
+      var O = parseFloat(r[iO]), M = parseFloat(r[iM]), P = parseFloat(r[iP]);
+      if (!Number.isFinite(O) || !Number.isFinite(M) || !Number.isFinite(P) || O > M || M > P) return;
+      var t = { task: r[iTask] || ('Task '+(i+1)), optimistic:O, mostLikely:M, pessimistic:P };
+      if (iTgt >= 0 && r[iTgt]) { var tgt = parseFloat(r[iTgt]); if (Number.isFinite(tgt)) t.target = tgt; }
+      tasks.push(t);
+    });
+    if (!tasks.length) { _pmcSetImportStatus('No valid rows in ' + src + ' (need O ≤ M ≤ P).', true); return; }
+    _pmcSetImportStatus('Loaded ' + tasks.length + ' task' + (tasks.length !== 1 ? 's' : '') + ' from ' + src + '.');
+    _pmcInjectTasks(tasks);
+  }
+
+  function _pmcSetImportStatus(msg, isError) {
+    var el = document.getElementById('ndImportStatus');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.color = isError ? '#DC2626' : '#6B7280';
+    el.style.display = msg ? '' : 'none';
+  }
+
+  function _pmcInjectTasks(tasks) {
+    window._pmcBootstrap = { tasks: tasks };
+    window._pmcNoData = false;
+    var overlay = document.getElementById('pmcNoDataOverlay');
+    if (overlay) overlay.classList.remove('visible');
+    if (typeof window.loadTasks === 'function') {
+      window.loadTasks();
+    } else {
+      location.reload();
+    }
   }
 
   /* Run estimate from the no-data input form */
@@ -9601,13 +9918,38 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
 
         buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, adaptiveProb, fixedProb, manualProb, adaptiveSliders, fixedSliders, manualSliders, kl, alpha, beta, cv, skew, explain, KEYS, LABELS) {
           const self = this;
-          const range   = (O != null && P != null) ? P - O : null;
-          const pertVar = pertStd != null ? pertStd * pertStd : null;
-          const h       = range != null ? (range / 63.3) : null;
+          const range    = (O != null && P != null) ? P - O : null;
+          const pertVar  = pertStd != null ? pertStd * pertStd : null;
+          const h        = range != null ? (range / 63.3) : null;
           const probeLvl = S.overlay?.probeLevel ?? 3;
           const nSamples = Math.max(100, 50 * probeLvl);
 
-          // Normalize slider display values → [0,1] for formula use
+          // Pull explain sub-objects for all three strategies
+          const exOpt = S.explainOpt?.explain    || S.explainOpt    || {};
+          const exAda = S.explainAdaptive?.explain || S.explainAdaptive || {};
+          const exAdj = S.explainAdj?.explain    || S.explainAdj    || {};
+
+          // Moments from Not Benchmarked (most complete explain)
+          const m0Val      = exOpt.m0      ?? exOpt.moments?.[0] ?? null;
+          const m1Val      = exOpt.m1      ?? exOpt.moments?.[1] ?? null;
+          const coupling   = exOpt.coupling ?? null;
+          const tBlend     = coupling != null ? Math.max(0, Math.min(1, 0.3 + 0.4 * coupling)) : null;
+          const mbOpt      = exOpt.momentsBreakdown ?? null;
+          const mbAda      = exAda.momentsBreakdown ?? null;
+          const chainingDrift = exAda.chainingDrift ?? null;
+          const anchorApplied = exAda.anchorApplied ?? null;
+          const tameFactor    = exAda.tameFactor    ?? null;
+          const ambitionDetected = exAda.ambitionDetected ?? (pertMean != null && target != null && baselineProb != null && target > pertMean && baselineProb > 0.5);
+          const klOpt = exOpt.klDivergence ?? exOpt.kl ?? null;
+          const klAda = exAda.klDivergence ?? exAda.kl ?? null;
+          const klAdj = exAdj.klDivergence ?? exAdj.kl ?? null;
+          const ci    = S.baseline?.metrics?.ci ?? S.baseline?.ci ?? null;
+          const feasOpt = exOpt.feasible ?? null;
+          const feasAda = exAda.feasible ?? null;
+          const feasAdj = exAdj.feasible ?? null;
+          const leashLambda = baselineProb != null ? (0.05 * (1 - baselineProb)) : null;
+
+          // Normalize slider display values → [0,1]
           function norm01(sliders) {
             if (!sliders) return Array(7).fill(0);
             return KEYS.map(k => {
@@ -9616,7 +9958,7 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
             });
           }
 
-          // adjO/adjM/adjP from normalized [0,1] slider array (mirrors optimizer.gs lines 279-281)
+          // adjO/adjM/adjP from normalized [0,1] slider array
           function adjOMP(s01) {
             if (O == null || M == null || P == null) return null;
             const oA = O * (1 - s01[0]*0.25) * (1 - s01[3]*0.12);
@@ -9628,31 +9970,40 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
           const fixN   = norm01(fixedSliders);
           const adaN   = norm01(adaptiveSliders);
           const manN   = norm01(manualSliders);
-          const fixAdj = fixedProb  != null ? adjOMP(fixN)  : null;
+          const fixAdj = fixedProb   != null ? adjOMP(fixN)  : null;
           const adaAdj = adaptiveProb != null ? adjOMP(adaN) : null;
           const manAdj = manualProb  != null ? adjOMP(manN)  : null;
 
-          // Glossary: term → { title, body }
+          // ── Glossary ──────────────────────────────────────────────────
           const GLOSSARY = {
-            PERT:        { title:'PERT Formula', body:'Program Evaluation and Review Technique. Converts three-point estimates into a weighted mean and variance: μ=(O+4M+P)/6 gives 4× weight to the most likely value. σ=(P−O)/6 captures spread. Developed by the US Navy in 1958.' },
-            Beta:        { title:'Beta Distribution', body:'A flexible probability distribution bounded on [O,P]. Parameterized by shape parameters α and β derived from the PERT mean and variance via method of moments. When α>β the distribution skews left (optimistic bias); when α<β it skews right (pessimistic bias).' },
-            MonteCarlo:  { title:'Monte Carlo Simulation', body:'Generates N random samples from the Beta distribution. Each sample represents one possible project outcome. The histogram of outcomes builds the empirical probability distribution without solving integrals analytically.' },
-            KDE:         { title:'Kernel Density Estimation (KDE)', body:'Smooths the raw Monte Carlo histogram into a continuous curve using a Gaussian kernel. Bandwidth h=range/63.3 controls smoothness: too small → spiky, too large → over-smoothed. Removes sampling noise while preserving the distribution shape.' },
-            LHS:         { title:'Latin Hypercube Sampling', body:'A stratified sampling strategy. Divides each of the 7 slider dimensions into N equal-probability buckets and places exactly one sample per bucket. Guarantees even coverage of the 7D slider space with far fewer points than pure random sampling.' },
-            COBYLA:      { title:'COBYLA', body:'Constrained Optimization BY Linear Approximations (Powell, 1994). A derivative-free local optimizer: builds a linear approximation of the objective around the current point, steps within a trust-region radius ρ, then shrinks ρ until convergence. Chosen here because sacoObjective has no analytical gradient — it runs a full KDE+Beta refit per evaluation.' },
-            Copula:      { title:'Gaussian Copula', body:'A mathematical model for correlating the 7 sliders. The 7×7 BASE_R correlation matrix (sourced from PMBOK) is Cholesky-decomposed to generate correlated samples. Prevents the optimizer from treating sliders as independent — e.g., budget flexibility and scope reduction are positively correlated in real projects.' },
-            KL:          { title:'KL Divergence', body:'Kullback-Leibler Divergence: measures how far the reshaped distribution has drifted from the baseline. KL(Q‖P)=∫Q(x)log(Q(x)/P(x))dx. Always ≥ 0; equals 0 only when distributions are identical. Acts as a safety valve: if KL exceeds the threshold the optimizer reverts.' },
-            Leash:       { title:'Leash Penalty', body:'An exponential penalty added to the Benchmarked optimizer\'s objective for any slider that drifts more than 8% from the Not Benchmarked seed: penalty=λ·exp(dev/0.1) where λ=0.05(1−p₀). Keeps Benchmarked close to the known-good Not Benchmarked solution while allowing local refinement.' },
-            ProbeLevel:  { title:'Probe Level (1–7)', body:'Controls how deeply Benchmarked optimization explores around the Not Benchmarked seed. Level 1: 1 sample (seed only, 5 COBYLA steps — degenerate confirmation). Levels 2–7: max(100, 50×L) LHS samples, 100 COBYLA steps, ρ decays at 0.7/iter. Higher = more samples, slower COBYLA convergence, more permissive reshaping (tameFactor closer to 1).' },
-            adjOMP:      { title:'adjO / adjM / adjP', body:'Slider-adjusted versions of the three-point estimates. Each slider multiplies O, M, or P by a factor: adjO=O×(1−budget×0.25)×(1−scopeRed×0.12). Positive sliders decrease O and P (distribution narrows, shifts left → higher P(X≤τ)). reworkPercentage slightly increases M and P to reflect realistic rework costs.' },
-            Lift:        { title:'Lift', body:'The gain in probability from reshaping: lift = P₁ − p₀. If lift < −0.0001 the "never-worse" guard reverts all sliders to zero and returns the baseline distribution. This guarantees optimization can never make things worse for the user.' },
-            WMean:       { title:'W_MEAN Weights', body:'Per-slider direction weights: W=[-0.2,0.1,0.3,-0.15,-0.08,0.25,0.05]. Negative W means the slider should be actively set high (minimum bound 0.15). Positive W means use carefully (maximum bound 0.7). These define the feasible search box for LHS and COBYLA.' },
-            BENCH:       { title:'BENCH Caps', body:'Industry-typical maximum achievable values per slider: [75,75,60,50,25,50,50]%. These cap the LHS search upper bound — e.g., scope certainty max is 60% because perfect scope definition is not achievable in practice. Prevents the optimizer from finding unrealistic slider combinations.' },
-            Seed:        { title:'Seed / seedBest', body:'The Not Benchmarked optimizer\'s best-found slider vector [s₁…s₇]. Benchmarked optimization starts here instead of from scratch. At probe level 1, Benchmarked evaluates only this seed point. At levels 2–7, LHS explores around it within the leash radius.' },
-            Anchor:      { title:'Anchor (8% Rule)', body:'A hard constraint in applyReshapeRules: if any slider deviates more than 8% from seedBest during COBYLA refinement, it is lerped 80% back toward the seed. Enforces that Benchmarked stays near the Not Benchmarked solution even as COBYLA makes local moves. Not applied at probe level 1.' }
+            PERT:       { title:'PERT Formula', body:'Program Evaluation and Review Technique. Converts three-point estimates into a weighted mean and variance: μ=(O+4M+P)/6 gives 4× weight to the most likely value. σ=(P−O)/6 captures spread. Developed by the US Navy in 1958.' },
+            Beta:       { title:'Beta Distribution', body:'A flexible probability distribution bounded on [O,P]. Parameterized by shape parameters α and β derived from the PERT mean and variance via method of moments. When α>β the distribution skews left (optimistic bias); when α<β it skews right (pessimistic bias).' },
+            MonteCarlo: { title:'Monte Carlo Simulation', body:'Generates N random samples from the Beta distribution. Each sample represents one possible project outcome. The histogram of outcomes builds the empirical probability distribution without solving integrals analytically.' },
+            KDE:        { title:'Kernel Density Estimation (KDE)', body:'Smooths the raw Monte Carlo histogram into a continuous curve using a Gaussian kernel. Bandwidth h=range/63.3 controls smoothness: too small → spiky, too large → over-smoothed. Removes sampling noise while preserving distribution shape.' },
+            Copula:     { title:'Gaussian Copula (7×7 BASE_R)', body:'A mathematical model correlating all 7 sliders. BASE_R is a 7×7 matrix sourced from PMBOK/CII research. Key correlations: Budget↔Schedule r=0.40 (strongest), ScopeCertainty↔ScopeReduction r=0.35, RiskTolerance↔UserConfidence r=0.25. Rework has slight negative correlation with most levers (−0.10). The matrix is Cholesky-decomposed to generate correlated samples, preventing the optimizer from treating sliders as independent variables.' },
+            PSD:        { title:'PSD Jitter (Positive Semi-Definite)', body:'Before Cholesky decomposition, BASE_R gets a diagonal jitter of 1e-3: diag[i] = min(1.0, diag[i]+1e-3). This guarantees all eigenvalues are positive, making the matrix positive semi-definite and numerically stable. Without it, floating-point rounding could cause Cholesky to fail.' },
+            Coupling:   { title:'Coupling Signal', body:'After Cholesky-correlated sampling, z-scores are passed through the BASE_R matrix and tanh sigmoid to produce a scalar ∈[0,1]. Higher coupling = levers reinforce each other (e.g. both Budget and Schedule flexibility set high). The coupling drives the linear↔probability-OR blend: t = clamp(0.3+0.4×coupling, 0, 1).' },
+            m0:         { title:'m0 — Mean Shift Moment', body:'The aggregate lever effect on distribution mean. m0 = (1−t)×linear + t×prob-OR, where linear=Σ(W_i×S01_i) with weights W=[-0.2,0.1,0.3,-0.15,-0.08,0.25,0.05] and prob-OR=1−∏(1−0.9×S01_i). Low coupling → additive (linear dominates). High coupling → diminishing returns (prob-OR dominates). m0 ∈ [0,1].' },
+            m1:         { title:'m1 — Variance Compression Moment', body:'The aggregate lever effect on distribution variance. m1_base = 0.8 − 0.5×linear (more sliders → lower variance). m1 = m1_base × (1 + CV/2) — high-CV (risky) estimates get amplified variance compression. m1 ∈ [0,1].' },
+            HybridMom:  { title:'Hybrid Moments', body:'Final moments blend the copula-based computation with a thesis baseline: hybrid_m0 = 0.5×m0_copula + 0.5×m0_thesis, similarly for m1. This prevents the copula from fully dominating and preserves the deterministic PERT anchor.' },
+            LHS:        { title:'Latin Hypercube Sampling', body:'A stratified sampling strategy. Divides each of the 7 slider dimensions into N equal-probability buckets and places exactly one sample per bucket. Guarantees even marginal coverage of the 7D slider space with far fewer points than pure random sampling.' },
+            COBYLA:     { title:'COBYLA', body:'Constrained Optimization BY Linear Approximations (Powell, 1994). Derivative-free local optimizer: builds a linear approximation of the objective, steps within trust-region radius ρ, then shrinks ρ until convergence. Step sizes are skew-adaptive: δₖ = (ρ/|Wₖ|)×(1+0.1×sign(Wₖ)×skew) — ambitious targets get smaller steps (conservative refinement).' },
+            Objective:  { title:'SACO Objective Function', body:'score = P(X≤τ)^(1+bb) × exp(−KL) × exp(−leashPenalty). Three competing forces: (1) probability raised to (1+bb) where bias bb∈[0,0.05] boosts exploration when target is hard. (2) KL penalty exp(−KL) punishes distribution distortion. (3) Leash penalty exp(−Σλ×(exp(|Δs|/0.1)−1)) keeps Benchmarked near Not Benchmarked seed. If monotone-feasibility fails, score = −1e12 (instant rejection).' },
+            MonoFeas:   { title:'Monotone Feasibility', body:'Checks that adjO < adjM×slack and adjM < adjP×slack after slider application. slack = 1+0.05×CV×(1−p₀/0.5)×erf(|skew|/√2) — tighter distributions (high skew) get less tolerance. Repair: if infeasible, bump budget +0.01 and retry up to 3×. Final fail → score = −1e12.' },
+            Taming:     { title:'Taming Factor', body:'Adaptive-only variance amplification: tameFactor = 1+0.01/(probeLevel+1). Higher probe levels → tameFactor closer to 1 → less variance compression → broader reshaping allowed. If tau>μ AND p₀>0.5 (ambition detected), bias bb is forced to 0 — no probability exponent boost.' },
+            AmbDet:     { title:'Ambition Detection', body:'If your target exceeds the PERT mean AND you already have >50% baseline probability, the optimizer detects an "already winning" scenario. It disables the probability exponent boost (bb=0) and becomes ultra-conservative — the answer is execution, not reshaping.' },
+            Leash:      { title:'Leash Penalty', body:'λ = 0.05×(1−p₀). Exponential drift penalty per slider: penalty = Σ λ×(exp(|Δslider|/0.1)−1). Threshold 0.1 normalized units ≈ 10% movement → e^1 ≈ 2.7× penalty. Keeps Benchmarked close to Not Benchmarked solution. The leash gets stronger as baseline probability drops (harder problems → tighter reins).' },
+            Anchor:     { title:'Anchor (8% Rule)', body:'Every 10 COBYLA iterations: if any slider deviates >8% from seedBest, lerp 80% back toward seed: s = 0.8×seedBest + 0.2×current. Enforces that Benchmarked stays near Not Benchmarked even as COBYLA makes local moves. Triggered when anchorApplied=true.' },
+            ProbeLevel: { title:'Probe Level (1–7)', body:'Controls how deeply Benchmarked explores around the Not Benchmarked seed. L=1: seed-only evaluation. L=2–7: max(100,50×L) LHS samples, 100 COBYLA steps, ρ decays at 0.7/iter. Higher L = more samples, more permissive reshaping (tameFactor approaches 1).' },
+            adjOMP:     { title:'adjO / adjM / adjP Transform', body:'Slider-adjusted three-point estimates. Formulas:\nadjO = O × (1−budget×0.25) × (1−scopeRed×0.12)\nadjM = M × (1−schedule×0.12) × (1−userConf×0.08) × (1+rework×0.10)\nadjP = P × (1−scope×0.20) × (1−scopeRed×0.10) × (1+rework×0.08)\n\nNote: RiskTolerance does NOT touch OMP — it only affects the bias term bb in the objective. Rework INCREASES M and P (realistic buffer cost). Budget and Schedule reduce O and M respectively.' },
+            Lift:       { title:'Lift', body:'lift = P₁ − p₀. The probability gain from reshaping. If lift < −0.0001, the never-worse guard reverts all sliders to zero and returns the baseline distribution. Guarantees optimization never makes results worse.' },
+            KL:         { title:'KL Divergence', body:'Kullback-Leibler Divergence: KL(Q‖P)=∫Q(x)log(Q(x)/P(x))dx. Measures how far the reshaped distribution has drifted from baseline. Always ≥ 0; equals 0 only when distributions are identical. KL > 0.50 triggers a soft warning; KL > threshold triggers reversion.' },
+            WMean:      { title:'W_MEAN Weights', body:'Per-slider direction weights: W=[−0.2, 0.1, 0.3, −0.15, −0.08, 0.25, 0.05] for [Budget, Schedule, Scope, ScopeRed, Rework, Risk, Confidence]. Negative W = slider actively reduces variance (budget, scopeRed, rework). Positive W = slider improves probability via mean shift. Magnitude governs COBYLA step size.' },
+            BASE_R:     { title:'BASE_R Correlation Matrix', body:'7×7 inter-lever correlation matrix sourced from PMBOK Ch.6 project risk literature:\n  Budget↔Schedule:         r=0.40 (strongest)\n  Scope↔ScopeReduction:    r=0.35\n  Risk↔UserConfidence:     r=0.25\n  Rework has r=−0.10 with most levers\n  All others:              r≈0.05\nEnsures the optimizer respects real-world lever dependencies.' },
+            Seed:       { title:'Seed / seedBest', body:'The Not Benchmarked optimizer\'s best-found slider vector [s₁…s₇]. Benchmarked optimization initialises here instead of from scratch. At probe level 1, Benchmarked evaluates only this seed point. At levels 2–7, LHS explores around it within the leash radius.' },
+            ChainDrift: { title:'Chaining Drift', body:'% relative movement of Benchmarked sliders from the Not Benchmarked seed. chainingDrift = mean(|Benchmarked − Seed| / max(|Seed|, 0.01)) × 100. High drift means Benchmarked found a substantially different region; low drift means the leash was effective.' },
           };
 
-          // Render a glossary chip: clickable term with pop-up definition
           function chip(termKey, label) {
             const g = GLOSSARY[termKey] || { title: label, body: '' };
             const esc = s => s.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
@@ -9665,7 +10016,6 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
               + '</span>';
           }
 
-          // Node renderer
           function node(color, icon, title, content, isSource) {
             const border = isSource ? '3px solid ' + color : '1px solid ' + color + '44';
             const bg     = isSource ? color + '12' : '#fff';
@@ -9681,50 +10031,65 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
               + '</div>';
           }
 
-          // Connector arrow
           const arrow = '<div class="pipe-arrow">&#8595;</div>';
 
-          // Slider row for a strategy section inside a node
-          function sliderRows(s01raw, compareS01raw, prob, color) {
+          // Slider rows with affect column
+          function sliderRows(s01raw, compareS01raw, color) {
             const sliderMeta = [
-              { label:'Budget Flexibility',      term:'adjOMP', affects:'O ↓',  coeff:'×(1−s·0.25)' },
-              { label:'Schedule Flexibility',    term:'adjOMP', affects:'M ↓',  coeff:'×(1−s·0.12)' },
-              { label:'Scope Certainty',         term:'adjOMP', affects:'P ↓',  coeff:'×(1−s·0.20)' },
-              { label:'Scope Reduction Allow.',  term:'adjOMP', affects:'O,P ↓',coeff:'×(1−s·0.12/0.10)' },
-              { label:'Rework %',                term:'adjOMP', affects:'M,P ↑',coeff:'×(1+s·0.10/0.08)' },
-              { label:'Risk Tolerance',          term:'adjOMP', affects:'score',coeff:'→ bias only' },
-              { label:'User Confidence',         term:'adjOMP', affects:'M ↓',  coeff:'×(1−s·0.08)' },
+              { affects:'O ↓',   coeff:'×(1−s·0.25)' },
+              { affects:'M ↓',   coeff:'×(1−s·0.12)' },
+              { affects:'P ↓',   coeff:'×(1−s·0.20)' },
+              { affects:'O,P ↓', coeff:'×(1−s·0.12/0.10)' },
+              { affects:'M,P ↑', coeff:'×(1+s·0.10/0.08)' },
+              { affects:'bias',  coeff:'→ bb only' },
+              { affects:'M ↓',   coeff:'×(1−s·0.08)' },
             ];
             let rows = '';
             KEYS.forEach((k, i) => {
               const maxV = k === 'reworkPercentage' ? 50 : 100;
-              const val  = (s01raw[i] * maxV);
+              const val  = s01raw[i] * maxV;
               const delta = compareS01raw ? (val - compareS01raw[i] * maxV) : null;
               const deltaStr = delta != null
-                ? '<span style="font-size:10px;margin-left:4px;color:' + (Math.abs(delta)<0.5 ? '#9CA3AF' : delta > 0 ? '#16A34A' : '#EF4444') + ';">'
-                  + (delta >= 0 ? '+' : '') + delta.toFixed(0) + '% vs Not Benchmarked'
-                  + '</span>'
+                ? '<span style="font-size:10px;margin-left:4px;color:'
+                  + (Math.abs(delta)<0.5 ? '#9CA3AF' : delta > 0 ? '#16A34A' : '#EF4444') + ';">'
+                  + (delta >= 0 ? '+' : '') + delta.toFixed(0) + '%</span>'
                 : '';
-              const barW = Math.round(val);
-              const affect = sliderMeta[i].affects;
+              const barW = Math.round(Math.abs(val));
               rows += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px;">'
-                + '<div style="width:130px;flex-shrink:0;font-weight:600;color:#374151;">'
-                + chip('adjOMP', LABELS[i])
-                + '</div>'
+                + '<div style="width:130px;flex-shrink:0;font-weight:600;color:#374151;">' + chip('adjOMP', LABELS[i]) + '</div>'
                 + '<div style="flex:1;background:#F3F4F6;border-radius:4px;height:14px;position:relative;overflow:hidden;">'
-                + '<div style="width:' + barW + '%;height:100%;background:' + color + ';opacity:.7;border-radius:4px;"></div>'
-                + '</div>'
+                + '<div style="width:' + barW + '%;height:100%;background:' + color + ';opacity:.7;border-radius:4px;"></div></div>'
                 + '<div style="width:38px;text-align:right;font-weight:700;color:' + color + ';">' + val.toFixed(0) + '%</div>'
-                + '<div style="width:48px;text-align:right;font-size:9px;color:#9CA3AF;">' + affect + '</div>'
-                + deltaStr
-                + '</div>';
+                + '<div style="width:52px;text-align:right;font-size:9px;color:#9CA3AF;">' + sliderMeta[i].affects + '</div>'
+                + deltaStr + '</div>';
             });
             return rows;
           }
 
-          // adjOMP summary for a set of sliders
+          // Moment breakdown table for a strategy
+          function momentBreakdownTable(mb, color) {
+            if (!mb || !Object.keys(mb).length) return '';
+            const rows = KEYS.map((k, i) => {
+              const parts = mb[k] || [0, 0];
+              const m0p = (parts[0] * 100).toFixed(1);
+              const m1p = (parts[1] * 100).toFixed(1);
+              return '<tr><td style="padding:3px 6px;font-size:10px;">' + LABELS[i] + '</td>'
+                + '<td style="padding:3px 6px;font-size:10px;text-align:right;font-weight:700;color:' + color + ';">' + m0p + '%</td>'
+                + '<td style="padding:3px 6px;font-size:10px;text-align:right;font-weight:700;color:#6366F1;">' + m1p + '%</td>'
+                + '</tr>';
+            }).join('');
+            return '<details style="margin-top:8px;"><summary style="font-size:10px;color:' + color + ';cursor:pointer;font-weight:700;">▶ Per-lever moment contribution</summary>'
+              + '<table style="width:100%;border-collapse:collapse;margin-top:5px;">'
+              + '<thead><tr style="border-bottom:1px solid #E5E7EB;">'
+              + '<th style="padding:3px 6px;font-size:9px;text-align:left;color:#6B7280;">Lever</th>'
+              + '<th style="padding:3px 6px;font-size:9px;text-align:right;color:' + color + ';">Δ mean %</th>'
+              + '<th style="padding:3px 6px;font-size:9px;text-align:right;color:#6366F1;">Δ var %</th>'
+              + '</tr></thead><tbody>' + rows + '</tbody></table></details>';
+          }
+
+          // adjOMP summary boxes
           function adjSummary(a, color) {
-            if (!a) return '<span style="color:#9CA3AF;">—</span>';
+            if (!a) return '';
             return '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">'
               + ['O\'','M\'','P\''].map((lbl, i) => {
                   const orig = [O, M, P][i];
@@ -9733,14 +10098,13 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
                   return '<div style="flex:1;min-width:70px;padding:5px 8px;border-radius:6px;border:1px solid ' + color + '44;text-align:center;">'
                     + '<div style="font-size:9px;color:#6B7280;">' + lbl + ' (was ' + self.num(orig,1) + ')</div>'
                     + '<div style="font-size:14px;font-weight:800;color:' + color + ';">' + self.num(val,2) + '</div>'
-                    + '<div style="font-size:9px;color:' + (pct<0?'#16A34A':'#EF4444') + ';">' + (pct<=0?'':'+') + pct.toFixed(1) + '%</div>'
+                    + '<div style="font-size:9px;color:' + (pct<=0?'#16A34A':'#EF4444') + ';">' + (pct<=0?'':'+') + pct.toFixed(1) + '%</div>'
                     + '</div>';
-                }).join('')
-              + '</div>';
+                }).join('') + '</div>';
           }
 
           // Probability result chip
-          function probResult(prob, base, color, label) {
+          function probResult(prob, base, color) {
             if (prob == null) return '';
             const lift = base != null ? ((prob - base)*100) : null;
             return '<div style="display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 10px;'
@@ -9753,199 +10117,292 @@ ${this.buildPipelineView(S, O, M, P, target, pertMean, pertStd, baselineProb, ad
               + '</div>';
           }
 
-          // ─── BUILD HTML ───
+          // ─── BUILD HTML ───────────────────────────────────────────────
           let h2 = '<div id="rep-pipe" class="rep-panel" style="display:none;">';
 
           // Header
           h2 += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 10px;border-bottom:2px solid var(--line);margin-bottom:14px;">'
             + '<span style="font-size:13px;font-weight:800;color:#1E3A5F;">&#128301; Methodology Pipeline</span>'
-            + '<button class="rep-close-btn" '
-            + 'style="border:1px solid var(--line);background:#fff;cursor:pointer;font-size:12px;padding:3px 10px;border-radius:6px;color:#6B7280;">&#x2715; Close</button>'
+            + '<button class="rep-close-btn" style="border:1px solid var(--line);background:#fff;cursor:pointer;font-size:12px;padding:3px 10px;border-radius:6px;color:#6B7280;">&#x2715; Close</button>'
             + '</div>';
 
-          // Intro note
+          // Intro
           h2 += '<div class="rep-card" style="background:linear-gradient(135deg,#F5F3FF,#EFF6FF);border:2px solid #C4B5FD;margin-bottom:4px;">'
             + '<div style="font-size:13px;font-weight:800;color:#5B21B6;margin-bottom:4px;">&#128301; How Your Numbers Flow</div>'
-            + '<div style="font-size:11px;color:#374151;line-height:1.7;">A live trace from your three-point estimate through every calculation stage. '
-            + 'The <span style="font-weight:700;color:#7C3AED;">Not Benchmarked</span> optimizer runs first and its slider values '
-            + 'become <strong>the source</strong> that seeds Benchmarked Optimization. Click any <span class="pipe-chip" style="font-size:10px;">highlighted term ?</span> for a definition.</div>'
+            + '<div style="font-size:11px;color:#374151;line-height:1.7;">A live trace through every calculation stage. '
+            + 'Click any <span class="pipe-chip" style="font-size:10px;">highlighted term ?</span> for a mathematical definition. '
+            + '<strong>Not Benchmarked</strong> runs first — its slider values seed Benchmarked. '
+            + 'Two new nodes (④ Copula and ⑤ Moments) reflect the Gaussian copula + moment aggregation engine introduced in SACO v1.1.</div>'
             + '</div>';
 
-          // ── NODE 1: User Inputs ──
+          // ── NODE ①: User Inputs ───────────────────────────────────
           const inputContent = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">'
             + [['O','Optimistic',O,'#3B82F6'],['M','Most Likely',M,'#8B5CF6'],['P','Pessimistic',P,'#EF4444'],['τ','Target',target,'#10B981']].map(([k,lbl,v,c]) =>
                 '<div style="flex:1;min-width:55px;padding:7px 8px;border-radius:8px;border:1px solid '+c+'44;text-align:center;">'
-                +'<div style="font-size:9px;color:#6B7280;">'+k+' ('+lbl+')</div>'
-                +'<div style="font-size:17px;font-weight:800;color:'+c+';">'+(v!=null?self.num(v,1):'–')+'</div>'
-                +'</div>'
-              ).join('')
+                + '<div style="font-size:9px;color:#6B7280;">'+k+' ('+lbl+')</div>'
+                + '<div style="font-size:17px;font-weight:800;color:'+c+';">'+(v!=null?self.num(v,1):'–')+'</div>'
+                + '</div>').join('')
             + '</div>'
-            + '<div style="font-size:11px;color:#6B7280;">These three values drive <em>every</em> calculation below. '
-            + 'τ is your planning target — all probabilities are P(X ≤ τ).</div>';
+            + '<div style="font-size:11px;color:#6B7280;">All probabilities are P(X ≤ τ). τ above the PERT mean = ambitious goal.</div>';
           h2 += node('#6366F1', '①', 'User Inputs', inputContent, false) + arrow;
 
-          // ── NODE 2: PERT ──
+          // ── NODE ②: PERT ──────────────────────────────────────────
           const pertContent = '<div style="font-size:11px;color:#374151;margin-bottom:6px;">'
             + chip('PERT','PERT') + ' weights Most Likely 4× more than the extremes.</div>'
             + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
-            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F5F3FF;border:1px solid #C4B5FD;text-align:center;">'
-            + '<div style="font-size:9px;color:#6B7280;">μ = (O+4M+P)/6</div>'
-            + '<div style="font-size:16px;font-weight:800;color:#7C3AED;">'+(pertMean!=null?self.num(pertMean,3):'–')+'</div></div>'
-            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F5F3FF;border:1px solid #C4B5FD;text-align:center;">'
-            + '<div style="font-size:9px;color:#6B7280;">σ = (P−O)/6</div>'
-            + '<div style="font-size:16px;font-weight:800;color:#7C3AED;">'+(pertStd!=null?self.num(pertStd,3):'–')+'</div></div>'
-            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F5F3FF;border:1px solid #C4B5FD;text-align:center;">'
-            + '<div style="font-size:9px;color:#6B7280;">σ² (variance)</div>'
-            + '<div style="font-size:16px;font-weight:800;color:#7C3AED;">'+(pertVar!=null?self.num(pertVar,3):'–')+'</div></div>'
+            + [['μ = (O+4M+P)/6', pertMean], ['σ = (P−O)/6', pertStd], ['σ²', pertVar]].map(([f,v]) =>
+                '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F5F3FF;border:1px solid #C4B5FD;text-align:center;">'
+                + '<div style="font-size:9px;color:#6B7280;">' + f + '</div>'
+                + '<div style="font-size:16px;font-weight:800;color:#7C3AED;">' + (v!=null?self.num(v,3):'–') + '</div>'
+                + '</div>').join('')
             + '</div>';
           h2 += node('#7C3AED', '②', chip('PERT','PERT Distribution'), pertContent, false) + arrow;
 
-          // ── NODE 3: Beta Fit ──
+          // ── NODE ③: Beta Fit ──────────────────────────────────────
           const betaContent = '<div style="font-size:11px;color:#374151;margin-bottom:6px;">'
-            + chip('Beta','Beta Distribution') + ' fit via method of moments on scaled [0,1] interval, then rescaled to [O, P].</div>'
+            + chip('Beta','Beta(α,β)') + ' fit via method of moments, scaled to [O,P].</div>'
             + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
-            + ['α','β'].map((p,i) => '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#FFF7ED;border:1px solid #FDBA74;text-align:center;">'
-                +'<div style="font-size:9px;color:#6B7280;">'+p+' (shape)</div>'
-                +'<div style="font-size:16px;font-weight:800;color:#EA580C;">'+(i===0?(alpha!=null?self.num(alpha,3):'–'):(beta!=null?self.num(beta,3):'–'))+'</div>'
-                +'</div>').join('')
-            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#FFF7ED;border:1px solid #FDBA74;text-align:center;">'
-            + '<div style="font-size:9px;color:#6B7280;">CV (spread)</div>'
-            + '<div style="font-size:16px;font-weight:800;color:#EA580C;">'+(cv!=null?self.num(cv,3):'–')+'</div></div>'
+            + [['α',alpha], ['β',beta], ['CV',cv]].map(([lbl,v]) =>
+                '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#FFF7ED;border:1px solid #FDBA74;text-align:center;">'
+                + '<div style="font-size:9px;color:#6B7280;">' + lbl + '</div>'
+                + '<div style="font-size:16px;font-weight:800;color:#EA580C;">' + (v!=null?self.num(v,3):'–') + '</div>'
+                + '</div>').join('')
             + '</div>'
-            + '<div style="font-size:10px;color:#9CA3AF;margin-top:5px;">α>β → left-skewed (optimistic). α&lt;β → right-skewed (pessimistic).</div>';
+            + '<div style="font-size:10px;color:#9CA3AF;margin-top:5px;">α>β → left-skewed (optimistic). α&lt;β → right-skewed (pessimistic). CV = σ/μ measures spread.</div>';
           h2 += node('#EA580C', '③', chip('Beta','Beta Distribution Fit'), betaContent, false) + arrow;
 
-          // ── NODE 4: Monte Carlo + KDE ──
+          // ── NODE ④ (NEW): Gaussian Copula + Correlation ───────────
+          const BASE_R_LABELS = ['Budget','Schedule','Scope','ScopeRed','Rework','Risk','Confidence'];
+          const BASE_R = [
+            [1.00, 0.40, 0.10, 0.05, 0.00,-0.05, 0.05],
+            [0.40, 1.00, 0.10, 0.05, 0.00,-0.05, 0.05],
+            [0.10, 0.10, 1.00, 0.35,-0.10, 0.00, 0.00],
+            [0.05, 0.05, 0.35, 1.00,-0.05, 0.00, 0.00],
+            [0.00, 0.00,-0.10,-0.05, 1.00,-0.10,-0.10],
+            [-0.05,-0.05, 0.00, 0.00,-0.10, 1.00, 0.25],
+            [0.05, 0.05, 0.00, 0.00,-0.10, 0.25, 1.00]
+          ];
+          // Render a mini heatmap of BASE_R
+          function rCell(v) {
+            const abs = Math.abs(v);
+            let bg, fg;
+            if (v === 1) { bg='#DBEAFE'; fg='#1D4ED8'; }
+            else if (v >= 0.3) { bg='#DCFCE7'; fg='#15803D'; }
+            else if (v > 0) { bg='#F9FAFB'; fg='#374151'; }
+            else if (v < -0.05) { bg='#FEF2F2'; fg='#B91C1C'; }
+            else { bg='#F9FAFB'; fg='#9CA3AF'; }
+            return '<td style="padding:2px 3px;background:' + bg + ';color:' + fg + ';font-size:8px;font-weight:700;text-align:center;border:1px solid #F3F4F6;">' + v.toFixed(2) + '</td>';
+          }
+          const matrixHtml = '<div style="overflow-x:auto;margin-top:8px;"><table style="border-collapse:collapse;font-size:9px;">'
+            + '<tr><td style="padding:2px 3px;"></td>' + BASE_R_LABELS.map(l => '<th style="padding:2px 3px;font-size:8px;color:#6B7280;text-align:center;max-width:40px;overflow:hidden;white-space:nowrap;">' + l + '</th>').join('') + '</tr>'
+            + BASE_R.map((row, i) =>
+                '<tr><th style="padding:2px 4px;font-size:8px;color:#6B7280;text-align:right;white-space:nowrap;">' + BASE_R_LABELS[i] + '</th>'
+                + row.map(v => rCell(v)).join('') + '</tr>'
+              ).join('')
+            + '</table></div>';
+
+          const couplingDisplay = coupling != null ? self.num(coupling, 3) : '—';
+          const tBlendDisplay   = tBlend   != null ? self.num(tBlend,   3) : '—';
+
+          const copulaContent = '<div style="font-size:11px;color:#374151;margin-bottom:6px;">'
+            + chip('Copula','Gaussian Copula') + ' correlates the 7 levers via ' + chip('BASE_R','BASE_R') + '. '
+            + chip('PSD','PSD jitter') + ' (diag += 1e-3) ensures Cholesky stability.</div>'
+            + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;">'
+            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F0F9FF;border:1px solid #BAE6FD;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">' + chip('Coupling','Coupling signal') + '</div>'
+            + '<div style="font-size:16px;font-weight:800;color:#0369A1;">' + couplingDisplay + '</div>'
+            + '<div style="font-size:9px;color:#9CA3AF;">mean(tanh(R·z))</div></div>'
+            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F0F9FF;border:1px solid #BAE6FD;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">Blend weight t</div>'
+            + '<div style="font-size:16px;font-weight:800;color:#0369A1;">' + tBlendDisplay + '</div>'
+            + '<div style="font-size:9px;color:#9CA3AF;">clamp(0.3+0.4×coupling)</div></div>'
+            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F0F9FF;border:1px solid #BAE6FD;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">Mode</div>'
+            + '<div style="font-size:13px;font-weight:800;color:#0369A1;">' + (tBlend != null ? (tBlend < 0.45 ? 'Linear' : tBlend > 0.55 ? 'Prob-OR' : 'Mixed') : '—') + '</div>'
+            + '<div style="font-size:9px;color:#9CA3AF;">' + (tBlend != null ? (tBlend < 0.45 ? 'low coupling → additive' : 'high coupling → diminishing returns') : '') + '</div></div>'
+            + '</div>'
+            + '<details><summary style="font-size:10px;color:#0369A1;cursor:pointer;font-weight:700;">▶ BASE_R correlation matrix (7×7)</summary>'
+            + matrixHtml
+            + '<div style="font-size:9px;color:#6B7280;margin-top:4px;"><span style="background:#DCFCE7;padding:1px 4px;border-radius:2px;font-weight:700;color:#15803D;">green ≥0.30</span>  strong correlation &nbsp; <span style="background:#FEF2F2;padding:1px 4px;border-radius:2px;font-weight:700;color:#B91C1C;">red &lt;0</span>  negative correlation</div>'
+            + '</details>';
+          h2 += node('#0369A1', '④', chip('Copula','Gaussian Copula') + ' + Correlation', copulaContent, false) + arrow;
+
+          // ── NODE ⑤ (NEW): Moment Aggregation ─────────────────────
+          const lin_display = (m0Val != null && tBlend != null) ? '(computed)' : '—';
+          const momentContent = '<div style="font-size:11px;color:#374151;margin-bottom:6px;">'
+            + 'Slider vector → aggregate moments via copula-weighted blend. These moments drive the ' + chip('adjOMP','adjOMP') + ' transform.</div>'
+            + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F5F3FF;border:1px solid #C4B5FD;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">' + chip('m0','m0') + ' (mean shift)</div>'
+            + '<div style="font-size:16px;font-weight:800;color:#7C3AED;">' + (m0Val!=null?self.num(m0Val,3):'—') + '</div>'
+            + '<div style="font-size:9px;color:#9CA3AF;">(1−t)·linear + t·prob-OR</div></div>'
+            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F5F3FF;border:1px solid #C4B5FD;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">' + chip('m1','m1') + ' (variance proxy)</div>'
+            + '<div style="font-size:16px;font-weight:800;color:#7C3AED;">' + (m1Val!=null?self.num(m1Val,3):'—') + '</div>'
+            + '<div style="font-size:9px;color:#9CA3AF;">(0.8−0.5·lin)×(1+CV/2)</div></div>'
+            + '</div>'
+            + '<div style="margin-top:8px;padding:8px 10px;border-radius:6px;background:#F9FAFB;border:1px solid #E5E7EB;font-size:10px;color:#374151;line-height:1.8;">'
+            + '<strong>Weights W_MEAN</strong> = [−0.2, 0.1, 0.3, −0.15, −0.08, 0.25, 0.05]<br>'
+            + '&nbsp;&nbsp;[Budget, Schedule, Scope, ScopeRed, Rework, Risk, Confidence]<br>'
+            + '<strong>linear</strong> = Σ(W_i × S01_i) &nbsp; <strong>prob-OR</strong> = 1 − ∏(1 − 0.9·S01_i)<br>'
+            + '<strong>final</strong> = ' + chip('HybridMom','hybrid') + ': 0.5×copula_m0 + 0.5×thesis_m0'
+            + '</div>'
+            + (mbOpt ? momentBreakdownTable(mbOpt, '#7C3AED') : '');
+          h2 += node('#7C3AED', '⑤', chip('m0','Moment Aggregation') + ' (m0, m1)', momentContent, false) + arrow;
+
+          // ── NODE ⑥: Monte Carlo + KDE ─────────────────────────────
           const mcContent = '<div style="font-size:11px;color:#374151;margin-bottom:6px;">'
-            + '200 samples drawn from Beta(α,β), scaled to [O,P]. '
-            + chip('KDE','KDE') + ' smooths the histogram into continuous curves.</div>'
+            + '200 samples drawn from Beta(α,β). '
+            + chip('KDE','KDE') + ' (bandwidth h=' + (h!=null?self.num(h,4):'?') + ') smooths the histogram. '
+            + 'Moments m0/m1 from Node ⑤ are then applied to reshape the distribution.</div>'
             + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
             + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F0FDF4;border:1px solid #86EFAC;text-align:center;">'
             + '<div style="font-size:9px;color:#6B7280;">KDE bandwidth h</div>'
-            + '<div style="font-size:16px;font-weight:800;color:#16A34A;">'+(h!=null?self.num(h,4):'–')+'</div>'
-            + '<div style="font-size:9px;color:#9CA3AF;">range/63.3</div></div>'
+            + '<div style="font-size:16px;font-weight:800;color:#16A34A;">' + (h!=null?self.num(h,4):'—') + '</div></div>'
+            + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F0FDF4;border:1px solid #86EFAC;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">Samples</div>'
+            + '<div style="font-size:16px;font-weight:800;color:#16A34A;">200</div></div>'
             + '<div style="flex:1;padding:6px 8px;border-radius:6px;background:#F0FDF4;border:1px solid #86EFAC;text-align:center;">'
             + '<div style="font-size:9px;color:#6B7280;">Grid points</div>'
             + '<div style="font-size:16px;font-weight:800;color:#16A34A;">200</div></div>'
             + '</div>';
-          h2 += node('#16A34A', '④', chip('MonteCarlo','Monte Carlo') + ' + ' + chip('KDE','KDE Smoothing'), mcContent, false) + arrow;
+          h2 += node('#16A34A', '⑥', chip('MonteCarlo','Monte Carlo') + ' + ' + chip('KDE','KDE'), mcContent, false) + arrow;
 
-          // ── NODE 5: Baseline ──
+          // ── NODE ⑦: Baseline ──────────────────────────────────────
+          const ciStr = ci ? '[' + self.num(ci.lower,2) + ', ' + self.num(ci.upper,2) + ']' : '—';
           const baseContent = '<div style="font-size:11px;color:#374151;margin-bottom:6px;">'
-            + 'The unmodified distribution from your estimate. This is <strong>p₀</strong> — the probability every strategy tries to beat.</div>'
+            + 'Unmodified distribution — <strong>p₀</strong>. Every strategy competes to beat this.</div>'
             + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
             + '<div style="flex:2;padding:8px 10px;border-radius:6px;background:#F0F9FF;border:1px solid #BAE6FD;text-align:center;">'
             + '<div style="font-size:9px;color:#6B7280;">p₀ = P(X ≤ τ) baseline</div>'
-            + '<div style="font-size:22px;font-weight:900;color:#0369A1;">'+(baselineProb!=null?self.fmtPct(baselineProb):'–')+'</div></div>'
+            + '<div style="font-size:22px;font-weight:900;color:#0369A1;">' + (baselineProb!=null?self.fmtPct(baselineProb):'–') + '</div></div>'
             + '<div style="flex:1;padding:8px 10px;border-radius:6px;background:#F0F9FF;border:1px solid #BAE6FD;text-align:center;">'
-            + '<div style="font-size:9px;color:#6B7280;">skew index</div>'
-            + '<div style="font-size:16px;font-weight:800;color:#0369A1;">'+(skew!=null?self.num(skew,3):'–')+'</div></div>'
+            + '<div style="font-size:9px;color:#6B7280;">Skew index</div>'
+            + '<div style="font-size:16px;font-weight:800;color:#0369A1;">' + (skew!=null?self.num(skew,3):'–') + '</div></div>'
+            + '<div style="flex:1;padding:8px 10px;border-radius:6px;background:#F0F9FF;border:1px solid #BAE6FD;text-align:center;">'
+            + '<div style="font-size:9px;color:#6B7280;">95% CI</div>'
+            + '<div style="font-size:11px;font-weight:800;color:#0369A1;">' + ciStr + '</div></div>'
             + '</div>'
-            + '<div style="font-size:10px;color:#9CA3AF;margin-top:5px;">Negative skew = target is above PERT mean (ambitious goal). Positive = target below mean (conservative).</div>';
-          h2 += node('#0369A1', '⑤', 'Baseline Distribution', baseContent, false) + arrow;
+            + '<div style="font-size:10px;color:#9CA3AF;margin-top:5px;">'
+            + (ambitionDetected ? '⚠ <strong style="color:#D97706;">Ambition detected:</strong> τ > μ and p₀ > 50% — optimizer disables bias boost (bb=0). ' + chip('AmbDet','Why?') : '')
+            + ' Negative skew = τ above PERT mean (ambitious). Positive = τ below mean (conservative).'
+            + '</div>';
+          h2 += node('#0EA5E9', '⑦', 'Baseline Distribution + ' + chip('AmbDet','Ambition Check'), baseContent, false) + arrow;
 
-          // ── NODE 6: NOT BENCHMARKED — THE SOURCE ──
+          // ── NODE ⑧: NOT BENCHMARKED — THE SOURCE ─────────────────
           let genContent = '<div style="font-size:11px;color:#374151;margin-bottom:8px;">'
-            + chip('LHS','Latin Hypercube') + ': 250 samples · '
-            + chip('COBYLA','COBYLA') + ': 60 iters · No seed · No ' + chip('Leash','leash penalty') + '<br>'
-            + '<span style="font-size:10px;color:#6B7280;">Runs first, always. Its slider values become <strong>seedBest</strong> for Benchmarked Optimization.</span></div>';
+            + chip('LHS','LHS') + ': 250 samples · '
+            + chip('COBYLA','COBYLA') + ': 60 iters · Skew-adaptive steps · No seed · No ' + chip('Leash','leash') + '<br>'
+            + '<span style="font-size:10px;color:#6B7280;">Runs first. Slider values become <strong>seedBest</strong> that seeds Benchmarked.</span></div>';
 
           if (fixedProb != null) {
-            genContent += '<div style="font-size:11px;font-weight:700;color:#7C3AED;margin-bottom:6px;">Slider Values '
-              + chip('WMean','(W_MEAN bounds)') + ' ' + chip('BENCH','(BENCH caps)') + '</div>';
-            genContent += sliderRows(fixN, null, fixedProb, '#7C3AED');
+            genContent += '<div style="font-size:11px;font-weight:700;color:#7C3AED;margin-bottom:6px;">'
+              + 'Slider Values <span style="font-size:9px;font-weight:400;color:#9CA3AF;">('
+              + chip('WMean','W bounds') + ' · ' + chip('BASE_R','BENCH caps') + ')</span></div>';
+            genContent += sliderRows(fixN, null, '#7C3AED');
+            genContent += '<div style="font-size:10px;color:#6B7280;margin:5px 0 4px;">'
+              + chip('MonoFeas','Monotone feasibility') + ': '
+              + (feasOpt === true ? '<span style="color:#16A34A;font-weight:700;">✓ Pass</span>'
+                : feasOpt === false ? '<span style="color:#EF4444;font-weight:700;">✕ Repaired (budget bumped)</span>'
+                : '<span style="color:#9CA3AF;">—</span>')
+              + '</div>';
             genContent += '<div style="font-size:11px;font-weight:700;color:#7C3AED;margin:8px 0 4px;">'
-              + chip('adjOMP','adjO / adjM / adjP') + ' — how sliders shift the distribution</div>';
+              + chip('adjOMP','adjO / adjM / adjP') + '</div>';
             genContent += adjSummary(fixAdj, '#7C3AED');
-            genContent += probResult(fixedProb, baselineProb, '#7C3AED', 'Not Benchmarked');
+            genContent += momentBreakdownTable(mbOpt, '#7C3AED');
+            genContent += probResult(fixedProb, baselineProb, '#7C3AED');
           } else {
-            genContent += '<div style="color:#9CA3AF;font-style:italic;font-size:11px;">Run "Not Benchmarked" in the Compare Strategies tab to populate this node.</div>';
+            genContent += '<div style="color:#9CA3AF;font-style:italic;font-size:11px;">Run "Not Benchmarked" in Compare Strategies to populate.</div>';
           }
-          h2 += node('#7C3AED', '⑥', 'Not Benchmarked Optimization', genContent, true) + arrow;
+          h2 += node('#7C3AED', '⑧', 'Not Benchmarked Optimization', genContent, true) + arrow;
 
-          // ── NODE 7: BENCHMARKED (seeded from Not Benchmarked) ──
+          // ── NODE ⑨: BENCHMARKED ───────────────────────────────────
+          const leashStr = leashLambda != null ? leashLambda.toFixed(3) : '?';
+          const tf_display = tameFactor != null ? self.num(tameFactor, 4) : '—';
           let conContent = '<div style="font-size:11px;color:#374151;margin-bottom:8px;">'
-            + chip('Seed','Seed') + ' = Not Benchmarked\'s sliders above · '
-            + chip('ProbeLevel','Probe Level ' + probeLvl) + ' → ' + nSamples + ' ' + chip('LHS','LHS') + ' samples · '
-            + chip('COBYLA','COBYLA') + ': 100 iters (ρ decay 0.7) · '
-            + chip('Leash','Leash') + ' λ=' + (baselineProb!=null?(0.05*(1-baselineProb)).toFixed(3):'?') + ' · '
-            + chip('Anchor','Anchor') + ' at 8%</div>';
+            + chip('Seed','Seed') + ' = Not Benchmarked sliders · '
+            + chip('ProbeLevel','Probe ' + probeLvl) + ' → ' + nSamples + ' ' + chip('LHS','LHS') + ' · '
+            + chip('COBYLA','COBYLA') + ' 100 iters (ρ×0.7) · '
+            + chip('Leash','Leash') + ' λ=' + leashStr + ' · '
+            + chip('Anchor','Anchor') + ' 8%<br>'
+            + '<div style="display:flex;gap:8px;margin-top:5px;flex-wrap:wrap;">'
+            + '<span style="font-size:10px;">' + chip('Taming','Taming') + ': ' + tf_display + '</span>'
+            + (chainingDrift != null ? '<span style="font-size:10px;">' + chip('ChainDrift','Drift') + ': ' + self.num(chainingDrift,1) + '%</span>' : '')
+            + (anchorApplied === true ? '<span style="font-size:10px;color:#D97706;font-weight:700;">⚓ Anchor triggered</span>' : '')
+            + (anchorApplied === false ? '<span style="font-size:10px;color:#16A34A;">Anchor: not needed</span>' : '')
+            + '</div></div>';
 
           if (adaptiveProb != null) {
             conContent += '<div style="font-size:11px;font-weight:700;color:#0EA5E9;margin-bottom:6px;">'
-              + 'Slider Values <span style="font-size:9px;font-weight:400;color:#9CA3AF;">(Δ vs Not Benchmarked shows leash effect)</span></div>';
-            conContent += sliderRows(adaN, fixN, adaptiveProb, '#0EA5E9');
-            conContent += '<div style="font-size:11px;font-weight:700;color:#0EA5E9;margin:8px 0 4px;">'
-              + chip('adjOMP','adjO / adjM / adjP') + '</div>';
+              + 'Slider Values <span style="font-size:9px;font-weight:400;color:#9CA3AF;">(Δ vs Not Benchmarked → leash effect)</span></div>';
+            conContent += sliderRows(adaN, fixN, '#0EA5E9');
+            conContent += '<div style="font-size:10px;color:#6B7280;margin:5px 0 4px;">'
+              + chip('MonoFeas','Feasibility') + ': '
+              + (feasAda === true ? '<span style="color:#16A34A;font-weight:700;">✓ Pass</span>'
+                : feasAda === false ? '<span style="color:#EF4444;font-weight:700;">✕ Repaired</span>'
+                : '<span style="color:#9CA3AF;">—</span>')
+              + '</div>';
+            conContent += '<div style="font-size:11px;font-weight:700;color:#0EA5E9;margin:8px 0 4px;">' + chip('adjOMP','adjO / adjM / adjP') + '</div>';
             conContent += adjSummary(adaAdj, '#0EA5E9');
-            conContent += probResult(adaptiveProb, baselineProb, '#0EA5E9', 'Benchmarked');
+            conContent += momentBreakdownTable(mbAda, '#0EA5E9');
+            conContent += probResult(adaptiveProb, baselineProb, '#0EA5E9');
           } else {
-            conContent += '<div style="color:#9CA3AF;font-style:italic;font-size:11px;">Run "Benchmarked Optimization" in the Compare Strategies tab to populate this node.</div>';
+            conContent += '<div style="color:#9CA3AF;font-style:italic;font-size:11px;">Run "Benchmarked Optimization" in Compare Strategies to populate.</div>';
           }
-          h2 += node('#0EA5E9', '⑦', 'Benchmarked Optimization (Probe ' + probeLvl + ')', conContent, false) + arrow;
+          h2 += node('#0EA5E9', '⑨', 'Benchmarked Optimization (Probe ' + probeLvl + ')', conContent, false) + arrow;
 
-          // ── NODE 8: YOUR CONDITIONS (manual) ──
+          // ── NODE ⑩: YOUR CONDITIONS ───────────────────────────────
           let expContent = '<div style="font-size:11px;color:#374151;margin-bottom:8px;">'
-            + 'User-set lever values — completely independent of Not Benchmarked or Benchmarked. '
-            + 'No ' + chip('LHS','LHS') + ', no ' + chip('COBYLA','COBYLA') + ', no ' + chip('Leash','leash') + '. '
-            + 'Evaluates exactly the conditions you set — use for what-if and scenario analysis.</div>';
+            + 'User-set levers — no ' + chip('LHS','LHS') + ', no ' + chip('COBYLA','COBYLA') + ', no ' + chip('Leash','leash') + '. '
+            + 'Evaluates exactly what you set. Use for what-if and scenario analysis.</div>';
 
           if (manualProb != null) {
             expContent += '<div style="font-size:11px;font-weight:700;color:#F59E0B;margin-bottom:6px;">Slider Values (user-defined)</div>';
-            expContent += sliderRows(manN, fixN, manualProb, '#F59E0B');
+            expContent += sliderRows(manN, null, '#F59E0B');
+            expContent += '<div style="font-size:10px;color:#6B7280;margin:5px 0 4px;">'
+              + chip('MonoFeas','Feasibility') + ': '
+              + (feasAdj === true ? '<span style="color:#16A34A;font-weight:700;">✓ Pass</span>'
+                : feasAdj === false ? '<span style="color:#EF4444;font-weight:700;">✕ Repaired</span>'
+                : '<span style="color:#9CA3AF;">—</span>')
+              + '</div>';
             expContent += '<div style="font-size:11px;font-weight:700;color:#F59E0B;margin:8px 0 4px;">' + chip('adjOMP','adjO / adjM / adjP') + '</div>';
             expContent += adjSummary(manAdj, '#F59E0B');
-            expContent += probResult(manualProb, baselineProb, '#F59E0B', 'Your Conditions');
+            expContent += probResult(manualProb, baselineProb, '#F59E0B');
           } else {
-            expContent += '<div style="color:#9CA3AF;font-style:italic;font-size:11px;">Set levers manually in the Compare Strategies tab — Your Conditions panel — to populate this node.</div>';
+            expContent += '<div style="color:#9CA3AF;font-style:italic;font-size:11px;">Set levers in the Your Conditions panel to populate.</div>';
           }
-          h2 += node('#F59E0B', '⑧', 'Your Conditions (Manual)', expContent, false) + arrow;
+          h2 += node('#F59E0B', '⑩', 'Your Conditions (Manual)', expContent, false) + arrow;
 
-          // ── NODE 9: Guards ──
-          const guardContent = '<div style="font-size:11px;color:#374151;margin-bottom:8px;">'
-            + 'Three safeguards run on every strategy output before results are returned.</div>'
+          // ── NODE ⑪: OBJECTIVE FUNCTION ────────────────────────────
+          const objContent = '<div style="font-size:11px;color:#374151;margin-bottom:8px;">'
+            + chip('Objective','SACO Objective') + ' blends probability, KL penalty, and leash penalty:</div>'
+            + '<div style="padding:8px 10px;border-radius:6px;background:#1E293B;font-family:monospace;font-size:11px;color:#E2E8F0;line-height:2;margin-bottom:8px;">'
+            + 'score = P(X≤τ)<sup>(1+bb)</sup> × exp(−KL) × exp(−leashPenalty)<br>'
+            + 'bb ∈ [0, 0.05] &nbsp; (0 if ambition detected)<br>'
+            + 'leashPenalty = Σ λ × (exp(|Δs| / 0.1) − 1)<br>'
+            + 'λ = 0.05 × (1 − p₀) = ' + leashStr + '<br>'
+            + 'If ¬monotone_feasible → score = −1e12 (rejected)'
+            + '</div>'
             + '<table style="width:100%;font-size:11px;border-collapse:collapse;">'
-            + '<thead><tr style="border-bottom:1px solid var(--line);">'
-            + '<th style="text-align:left;padding:4px 6px;">Guard</th>'
-            + '<th style="text-align:left;padding:4px 6px;">Trigger</th>'
-            + '<th style="text-align:left;padding:4px 6px;">Action</th>'
-            + '<th style="padding:4px 6px;">Not Benchmarked</th>'
-            + '<th style="padding:4px 6px;">Benchmarked</th>'
-            + '<th style="padding:4px 6px;">Your Conditions</th>'
-            + '</tr></thead><tbody>'
+            + '<thead><tr style="border-bottom:1px solid #E5E7EB;"><th style="text-align:left;padding:4px 6px;">Term</th><th style="text-align:left;padding:4px 6px;">Purpose</th><th style="text-align:right;padding:4px 6px;">Not Bench</th><th style="text-align:right;padding:4px 6px;">Benchmarked</th><th style="text-align:right;padding:4px 6px;">Your Cond.</th></tr></thead><tbody>'
             + [
-                [chip('Lift','Never-worse'), chip('Lift','lift') + ' < −0.0001', 'Sliders → 0, return baseline',
-                  fixedProb, adaptiveProb, manualProb],
-                [chip('KL','KL Divergence'), 'KL > 0.50', 'Log warning (soft)',
-                  fixedProb!=null?(S.explainOpt?.explain?.klDivergence??0):null,
-                  adaptiveProb!=null?(S.explainAdaptive?.explain?.klDivergence??0):null,
-                  manualProb!=null?(S.explainAdj?.explain?.klDivergence??0):null],
-                [chip('Anchor','50% Anchor'), 'Any slider drifts >50% from seed', 'Snap to seed ±10%', '—','Active','—'],
-              ].map(([g, trig, act, fv, av, mv]) => {
-                function statusCell(v, isKL) {
-                  if (v === '—') return '<td style="text-align:center;font-size:10px;color:#9CA3AF;">—</td>';
-                  if (v == null) return '<td style="text-align:center;font-size:10px;color:#9CA3AF;">–</td>';
-                  if (isKL) {
-                    const ok = v < 0.5;
-                    return '<td style="text-align:center;font-size:10px;font-weight:700;color:'+(ok?'#16A34A':'#D97706')+';">'+(ok?'✓ '+self.num(v,3):'⚠ '+self.num(v,3))+'</td>';
-                  }
-                  const lifted = baselineProb != null && v > baselineProb - 0.0001;
-                  return '<td style="text-align:center;font-size:10px;font-weight:700;color:'+(lifted?'#16A34A':'#EF4444')+';">'+(lifted?'✓ Pass':'⚠ Reverted')+'</td>';
-                }
-                const isKL = String(g).includes('KL');
-                return '<tr style="border-bottom:1px solid var(--line)44;">'
-                  +'<td style="padding:5px 6px;font-weight:600;">' + g + '</td>'
-                  +'<td style="padding:5px 6px;font-size:10px;color:#6B7280;">' + trig + '</td>'
-                  +'<td style="padding:5px 6px;font-size:10px;color:#6B7280;">' + act + '</td>'
-                  + statusCell(fv, isKL)
-                  + statusCell(av, isKL)
-                  + statusCell(mv, isKL)
-                  + '</tr>';
-              }).join('')
+                ['P(X≤τ)', 'Probability', fixedProb, adaptiveProb, manualProb, v => v != null ? self.fmtPct(v) : '—'],
+                ['KL', chip('KL','KL div'), klOpt, klAda, klAdj, v => v != null ? (v < 0.5 ? '<span style="color:#16A34A;font-weight:700;">✓ ' + self.num(v,3) + '</span>' : '<span style="color:#D97706;font-weight:700;">⚠ ' + self.num(v,3) + '</span>') : '—'],
+                [chip('MonoFeas','Feasibility'), 'Monotone check', feasOpt, feasAda, feasAdj, v => v === true ? '<span style="color:#16A34A;font-weight:700;">✓ Pass</span>' : v === false ? '<span style="color:#EF4444;font-weight:700;">✕ Repaired</span>' : '—'],
+                ['Lift', chip('Lift','Never-worse'), fixedProb!=null?(fixedProb-baselineProb):null, adaptiveProb!=null?(adaptiveProb-baselineProb):null, manualProb!=null?(manualProb-baselineProb):null, v => v != null ? (v >= -0.0001 ? '<span style="color:#16A34A;font-weight:700;">✓ +'+(v*100).toFixed(2)+'pts</span>' : '<span style="color:#EF4444;font-weight:700;">⚠ Reverted</span>') : '—'],
+              ].map(([term, purpose, fv, av, mv, fmt]) =>
+                '<tr style="border-bottom:1px solid #F3F4F6;">'
+                + '<td style="padding:5px 6px;font-weight:600;">' + term + '</td>'
+                + '<td style="padding:5px 6px;font-size:10px;color:#6B7280;">' + purpose + '</td>'
+                + '<td style="padding:5px 6px;text-align:right;">' + fmt(fv) + '</td>'
+                + '<td style="padding:5px 6px;text-align:right;">' + fmt(av) + '</td>'
+                + '<td style="padding:5px 6px;text-align:right;">' + fmt(mv) + '</td>'
+                + '</tr>'
+              ).join('')
             + '</tbody></table>';
-          h2 += node('#DC2626', '⑨', 'Guard Checks', guardContent, false);
+          h2 += node('#DC2626', '⑪', chip('Objective','Objective Function') + ' + Guard Checks', objContent, false);
 
-          h2 += '</div>'; // close rep-pipe
+          h2 += '</div>';
           return h2;
         },
 
@@ -13524,5 +13981,20 @@ document.addEventListener('DOMContentLoaded', function() {
 })();
 </script>
 
+
+<!-- SACO Dataset Picker Modal -->
+<div id="sacoPickerModal" style="display:none" onclick="if(event.target===this)closeSacoDatasetPicker()">
+  <div class="saco-dsp-panel">
+    <div class="saco-dsp-hdr">
+      <span style="font-size:20px;">📐</span>
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:700;">Example Estimates</div>
+        <div style="font-size:11px;color:#6B7280;">Distribution shapes, edge cases, and multi-task portfolio</div>
+      </div>
+      <button onclick="closeSacoDatasetPicker()" style="background:none;border:none;cursor:pointer;font-size:20px;color:#6B7280;padding:4px 8px;border-radius:6px;">×</button>
+    </div>
+    <div class="saco-dsp-body" id="sacoPickerBody"></div>
+  </div>
+</div>
 </body>
 </html>
