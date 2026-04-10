@@ -7211,7 +7211,12 @@
               };
             });
             window.TM.initialized = true;
+            window.TM._lastAggResult = null; // clear stale aggregate from previous demo
             if (typeof window.TM._updateBar === 'function') window.TM._updateBar();
+            // If already in Group mode, refresh the group picker to show the new tasks
+            if (window.TM.mode === 'aggregate' && typeof window.TM._renderGroupPicker === 'function') {
+              window.TM._renderGroupPicker();
+            }
           }
 
           var sel = document.getElementById('taskSel');
@@ -9052,10 +9057,10 @@
     var body = document.getElementById('sacoPickerBody');
     var html = '';
     var cats = [
-      { key:'multi',   label:'Multi-Task Portfolios — Group mode &amp; task selector work here' },
-      { key:'valid',   label:'Single-Task — valid distribution shapes' },
-      { key:'warn',    label:'Single-Task — edge cases' },
-      { key:'invalid', label:'Single-Task — invalid inputs (engine error demos)' }
+      { key:'multi',   label:'Multi-Task Portfolios — full CPM, Group mode, task selector' },
+      { key:'valid',   label:'5-Task demos — valid distribution shapes (Group mode works here too)' },
+      { key:'warn',    label:'5-Task demos — edge cases (zero variance, etc.)' },
+      { key:'invalid', label:'5-Task demos — invalid inputs (engine error demos)' }
     ];
     cats.forEach(function(cat) {
       var ds = SACO_DATASETS.filter(function(d){ return d.category === cat.key; });
