@@ -380,15 +380,22 @@
       if (cl) cl.href = '/projectcare/cpm/plot/?session=' + encodeURIComponent(sess);
     }
 
-    // Always encode task OMP data into the CPM link so clicking it pre-loads the tasks
+    // Wire CPM link: portfolio (6-task full_project) uses the bare URL — it's the default.
+    // Any other dataset encodes tasks into ?data= so CPM pre-loads the right tasks.
     try {
-      var cpmPayload = { tasks: tasks.map(function(t) {
-        return { task: t.task || 'Task', O: t.O || 1, M: t.M || 2, P: t.P || 3, predecessors: [] };
-      })};
-      var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(cpmPayload))));
-      var cpmHref = '/projectcare/cpm/plot/?data=' + b64;
-      if (sess) cpmHref += '&session=' + encodeURIComponent(sess);
-      if (cl) cl.href = cpmHref;
+      var isPortfolio = (tasks.length === 6 &&
+        tasks[0].task === 'Requirements' && tasks[5].task === 'Deployment');
+      if (isPortfolio) {
+        if (cl) cl.href = '/projectcare/cpm/plot/' + (sess ? '?session=' + encodeURIComponent(sess) : '');
+      } else {
+        var cpmPayload = { tasks: tasks.map(function(t) {
+          return { task: t.task || 'Task', O: t.O || 1, M: t.M || 2, P: t.P || 3, predecessors: [] };
+        })};
+        var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(cpmPayload))));
+        var cpmHref = '/projectcare/cpm/plot/?data=' + b64;
+        if (sess) cpmHref += '&session=' + encodeURIComponent(sess);
+        if (cl) cl.href = cpmHref;
+      }
     } catch(e) { /* leave href as-is */ }
   }
 

@@ -9125,9 +9125,13 @@
   function _sacoUpdateCpmLink() {
     var cpmLink = document.getElementById('sacoCpmLink');
     if (!cpmLink) return;
+    // Portfolio demo == the CPM default (full_project) — bare URL is enough
+    if (_sacoActiveSource === 'demo:portfolio') {
+      cpmLink.href = '/projectcare/cpm/plot/';
+      return;
+    }
     try {
       // Prefer bootstrap tasks (richer — carry id, predecessors, phase, resource, riskSignals)
-      // over the normalised S.tasks which may have lost those fields
       var bootstrapTasks = window._pmcBootstrap && window._pmcBootstrap.tasks;
       var sTasks = window.S && window.S.tasks;
       var tasks = bootstrapTasks || sTasks;
