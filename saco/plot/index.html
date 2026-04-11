@@ -6974,16 +6974,31 @@
         // ── Step 3 → CPM panel — always exits dashboard, renders CPM ─────
         if (step === 3) {
           if (wrap) wrap.classList.remove('pmc-dashboard');
+          // Hide all panels except 3; force panel 3 visible
           document.querySelectorAll('.pmc-wiz-panel').forEach(function(p) {
-            p.classList.toggle('hidden', parseInt(p.dataset.wiz, 10) !== 3);
+            var w = parseInt(p.dataset.wiz, 10);
+            if (w === 3) {
+              p.classList.remove('hidden');
+              p.style.display = '';
+            } else {
+              p.classList.add('hidden');
+              p.style.display = 'none';
+            }
           });
           document.querySelectorAll('.pmc-wiz-tab').forEach(function(t) {
             t.classList.toggle('active', parseInt(t.dataset.wiz, 10) === 3);
             t.classList.remove('done');
           });
-          // Move charts back to step 1 container (CPM panel has its own content)
-          _chartsToStep1();
-          if (typeof window._renderCpmStep === 'function') window._renderCpmStep();
+          // Render CPM content
+          if (typeof window._renderCpmStep === 'function') {
+            try { window._renderCpmStep(); } catch(e) {
+              var el = document.getElementById('cpmStepContent');
+              if (el) el.innerHTML = '<div class="cpm-error-box">CPM render error: ' + (e.message || e) + '</div>';
+              console.error('[pmcWizGo step 3] _renderCpmStep threw:', e);
+            }
+          } else {
+            console.warn('[pmcWizGo step 3] _renderCpmStep not defined');
+          }
           return;
         }
 
