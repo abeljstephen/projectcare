@@ -7177,10 +7177,26 @@
         var baseResult = runCPM(baseInput, baseSacoRes);
         var optResult  = (optimizedCount > 0) ? runCPM(optInput, optSacoRes) : null;
 
+        if (!baseResult) {
+          // Try to show a useful error
+          var errResult;
+          try { errResult = runDeterministicCPM(baseInput); } catch(e) { errResult = { message: String(e.message || e) }; }
+          var eMsg = errResult && errResult.message ? errResult.message : 'Unknown CPM error';
+          if (errResult && errResult.code === 'CYCLES_DETECTED' && errResult.cycleDescriptions) {
+            eMsg += '<br>' + errResult.cycleDescriptions.map(_esc).join('<br>');
+          }
+          el.innerHTML = '<div class="cpm-error-box"><strong>CPM Error</strong><br>' + eMsg + '</div>';
+          return;
+        }
+
+        // hasDeps must be defined before stochastic + health score (was previously after — bug)
+        var hasDeps = tasks.some(function(t) { return t.predecessors && t.predecessors.length > 0; });
+        var hasComparison = optResult !== null;
+
         // ── Stochastic CPM (500 iterations — fast enough in-browser) ───────
         // Uses PERT probit fallback when no SACO CDFs available
         var stochResult = null;
-        if (baseResult && typeof runStochasticCPM === 'function' && hasDeps) {
+        if (hasDeps && baseResult && typeof runStochasticCPM === 'function') {
           try {
             var _graph = cpmBuildGraph(baseInput);
             var _order = baseResult.topologicalOrder;
@@ -7195,24 +7211,9 @@
 
         // ── Schedule Health Score ────────────────────────────────────────────
         var healthScore = null;
-        if (baseResult && typeof cpmScheduleHealthScore === 'function' && hasDeps) {
+        if (hasDeps && baseResult && typeof cpmScheduleHealthScore === 'function') {
           try { healthScore = cpmScheduleHealthScore(baseResult, stochResult); } catch(e) {}
         }
-
-        if (!baseResult) {
-          // Try to show a useful error
-          var errResult;
-          try { errResult = runDeterministicCPM(baseInput); } catch(e) { errResult = { message: String(e.message || e) }; }
-          var eMsg = errResult && errResult.message ? errResult.message : 'Unknown CPM error';
-          if (errResult && errResult.code === 'CYCLES_DETECTED' && errResult.cycleDescriptions) {
-            eMsg += '<br>' + errResult.cycleDescriptions.map(_esc).join('<br>');
-          }
-          el.innerHTML = '<div class="cpm-error-box"><strong>CPM Error</strong><br>' + eMsg + '</div>';
-          return;
-        }
-
-        var hasDeps = tasks.some(function(t) { return t.predecessors && t.predecessors.length > 0; });
-        var hasComparison = optResult !== null;
 
         // ── Helper: ordered task array from result map ──
         function toArr(res) {
