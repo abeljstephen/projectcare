@@ -7201,7 +7201,26 @@
           html += '</tbody></table></div>';
         }
 
+        // Gantt container (Chart.js renders into this after injection)
+        html += '<div style="margin-top:20px;">';
+        html += '<strong style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Gantt Chart</strong>';
+        html += '<div style="position:relative;height:' + Math.max(120, taskArr.length * 36 + 40) + 'px;margin-top:8px;">';
+        html += '<canvas id="cpmStepGanttCanvas"></canvas></div></div>';
+
+        // Network diagram container (SVG rendered after injection)
+        if (hasDeps) {
+          html += '<div style="margin-top:20px;">';
+          html += '<strong style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Network Diagram</strong>';
+          html += '<div id="cpmStepNetworkSvg" style="margin-top:8px;overflow-x:auto;"></div></div>';
+        }
+
         el.innerHTML = html;
+
+        // Render Gantt chart via Chart.js (already loaded on this page)
+        _renderCpmGantt(taskArr, result.projectDuration);
+
+        // Render network SVG
+        if (hasDeps) _renderCpmNetwork(tasks, result);
 
         // Sync #cpmFullLink URL with the same encoded payload as #sacoCpmLink
         var cpmFullLink = document.getElementById('cpmFullLink');
@@ -7261,6 +7280,224 @@
         });
       }
       window._updateCritBadgesInTaskList = _updateCritBadgesInTaskList;
+
+      // ── CPM Gantt (Chart.js horizontal floating-bar) ──────────────────────
+      var _cpmStepGanttChart = null;
+      function _renderCpmGantt(taskArr, projectDuration) {
+        var canvas = document.getElementById('cpmStepGanttCanvas');
+        if (!canvas || typeof Chart === 'undefined') return;
+        if (_cpmStepGanttChart) { _cpmStepGanttChart.destroy(); _cpmStepGanttChart = null; }
+
+        // Sort: critical path first (by earlyStart), then others
+        var sorted = taskArr.slice().sort(function(a, b) {
+          if (a.onCriticalPath && !b.onCriticalPath) return -1;
+          if (!a.onCriticalPath && b.onCriticalPath) return 1;
+          return (a.earlyStart || 0) - (b.earlyStart || 0);
+        });
+
+        var labels     = sorted.map(function(t) { return t.name || t.id; });
+        // Each bar: [earlyStart, earlyFinish] — the scheduled window
+        var earlyBars  = sorted.map(function(t) { return [t.earlyStart || 0, t.earlyFinish || 0]; });
+        // Float bar: [earlyFinish, lateFinish] — the slack window
+        var floatBars  = sorted.map(function(t) {
+          var ef = t.earlyFinish || 0, lf = t.lateFinish || 0;
+          return (lf > ef) ? [ef, lf] : null;
+        });
+        var barColors  = sorted.map(function(t) {
+          return t.onCriticalPath ? 'rgba(239,68,68,0.85)' : 'rgba(99,102,241,0.75)';
+        });
+        var floatColors = sorted.map(function(t) {
+          return t.onCriticalPath ? 'rgba(239,68,68,0.2)' : 'rgba(99,102,241,0.2)';
+        });
+
+        _cpmStepGanttChart = new Chart(canvas, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Duration',
+                data: earlyBars,
+                backgroundColor: barColors,
+                borderColor: barColors,
+                borderWidth: 0,
+                borderRadius: 3,
+                borderSkipped: false
+              },
+              {
+                label: 'Float',
+                data: floatBars,
+                backgroundColor: floatColors,
+                borderColor: floatColors,
+                borderWidth: 0,
+                borderRadius: 2,
+                borderSkipped: false
+              }
+            ]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: function(ctx) {
+                    var v = ctx.raw;
+                    if (!v || !Array.isArray(v)) return '';
+                    var t = sorted[ctx.dataIndex];
+                    if (ctx.datasetIndex === 0) return 'ES ' + v[0].toFixed(1) + ' → EF ' + v[1].toFixed(1) + (t.onCriticalPath ? ' [CRITICAL]' : '');
+                    return 'Float: ' + (v[1] - v[0]).toFixed(1) + ' d';
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                min: 0,
+                max: projectDuration ? projectDuration * 1.05 : undefined,
+                title: { display: true, text: 'Duration', font: { size: 10 }, color: '#9ca3af' },
+                ticks: { font: { size: 10 }, color: '#9ca3af' },
+                grid: { color: '#f3f4f6' }
+              },
+              y: {
+                ticks: { font: { size: 11 }, color: '#374151' },
+                grid: { display: false }
+              }
+            }
+          }
+        });
+      }
+      window._renderCpmGantt = _renderCpmGantt;
+
+      // ── CPM Network Diagram (pure SVG, no library) ────────────────────────
+      function _renderCpmNetwork(tasks, cpmResult) {
+        var container = document.getElementById('cpmStepNetworkSvg');
+        if (!container || !cpmResult || !cpmResult.tasks) return;
+
+        var order = cpmResult.topologicalOrder || tasks.map(function(t) { return t.id; });
+        var nodeMap = {};
+        tasks.forEach(function(t) { nodeMap[t.id] = t; });
+
+        // Assign x-position by topological rank, y-position by index within rank
+        var ranks = {};
+        order.forEach(function(id) {
+          var preds = (nodeMap[id] && nodeMap[id].predecessors) || [];
+          var rank  = 0;
+          preds.forEach(function(p) { rank = Math.max(rank, (ranks[p] || 0) + 1); });
+          ranks[id] = rank;
+        });
+
+        var maxRank   = 0;
+        order.forEach(function(id) { maxRank = Math.max(maxRank, ranks[id] || 0); });
+
+        // Group by rank
+        var rankGroups = {};
+        order.forEach(function(id) {
+          var r = ranks[id] || 0;
+          if (!rankGroups[r]) rankGroups[r] = [];
+          rankGroups[r].push(id);
+        });
+
+        var nodeW   = 110, nodeH = 36, xGap = 50, yGap = 16;
+        var colX    = {};
+        for (var r = 0; r <= maxRank; r++) colX[r] = r * (nodeW + xGap) + 20;
+
+        var positions = {};
+        for (var r2 = 0; r2 <= maxRank; r2++) {
+          var group = rankGroups[r2] || [];
+          group.forEach(function(id, yi) {
+            positions[id] = {
+              x: colX[r2],
+              y: yi * (nodeH + yGap) + 20
+            };
+          });
+        }
+
+        var maxY = 0;
+        order.forEach(function(id) {
+          if (positions[id]) maxY = Math.max(maxY, positions[id].y + nodeH);
+        });
+        var svgW = (maxRank + 1) * (nodeW + xGap) + 40;
+        var svgH = maxY + 30;
+
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgW + '" height="' + svgH + '" style="font-family:system-ui,sans-serif;">';
+
+        // Draw edges first (behind nodes)
+        tasks.forEach(function(t) {
+          if (!t.predecessors || !t.predecessors.length) return;
+          t.predecessors.forEach(function(predId) {
+            var from = positions[String(predId)];
+            var to   = positions[t.id];
+            if (!from || !to) return;
+            var x1 = from.x + nodeW, y1 = from.y + nodeH / 2;
+            var x2 = to.x,           y2 = to.y   + nodeH / 2;
+            var isCrit = cpmResult.tasks[t.id] && cpmResult.tasks[String(predId)] &&
+                         cpmResult.tasks[t.id].onCriticalPath && cpmResult.tasks[String(predId)].onCriticalPath;
+            var stroke = isCrit ? '#EF4444' : '#94A3B8';
+            var sw     = isCrit ? 2 : 1;
+            var mx = x1 + (x2 - x1) / 2;
+            svg += '<path d="M' + x1 + ',' + y1 + ' C' + mx + ',' + y1 + ' ' + mx + ',' + y2 + ' ' + x2 + ',' + y2 + '"';
+            svg += ' fill="none" stroke="' + stroke + '" stroke-width="' + sw + '" marker-end="url(#arr' + (isCrit?'r':'g') + ')"/>';
+          });
+        });
+
+        // Arrowhead markers
+        svg  = '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgW + '" height="' + svgH + '" style="font-family:system-ui,sans-serif;">';
+        svg += '<defs>';
+        svg += '<marker id="arrr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#EF4444"/></marker>';
+        svg += '<marker id="arrg" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#94A3B8"/></marker>';
+        svg += '</defs>';
+
+        // Re-draw edges after defs
+        tasks.forEach(function(t) {
+          if (!t.predecessors || !t.predecessors.length) return;
+          t.predecessors.forEach(function(predId) {
+            var from = positions[String(predId)];
+            var to   = positions[t.id];
+            if (!from || !to) return;
+            var x1 = from.x + nodeW, y1 = from.y + nodeH / 2;
+            var x2 = to.x,           y2 = to.y   + nodeH / 2;
+            var isCrit = cpmResult.tasks[t.id] && cpmResult.tasks[String(predId)] &&
+                         cpmResult.tasks[t.id].onCriticalPath && cpmResult.tasks[String(predId)].onCriticalPath;
+            var stroke = isCrit ? '#EF4444' : '#94A3B8';
+            var sw     = isCrit ? 2 : 1;
+            var mx = x1 + (x2 - x1) / 2;
+            svg += '<path d="M' + x1 + ',' + y1 + ' C' + mx + ',' + y1 + ' ' + mx + ',' + y2 + ' ' + x2 + ',' + y2 + '"';
+            svg += ' fill="none" stroke="' + stroke + '" stroke-width="' + sw + '" marker-end="url(#arr' + (isCrit?'r':'g') + ')"/>';
+          });
+        });
+
+        // Draw nodes
+        order.forEach(function(id) {
+          var pos   = positions[id];
+          if (!pos) return;
+          var tInfo = cpmResult.tasks[id];
+          var isCrit = tInfo && tInfo.onCriticalPath;
+          var label  = (tInfo && tInfo.name) || id;
+          var maxLen = 14;
+          if (label.length > maxLen) label = label.slice(0, maxLen - 1) + '…';
+          var fill   = isCrit ? '#FEF2F2' : '#F8FAFC';
+          var border = isCrit ? '#EF4444' : '#CBD5E1';
+          var bw     = isCrit ? 2 : 1;
+          var dur    = tInfo ? tInfo.duration.toFixed(1) : '';
+
+          svg += '<rect x="' + pos.x + '" y="' + pos.y + '" width="' + nodeW + '" height="' + nodeH + '"';
+          svg += ' rx="6" fill="' + fill + '" stroke="' + border + '" stroke-width="' + bw + '"/>';
+          svg += '<text x="' + (pos.x + nodeW/2) + '" y="' + (pos.y + 14) + '"';
+          svg += ' text-anchor="middle" font-size="11" font-weight="' + (isCrit?'700':'400') + '" fill="' + (isCrit?'#B91C1C':'#1E293B') + '">';
+          svg += label.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</text>';
+          if (dur) {
+            svg += '<text x="' + (pos.x + nodeW/2) + '" y="' + (pos.y + 28) + '"';
+            svg += ' text-anchor="middle" font-size="9" fill="#6B7280">' + dur + ' d</text>';
+          }
+        });
+
+        svg += '</svg>';
+        container.innerHTML = svg;
+      }
+      window._renderCpmNetwork = _renderCpmNetwork;
 
       function requestVariant(variant) {
         var s = WS();
@@ -7501,10 +7738,17 @@
         function _normaliseTask(t, idx) {
           return {
             task:                 t.task || t.taskName || t.task_name || ('Task ' + (idx + 1)),
+            // Preserve original id for CPM predecessor references
+            id:                   t.id   || t.task_id  || null,
             optimistic:           Number(t.optimistic  != null ? t.optimistic  : (t.O  != null ? t.O  : (t.best_case   || 0))),
             mostLikely:           Number(t.mostLikely  != null ? t.mostLikely  : (t.M  != null ? t.M  : (t.most_likely || 0))),
             pessimistic:          Number(t.pessimistic != null ? t.pessimistic : (t.P  != null ? t.P  : (t.worst_case  || 0))),
             target:               t.target != null ? Number(t.target) : (t.targetValue != null ? Number(t.targetValue) : undefined),
+            // CPM dependency graph fields
+            predecessors:         Array.isArray(t.predecessors) ? t.predecessors.slice() : [],
+            phase:                t.phase    || null,
+            resource:             t.resource || null,
+            riskSignals:          Array.isArray(t.riskSignals) ? t.riskSignals.slice() : null,
             // Carry through scalar results for per-task KPI display after task switch.
             // Accept both legacy nested format and new flat p10/p50/p90 format.
             targetProbability:    t.targetProbability    || null,
@@ -7535,14 +7779,18 @@
           if (window.TM) {
             window.TM.tasks = s.tasks.map(function(t, i) {
               return {
-                id:          'tid_boot_' + i,
-                task_name:   t.task,
-                best_case:   t.optimistic,
-                most_likely: t.mostLikely,
-                worst_case:  t.pessimistic,
-                risk_weight: 1.0,
-                active:      true,
-                notes:       ''
+                id:           t.id || ('tid_boot_' + i),
+                task_name:    t.task,
+                best_case:    t.optimistic,
+                most_likely:  t.mostLikely,
+                worst_case:   t.pessimistic,
+                predecessors: Array.isArray(t.predecessors) ? t.predecessors.slice() : [],
+                phase:        t.phase    || null,
+                resource:     t.resource || null,
+                riskSignals:  t.riskSignals || null,
+                risk_weight:  1.0,
+                active:       true,
+                notes:        ''
               };
             });
             window.TM.initialized = true;
