@@ -82,6 +82,8 @@
   <!-- CPM browser engine — deterministic critical path for inline badges and CPM step -->
   <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/graph.js"></script>
   <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/cpm-engine.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/stochastic-cpm.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/cpm-adapter.js"></script>
 
   <style>
     :root {
@@ -7100,30 +7102,95 @@
           };
         });
 
-        // ── Build CPM input arrays (strip extra fields the engine doesn't need) ──
+        // ── Build CPM input arrays ──────────────────────────────────────────
+        // Include O/M/P so stochastic fallback (PERT probit) can sample properly
         function toCpmInput(arr, useOpt) {
           return arr.map(function(t) {
             return {
               id:           t.id,
               task:         t.task,
               duration:     (useOpt && t.optDuration !== null) ? t.optDuration : t.duration,
+              optimistic:   t.O,
+              mostLikely:   t.M,
+              pessimistic:  t.P,
               predecessors: t.predecessors
             };
           });
         }
 
-        var baseInput = toCpmInput(tasks, false);
-        var optInput  = toCpmInput(tasks, true);
+        // ── Build sacoResults array for deterministic duration source labeling ──
+        // Each entry: { baseline: { monteCarloSmoothed: { cdfPoints } } } or null
+        // We construct a synthetic 5-point CDF from stored percentiles (p10/p50/p80/p90)
+        // so the engine labels duration source as 'saco_p80' instead of 'pert_mean_or_raw'
+        function buildSacoResults(taskArr, useOpt) {
+          return taskArr.map(function(t) {
+            var perc = useOpt ? (t.optPerc || t.optimizedPercentiles) : null;
+            // For baseline, use baseline percentiles from s.tasks if available
+            if (!perc && !useOpt) {
+              var sTask = window.S && window.S.tasks;
+              var idx   = sTask ? sTask.findIndex(function(st) { return (st.id || st.task) === (t.id || t.task); }) : -1;
+              if (idx >= 0 && sTask[idx] && sTask[idx].percentiles) perc = sTask[idx].percentiles;
+            }
+            if (!perc) return null;
+            // Build a minimal CDF from 5 anchor points: 0→O, p10, p50, p80/p90, 1→P
+            var pts = [];
+            var O = t.O || 0, P = t.P || 0;
+            pts.push({ x: O,                            y: 0.00 });
+            if (perc.p10 != null) pts.push({ x: perc.p10, y: 0.10 });
+            if (perc.p50 != null) pts.push({ x: perc.p50, y: 0.50 });
+            if (perc.p80 != null) pts.push({ x: perc.p80, y: 0.80 });
+            else if (perc.p90 != null) pts.push({ x: perc.p90, y: 0.90 });
+            pts.push({ x: P,                            y: 1.00 });
+            // Remove duplicates and ensure monotone
+            pts = pts.filter(function(p, i, a) { return i === 0 || p.x > a[i-1].x; });
+            if (pts.length < 2) return null;
+            var src = useOpt ? 'optimize' : 'baseline';
+            var obj = {};
+            if (src === 'optimize') {
+              obj.optimize = { reshapedPoints: { cdfPoints: pts } };
+            } else {
+              obj.baseline = { monteCarloSmoothed: { cdfPoints: pts } };
+            }
+            return obj;
+          });
+        }
 
-        function runCPM(input) {
+        var baseInput    = toCpmInput(tasks, false);
+        var optInput     = toCpmInput(tasks, true);
+        var baseSacoRes  = buildSacoResults(tasks, false);
+        var optSacoRes   = optimizedCount > 0 ? buildSacoResults(tasks, true) : null;
+
+        function runCPM(input, sacoRes) {
           try {
-            var r = runDeterministicCPM(input);
+            var r = runDeterministicCPM(input, sacoRes || null, { cpmPercentile: 0.80 });
             return (r && r.status === 'ok') ? r : null;
           } catch(e) { return null; }
         }
 
-        var baseResult = runCPM(baseInput);
-        var optResult  = (optimizedCount > 0) ? runCPM(optInput) : null;
+        var baseResult = runCPM(baseInput, baseSacoRes);
+        var optResult  = (optimizedCount > 0) ? runCPM(optInput, optSacoRes) : null;
+
+        // ── Stochastic CPM (500 iterations — fast enough in-browser) ───────
+        // Uses PERT probit fallback when no SACO CDFs available
+        var stochResult = null;
+        if (baseResult && typeof runStochasticCPM === 'function' && hasDeps) {
+          try {
+            var _graph = cpmBuildGraph(baseInput);
+            var _order = baseResult.topologicalOrder;
+            stochResult = runStochasticCPM(
+              baseInput, baseSacoRes, _graph, _order,
+              { n: 500, nearCriticalThreshold: 0.10 },
+              baseResult, null
+            );
+            if (stochResult && stochResult.status !== 'ok') stochResult = null;
+          } catch(e) { stochResult = null; }
+        }
+
+        // ── Schedule Health Score ────────────────────────────────────────────
+        var healthScore = null;
+        if (baseResult && typeof cpmScheduleHealthScore === 'function' && hasDeps) {
+          try { healthScore = cpmScheduleHealthScore(baseResult, stochResult); } catch(e) {}
+        }
 
         if (!baseResult) {
           // Try to show a useful error
@@ -7227,6 +7294,42 @@
         var bTotalFloat = 0; baseArr.forEach(function(t) { bTotalFloat += (t.totalFloat || 0); });
         var bAvgFloat = baseArr.length ? (bTotalFloat / baseArr.length).toFixed(1) : '—';
 
+        // ── Health Score banner (shown when deps exist) ──────────────────────
+        if (healthScore && healthScore.score != null) {
+          var hGrade = healthScore.grade;
+          var hScore = healthScore.score;
+          var hColor = hGrade === 'A' ? '#059669' : hGrade === 'B' ? '#16A34A' : hGrade === 'C' ? '#D97706' : hGrade === 'D' ? '#EA580C' : '#DC2626';
+          var hBg    = hGrade === 'A' ? '#ECFDF5' : hGrade === 'B' ? '#F0FDF4' : hGrade === 'C' ? '#FFFBEB' : hGrade === 'D' ? '#FFF7ED' : '#FEF2F2';
+          html += '<div style="display:flex;align-items:center;gap:14px;background:' + hBg + ';border:1.5px solid ' + hColor + ';border-radius:10px;padding:10px 16px;margin-bottom:14px;">';
+          html += '<div style="text-align:center;min-width:52px;">';
+          html += '<div style="font-size:32px;font-weight:900;color:' + hColor + ';line-height:1;">' + hGrade + '</div>';
+          html += '<div style="font-size:9px;color:' + hColor + ';font-weight:700;text-transform:uppercase;">Schedule</div>';
+          html += '</div>';
+          html += '<div style="flex:1;">';
+          html += '<div style="font-size:13px;font-weight:700;color:' + hColor + ';">Schedule Health: ' + hScore + '/100</div>';
+          html += '<div style="font-size:11px;color:#6B7280;margin-top:2px;">' + _esc(healthScore.interpretation || '') + '</div>';
+          // Factor bar
+          var f = healthScore.factors || {};
+          html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">';
+          function factorChip(label, val, inverse) {
+            if (val == null) return '';
+            var pct = Math.round((inverse ? 1 - val : val) * 100);
+            var col = pct > 66 ? '#059669' : pct > 33 ? '#D97706' : '#DC2626';
+            return '<span style="font-size:10px;background:#fff;border:1px solid #E5E7EB;border-radius:4px;padding:1px 6px;color:' + col + ';font-weight:600;">' + label + ': ' + pct + '%</span>';
+          }
+          if (f.nearCriticalFraction != null) html += factorChip('Float', f.nearCriticalFraction, true);
+          if (f.convergenceDensity   != null) html += factorChip('Merge', f.convergenceDensity,   true);
+          if (f.hasNegativeFloat)             html += '<span style="font-size:10px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:4px;padding:1px 6px;color:#DC2626;font-weight:700;">⚠ Negative Float</span>';
+          html += '</div></div>';
+          if (stochResult) {
+            html += '<div style="text-align:center;min-width:60px;">';
+            html += '<div style="font-size:10px;color:#6B7280;font-weight:600;">Stochastic</div>';
+            html += '<div style="font-size:11px;color:#374151;">' + (stochResult.n || 500) + ' iters</div>';
+            html += '</div>';
+          }
+          html += '</div>';
+        }
+
         html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">';
         function kpi(val, lbl, valOpt) {
           var inner = '<div class="cpm-kpi-val">' + val + '</div>';
@@ -7242,6 +7345,7 @@
         html += kpi(baseArr.length, 'Total Tasks');
         html += kpi(bAvgFloat, 'Avg Float');
         if (optimizedCount > 0) html += kpi(optimizedCount + '/' + tasks.length, 'Tasks Optimized');
+        if (stochResult) html += kpi(stochResult.projectDuration && stochResult.projectDuration.p80 != null ? stochResult.projectDuration.p80.toFixed(1) : '—', 'P80 Duration (MC)');
         html += '</div>';
 
         // ── Critical path chips (baseline / optimized) ──
@@ -7278,8 +7382,10 @@
           html += '<div style="margin-bottom:6px;margin-top:4px;"><strong style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Task Schedule</strong></div>';
           html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
           html += '<thead><tr style="border-bottom:2px solid #e5e7eb;">';
+          var hasCI   = stochResult && stochResult.criticalityIndex && Object.keys(stochResult.criticalityIndex).length > 0;
           var headers = ['Task', 'ES', 'EF', 'Float', 'Status'];
-          if (hasComparison) headers = ['Task', 'Base ES', 'Base EF', 'Opt EF', 'Δ Float', 'Status'];
+          if (hasCI)         headers.push('CI %');
+          if (hasComparison) headers = ['Task', 'Base ES', 'Base EF', 'Opt EF', 'Δ Float', 'Status', hasCI ? 'CI %' : null].filter(Boolean);
           headers.forEach(function(h) {
             html += '<th style="text-align:left;padding:4px 7px;font-size:10px;color:#6b7280;font-weight:700;white-space:nowrap;">' + h + '</th>';
           });
@@ -7316,6 +7422,20 @@
               html += '<td style="padding:4px 7px;">' + fmt(t.totalFloat) + '</td>';
             }
             html += '<td style="padding:4px 7px;">' + badge + '</td>';
+            // Criticality Index column
+            if (hasCI) {
+              var ci = stochResult.criticalityIndex[t.id];
+              if (ci != null) {
+                var ciPct  = Math.round(ci * 100);
+                var ciCol  = ci >= 0.8 ? '#DC2626' : ci >= 0.4 ? '#D97706' : '#059669';
+                var ciBar  = '<div style="width:' + ciPct + '%;height:4px;background:' + ciCol + ';border-radius:2px;margin-top:2px;"></div>';
+                html += '<td style="padding:4px 7px;white-space:nowrap;">';
+                html += '<span style="font-weight:700;color:' + ciCol + ';font-size:11px;">' + ciPct + '%</span>' + ciBar;
+                html += '</td>';
+              } else {
+                html += '<td style="padding:4px 7px;color:#9CA3AF;">—</td>';
+              }
+            }
             html += '</tr>';
           });
           html += '</tbody></table></div>';
