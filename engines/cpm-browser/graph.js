@@ -256,6 +256,11 @@ function cpmFindOrphans(graph) {
   const nodes   = Object.keys(graph.nodes);
   if (nodes.length === 0) return [];
 
+  // If no edges exist at all, this is a "no dependencies defined" state, not an orphan
+  // condition. Every task would be its own component, producing n-1 spurious warnings.
+  // Only report orphans when there are edges AND some tasks are unreachable.
+  if (graph.edges.length === 0) return [];
+
   const visited    = {};
   const components = [];
 

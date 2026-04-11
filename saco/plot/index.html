@@ -79,6 +79,10 @@
   <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/visuals/sankey-flow.js"></script>
   <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/main.js"></script>
 
+  <!-- CPM browser engine — deterministic critical path for inline badges and CPM step -->
+  <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/graph.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/cpm-engine.js"></script>
+
   <style>
     :root {
       --fg:#111827; --muted:#6B7280; --brand:#111827; --accent:#10B981; --accent2:#059669; --opt:#6D28D9;
@@ -1256,6 +1260,55 @@
     .pmc-wiz-arr { color: var(--muted); font-size: 13px; flex-shrink: 0; }
     .pmc-wiz-panel { display: block; }
     .pmc-wiz-panel.hidden { display: none; }
+
+    /* ── Criticality badge (task list + group picker) ── */
+    .crit-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 6px;
+      white-space: nowrap; flex-shrink: 0; margin-left: 4px;
+    }
+    .crit-badge.crit-high  { background: #FEE2E2; color: #991B1B; }
+    .crit-badge.crit-med   { background: #FEF3C7; color: #92400E; }
+    .crit-badge.crit-low   { background: #ECFDF5; color: #065F46; }
+    .crit-badge.crit-none  { background: #F3F4F6; color: #6B7280; }
+
+    /* ── CPM step panel (Step 3) ── */
+    #wizPanel3 { padding: 0; }
+    .cpm-step-section { margin-bottom: 16px; }
+    .cpm-step-hdr {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .05em; color: var(--muted); margin-bottom: 8px;
+    }
+    .cpm-kpi-row {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
+    }
+    .cpm-kpi {
+      flex: 1; min-width: 70px; background: var(--chip); border-radius: 8px;
+      padding: 7px 10px; text-align: center;
+    }
+    .cpm-kpi-val { font-size: 18px; font-weight: 700; color: var(--fg); }
+    .cpm-kpi-lbl { font-size: 9px; color: var(--muted); margin-top: 2px; }
+    .cpm-path-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; background: #FEF2F2; border: 1px solid #FCA5A5;
+      color: #991B1B; border-radius: 6px; padding: 2px 7px; margin: 2px 2px 2px 0;
+      font-weight: 600;
+    }
+    .cpm-path-chip.near { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
+    .cpm-delta-row {
+      display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+      background: #ECFDF5; border: 1px solid #6EE7B7; border-radius: 8px;
+      font-size: 11px; margin-bottom: 8px;
+    }
+    .cpm-delta-val { font-size: 15px; font-weight: 700; color: #065F46; }
+    .cpm-no-deps {
+      padding: 12px 14px; background: #EFF6FF; border: 1px solid #BFDBFE;
+      border-radius: 8px; color: #1D4ED8; font-size: 11px; line-height: 1.5;
+    }
+    .cpm-error-box {
+      padding: 10px 12px; background: #FEF2F2; border: 1px solid #FCA5A5;
+      border-radius: 8px; color: #991B1B; font-size: 11px;
+    }
     .pmc-wiz-footer {
       display: flex; gap: 8px; align-items: center;
       margin-top: 14px; padding-top: 10px;
@@ -2298,6 +2351,10 @@
   <div class="pmc-wiz-tab" data-wiz="2" onclick="pmcWizGo(2)" title="Apply management conditions to improve project odds — Benchmarked, Unconstrained, and Your Conditions">
     <span class="pmc-wiz-num">2</span>Optimize
   </div>
+  <span class="pmc-wiz-arr" aria-hidden="true">›</span>
+  <div class="pmc-wiz-tab" data-wiz="3" onclick="pmcWizGo(3)" title="Critical path — before and after optimization — with float and schedule health">
+    <span class="pmc-wiz-num">3</span>CPM<span id="wizCpmBadge" style="display:none; margin-left:4px; font-size:9px; font-weight:800; background:#059669; color:#fff; padding:0 5px; border-radius:8px;"></span>
+  </div>
 </nav>
 
 <!-- ══ STEP 1 — ESTIMATE ═══════════════════════════════════════════════ -->
@@ -3169,8 +3226,33 @@
 <div class="pmc-wiz-footer">
   <button class="pmc-wiz-btn" onclick="pmcWizGo(1)" title="Back to Estimate">‹ Estimate</button>
   <span class="pmc-wiz-spacer"></span>
+  <button class="pmc-wiz-btn primary" onclick="pmcWizGo(3)" title="View CPM critical path analysis">CPM ›</button>
 </div>
 </div><!-- /wizPanel2 -->
+
+<!-- ══ STEP 3 — CPM ════════════════════════════════════════════════════ -->
+<div class="pmc-wiz-panel hidden" data-wiz="3" id="wizPanel3">
+<div class="pmc-step-hdr">
+  <span class="pmc-step-num">3</span>
+  <span>Critical Path</span>
+</div>
+
+<div id="cpmStepContent">
+  <!-- Populated by _renderCpmStep() -->
+  <div class="cpm-no-deps" id="cpmStepPlaceholder">
+    <strong>Run Estimate first</strong> — CPM analysis will appear here once your tasks have been processed.
+  </div>
+</div>
+
+<div class="pmc-wiz-footer">
+  <button class="pmc-wiz-btn" onclick="pmcWizGo(2)" title="Back to Optimize">‹ Optimize</button>
+  <span class="pmc-wiz-spacer"></span>
+  <a id="cpmFullLink" href="/projectcare/cpm/plot/" target="_blank" rel="noopener"
+     class="pmc-wiz-btn" style="text-decoration:none;" title="Open full CPM diagram with stochastic analysis">
+    Full CPM Diagram ↗
+  </a>
+</div>
+</div><!-- /wizPanel3 -->
 
 <!-- Toast -->
 <div id="toast" style="display:none;position:fixed;top:20px;right:20px;background:var(--accent);color:#fff;padding:12px;border-radius:8px;z-index:1002;">Tip</div>  </div>
@@ -3854,6 +3936,9 @@
         : (s.baseCdf && s.baseCdf.length ? s.baseCdf : s.triangleCdf);
       if (cdf && cdf.length && s.target != null) {
         var prob = interpY(cdf, s.target);
+        // Guard against Infinity/NaN leaking into the display (can occur with
+        // degenerate distributions or when target is far outside the CDF range)
+        if (!Number.isFinite(prob)) prob = null;
         probStr = prob != null ? (prob * 100).toFixed(2) + '%' : '–';
         s.targetProb = prob;
         // Keep Project Report overview in sync without full re-render
@@ -6526,10 +6611,25 @@
           return;
         }
 
+        // ── Pre-flight: validate triangle before sending to engine ──────────
+        // NaN inputs produce NaN-poisoned CDF/PDF that silently corrupt all
+        // downstream interpolation. Block here with a clear status message.
+        var _O = Number(s.O), _M = Number(s.M), _P = Number(s.P);
+        if (!Number.isFinite(_O) || !Number.isFinite(_M) || !Number.isFinite(_P)) {
+          setStatusLocal('Invalid estimates — enter numeric O, M, P values.');
+          s.fetching = false;
+          return;
+        }
+        if (_O > _M || _M > _P) {
+          setStatusLocal('Invalid triangle: need O \u2264 M \u2264 P.');
+          s.fetching = false;
+          return;
+        }
+
         var params = {
           task: s.task.task,
-          optimistic: s.O, mostLikely: s.M, pessimistic: s.P,
-          targetValue: (s.target != null ? s.target : s.M),
+          optimistic: _O, mostLikely: _M, pessimistic: _P,
+          targetValue: (s.target != null ? s.target : _M),
           optimize: false, mode: 'view', adaptive: false,
           reshapeTriangle: true, reshapeBetaPert: true,
           priorHistory: (typeof window.getHistPrior === 'function') ? window.getHistPrior() : undefined
@@ -6920,6 +7020,22 @@
           return;
         }
 
+        // ── Step 3 → CPM panel (not dashboard mode) ──────────────────────
+        if (step === 3) {
+          if (wrap) wrap.classList.remove('pmc-dashboard');
+          document.querySelectorAll('.pmc-wiz-panel').forEach(function(p) {
+            p.classList.toggle('hidden', parseInt(p.dataset.wiz, 10) !== 3);
+          });
+          document.querySelectorAll('.pmc-wiz-tab').forEach(function(t) {
+            t.classList.toggle('active', parseInt(t.dataset.wiz, 10) === 3);
+            t.classList.remove('done');
+          });
+          // Move charts back to step 1 container (CPM panel has its own content)
+          _chartsToStep1();
+          if (typeof window._renderCpmStep === 'function') window._renderCpmStep();
+          return;
+        }
+
         // ── Step 1 → exit dashboard, wizard mode ─────────────────────────
         if (wrap) wrap.classList.remove('pmc-dashboard');
         // Show only panel 1; hide panels 2 & 3
@@ -6935,6 +7051,216 @@
         // Move charts to Step 1 (shows distribution plots inline)
         _chartsToStep1();
       };
+
+      // ── CPM Step renderer ─────────────────────────────────────────────────
+      window._renderCpmStep = function() {
+        var el = document.getElementById('cpmStepContent');
+        if (!el) return;
+        var _esc = typeof _escHtml === 'function' ? _escHtml : function(s) {
+          return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        };
+
+        // Require CPM engine
+        if (typeof cpmBuildGraph === 'undefined' || typeof runDeterministicCPM === 'undefined') {
+          el.innerHTML = '<div class="cpm-error-box">CPM engine not loaded. Check network connection and reload.</div>';
+          return;
+        }
+
+        var tm = window.TM;
+        if (!tm || !tm.tasks || tm.tasks.length === 0) {
+          el.innerHTML = '<div class="cpm-no-deps">No tasks defined. Add tasks in Step 1 to see CPM analysis.</div>';
+          return;
+        }
+
+        // Build tasks array with PERT means as duration
+        var tasks = tm.tasks.map(function(t, idx) {
+          var nt = (typeof tm._normalizeTask === 'function') ? tm._normalizeTask(t, idx) : t;
+          function coerce(a, b) { return Number(a != null && Number.isFinite(Number(a)) ? a : (b != null && Number.isFinite(Number(b)) ? b : 0)); }
+          var O = coerce(nt.best_case,   nt.optimistic);
+          var M = coerce(nt.most_likely, nt.mostLikely);
+          var P = coerce(nt.worst_case,  nt.pessimistic);
+          var pertMean = (O + 4*M + P) / 6;
+          return {
+            id:           String(t.id || t.task_name || t.task || ('task_' + idx)),
+            task:         t.task_name || t.task || t.id || ('Task ' + (idx+1)),
+            duration:     Number.isFinite(pertMean) ? pertMean : M,
+            predecessors: Array.isArray(t.predecessors) ? t.predecessors : []
+          };
+        });
+
+        // Run deterministic CPM (pre and post are same here — baseline only)
+        var result;
+        try {
+          result = runDeterministicCPM(tasks);
+        } catch(e) {
+          el.innerHTML = '<div class="cpm-error-box">CPM error: ' + _esc(String(e.message || e)) + '</div>';
+          return;
+        }
+
+        if (!result || result.status !== 'ok') {
+          var errMsg = result && result.message ? result.message : 'Unknown CPM error';
+          if (result && result.code === 'CYCLES_DETECTED' && result.cycleDescriptions) {
+            errMsg += '<br><br>' + result.cycleDescriptions.map(_esc).join('<br>');
+          }
+          el.innerHTML = '<div class="cpm-error-box"><strong>CPM Error</strong><br>' + errMsg + '</div>';
+          return;
+        }
+
+        // result.tasks is an object map: { id: taskObj }
+        var taskArr = result.tasks ? Object.keys(result.tasks).map(function(id) { return result.tasks[id]; }) : [];
+
+        // Check if any dependencies defined
+        var hasDeps = tasks.some(function(t) { return t.predecessors && t.predecessors.length > 0; });
+
+        var html = '';
+
+        if (!hasDeps) {
+          html += '<div class="cpm-no-deps" style="margin-bottom:12px;">&#9432; No dependencies defined — showing task durations. Add predecessors in Step 1 for full critical path analysis.</div>';
+        }
+
+        // Merge point bias warning
+        if (result.mergePointBiasWarning) {
+          html += '<div style="background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;">&#9888; ' + _esc(result.mergePointBiasWarning) + '</div>';
+        }
+
+        // KPI bar
+        var cpLen   = Number.isFinite(result.projectDuration) ? result.projectDuration.toFixed(1) : '—';
+        var cpCount = result.criticalPath ? result.criticalPath.length : 0;
+        var totalFloat = 0;
+        taskArr.forEach(function(t) { totalFloat += (t.totalFloat || 0); });
+        var avgFloat = taskArr.length ? (totalFloat / taskArr.length).toFixed(1) : '—';
+
+        html += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">';
+        html += '<div class="cpm-kpi"><div class="cpm-kpi-val">' + cpLen + '</div><div class="cpm-kpi-lbl">Project Duration</div></div>';
+        html += '<div class="cpm-kpi"><div class="cpm-kpi-val">' + cpCount + '</div><div class="cpm-kpi-lbl">Critical Tasks</div></div>';
+        html += '<div class="cpm-kpi"><div class="cpm-kpi-val">' + taskArr.length + '</div><div class="cpm-kpi-lbl">Total Tasks</div></div>';
+        html += '<div class="cpm-kpi"><div class="cpm-kpi-val">' + avgFloat + '</div><div class="cpm-kpi-lbl">Avg Total Float</div></div>';
+        html += '</div>';
+
+        // Critical path chips
+        if (result.criticalPath && result.criticalPath.length > 0) {
+          html += '<div style="margin-bottom:14px;"><strong style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Critical Path</strong>';
+          html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">';
+          result.criticalPath.forEach(function(taskId) {
+            var tInfo = result.tasks && result.tasks[taskId];
+            var label = tInfo ? (tInfo.name || taskId) : taskId;
+            html += '<span class="cpm-path-chip">' + _esc(label) + '</span>';
+          });
+          html += '</div></div>';
+        }
+
+        // Validation warnings (non-blocking)
+        if (result.validationErrors && result.validationErrors.length > 0) {
+          html += '<div style="background:#FEF3C7;border:1px solid #FCD34D;color:#78350F;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;">';
+          html += '<strong>&#9888; Input warnings (' + result.validationErrors.length + ')</strong><br>';
+          result.validationErrors.slice(0, 5).forEach(function(e) {
+            html += _esc(e.message) + '<br>';
+          });
+          if (result.validationErrors.length > 5) html += '… and ' + (result.validationErrors.length - 5) + ' more.';
+          html += '</div>';
+        }
+
+        // Task table
+        if (taskArr.length > 0) {
+          // Sort: critical first, then by earlyStart
+          taskArr.sort(function(a, b) {
+            if (a.onCriticalPath && !b.onCriticalPath) return -1;
+            if (!a.onCriticalPath && b.onCriticalPath) return 1;
+            return (a.earlyStart || 0) - (b.earlyStart || 0);
+          });
+          html += '<div style="margin-bottom:6px;"><strong style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Task Schedule</strong></div>';
+          html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">';
+          html += '<thead><tr style="border-bottom:2px solid #e5e7eb;">';
+          ['Task','ES','EF','LS','LF','Float','Status'].forEach(function(h) {
+            html += '<th style="text-align:left;padding:5px 8px;font-size:11px;color:#6b7280;font-weight:600;white-space:nowrap;">' + h + '</th>';
+          });
+          html += '</tr></thead><tbody>';
+
+          taskArr.forEach(function(t) {
+            var isCrit = t.onCriticalPath;
+            var rowBg  = isCrit ? '#FEF2F2' : '';
+            var badge;
+            if (isCrit) {
+              badge = '<span class="crit-badge crit-high">CRITICAL</span>';
+            } else if (t.tippingSeverity === 'high' || (t.totalFloat != null && t.totalFloat < 2)) {
+              badge = '<span class="crit-badge crit-med">AT RISK</span>';
+            } else {
+              badge = '<span class="crit-badge crit-none">OK</span>';
+            }
+            var fmt = function(v) { return (v != null && Number.isFinite(v)) ? v.toFixed(1) : '—'; };
+            html += '<tr style="border-bottom:1px solid #f3f4f6;background:' + rowBg + ';">';
+            html += '<td style="padding:5px 8px;font-weight:' + (isCrit?'600':'400') + ';">' + _esc(t.name || t.id) + '</td>';
+            html += '<td style="padding:5px 8px;">' + fmt(t.earlyStart)  + '</td>';
+            html += '<td style="padding:5px 8px;">' + fmt(t.earlyFinish) + '</td>';
+            html += '<td style="padding:5px 8px;">' + fmt(t.lateStart)   + '</td>';
+            html += '<td style="padding:5px 8px;">' + fmt(t.lateFinish)  + '</td>';
+            html += '<td style="padding:5px 8px;">' + fmt(t.totalFloat)  + '</td>';
+            html += '<td style="padding:5px 8px;">' + badge + '</td>';
+            html += '</tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+
+        el.innerHTML = html;
+
+        // Sync #cpmFullLink URL with the same encoded payload as #sacoCpmLink
+        var cpmFullLink = document.getElementById('cpmFullLink');
+        if (cpmFullLink) {
+          var sacoCpmLink = document.getElementById('sacoCpmLink');
+          if (sacoCpmLink && sacoCpmLink.href && sacoCpmLink.href.indexOf('?data=') !== -1) {
+            cpmFullLink.href = sacoCpmLink.href;
+          } else if (typeof window._sacoUpdateCpmLink === 'function') {
+            window._sacoUpdateCpmLink();
+            if (sacoCpmLink && sacoCpmLink.href) cpmFullLink.href = sacoCpmLink.href;
+          }
+        }
+
+        // Update CPM badge in wizard nav
+        var navBadge = document.getElementById('wizCpmBadge');
+        if (navBadge) {
+          navBadge.textContent = cpCount > 0 ? cpCount + ' critical' : '';
+          navBadge.style.display = cpCount > 0 ? '' : 'none';
+        }
+
+        // Store result for badge rendering in task list
+        window._lastCpmResult = result;
+
+        // Re-render task list to show criticality badges if we're in step 1
+        if (tm && typeof tm._renderTaskList === 'function') {
+          // Don't force a full re-render — just update badge DOM if already rendered
+          _updateCritBadgesInTaskList(result);
+        }
+      };
+
+      // Inject criticality badges into the already-rendered task list (non-destructive)
+      // cpmResult.tasks is an object map: { taskId: taskObj }
+      function _updateCritBadgesInTaskList(cpmResult) {
+        if (!cpmResult || !cpmResult.tasks) return;
+        var taskRows = document.querySelectorAll('.task-row[data-task-id]');
+        taskRows.forEach(function(row) {
+          var taskId = row.getAttribute('data-task-id');
+          var tInfo  = cpmResult.tasks[taskId];
+          if (!tInfo) return;
+          var existing = row.querySelector('.crit-badge-inline');
+          if (!existing) {
+            var nameCell = row.querySelector('.task-name-cell') || row.querySelector('td:first-child');
+            if (nameCell) {
+              var span = document.createElement('span');
+              span.className = 'crit-badge-inline';
+              nameCell.appendChild(span);
+              existing = span;
+            }
+          }
+          if (existing) {
+            var isCrit = tInfo.onCriticalPath;
+            var isAtRisk = !isCrit && (tInfo.tippingSeverity === 'high' || (tInfo.totalFloat != null && tInfo.totalFloat < 2));
+            existing.className = 'crit-badge-inline crit-badge ' + (isCrit ? 'crit-high' : (isAtRisk ? 'crit-med' : 'crit-none'));
+            existing.textContent = isCrit ? 'CRIT' : (isAtRisk ? 'LOW' : '');
+            existing.style.display = (isCrit || isAtRisk) ? '' : 'none';
+          }
+        });
+      }
+      window._updateCritBadgesInTaskList = _updateCritBadgesInTaskList;
 
       function requestVariant(variant) {
         var s = WS();
@@ -12690,12 +13016,18 @@ window.TM = {
 
   /* ── Normalize a task object to internal format ── */
   _normalizeTask: function(t, idx) {
+    // Use != null checks (not ||) so explicit 0 values are preserved, not silently
+    // replaced by the next fallback. The || pattern treats 0 as falsy.
+    function _coerce(a, b, c) {
+      var v = a != null ? a : (b != null ? b : c);
+      return Number(isFinite(Number(v)) ? v : 0);
+    }
     return {
       id:          t.id || ('tid_' + idx + '_' + Date.now()),
       task_name:   String(t.task_name || t.task || '').trim(),
-      best_case:   Number(t.best_case  || t.optimistic  || 0),
-      most_likely: Number(t.most_likely|| t.mostLikely  || 0),
-      worst_case:  Number(t.worst_case || t.pessimistic || 0),
+      best_case:   _coerce(t.best_case,   t.optimistic,  0),
+      most_likely: _coerce(t.most_likely, t.mostLikely,  0),
+      worst_case:  _coerce(t.worst_case,  t.pessimistic, 0),
       risk_weight: Number(t.risk_weight != null ? t.risk_weight : 1.0),
       active:      t.active !== false,
       notes:       String(t.notes || '').trim()
@@ -12786,6 +13118,14 @@ window.TM = {
       if (estSingle) estSingle.style.display = '';
       if (estAgg)    estAgg.style.display    = 'none';
       if (estPend)   estPend.style.display   = 'none';
+      // Switching back to Single mode: clear aggregate CDF/PDF so single-task
+      // display code (updateTargetDisplayText, renderKPIs, charts) doesn't
+      // accidentally pick up stale group data. _lastAggResult is kept so the
+      // cache is still valid if the user switches back to Group immediately.
+      var _sSingle = window.S || {};
+      _sSingle.aggCdf  = [];
+      _sSingle.aggPdf  = [];
+      _sSingle.aggMean = null;
     }
 
     var aggBar = document.getElementById('tmAggBar');
@@ -12911,9 +13251,26 @@ window.TM = {
       // risk profile for the group. Summing would imply strict sequential execution,
       // which is CPM's job, not SACO's.
       var n = activeTasks.length;
+      // Guard against division by zero when all tasks are unchecked.
+      // Show a clear message and bail — do not send NaN to the engine.
+      if (n === 0) {
+        var _sEmpty = window.S || (window.S = {});
+        _sEmpty.aggCdf = []; _sEmpty.aggPdf = []; _sEmpty.aggMean = null;
+        _sEmpty.baselineProb = null; _sEmpty.task = null;
+        if (typeof setStatusLocal === 'function') setStatusLocal('Select at least one task for group analysis.');
+        if (typeof window.updateTargetDisplayText === 'function') window.updateTargetDisplayText();
+        if (typeof window.scheduleUIRefresh === 'function') window.scheduleUIRefresh();
+        return;
+      }
       var sumO = 0, sumM = 0, sumP = 0;
       activeTasks.forEach(function(t) { sumO += t.best_case; sumM += t.most_likely; sumP += t.worst_case; });
       var avgO = sumO / n, avgM = sumM / n, avgP = sumP / n;
+      // Secondary NaN guard: if any individual task has NaN estimates (shouldn't
+      // reach here with _normalizeTask's _coerce guard, but belt-and-suspenders)
+      if (!Number.isFinite(avgO) || !Number.isFinite(avgM) || !Number.isFinite(avgP)) {
+        if (typeof setStatusLocal === 'function') setStatusLocal('One or more tasks has invalid estimates — check O/M/P values.');
+        return;
+      }
       var aggTaskParam = {
         task:        'Group (' + n + ' tasks)',
         optimistic:  avgO,
@@ -13229,14 +13586,19 @@ window.TM = {
       list.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:6px 8px;">No tasks yet — click Manage tasks to add some.</div>';
       return;
     }
+    var _esc = typeof _escHtml === 'function' ? _escHtml : function(s) {
+      return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    };
     var html = '';
     this.tasks.forEach(function(t) {
       var rowCls = 'grp-task-row' + (t.active ? ' grp-active' : '');
+      var safeName = _esc(t.task_name || t.task || 'Task');
+      var safeId   = _esc(t.id);
       html += '<label class="' + rowCls + '">';
       html += '<input type="checkbox"' + (t.active ? ' checked' : '') +
-              ' onclick="event.stopPropagation();TM._toggleActive(\'' + t.id + '\')"/>';
-      html += '<span class="grp-task-name">' + (t.task_name || t.task || 'Task') + '</span>';
-      html += '<span class="grp-task-omp">' + t.best_case + '/' + t.most_likely + '/' + t.worst_case + '</span>';
+              ' onclick="event.stopPropagation();TM._toggleActive(\'' + safeId + '\')"/>';
+      html += '<span class="grp-task-name">' + safeName + '</span>';
+      html += '<span class="grp-task-omp">' + _esc(String(t.best_case)) + '/' + _esc(String(t.most_likely)) + '/' + _esc(String(t.worst_case)) + '</span>';
       html += '</label>';
     });
     list.innerHTML = html;
@@ -13285,10 +13647,27 @@ window.TM = {
     if (!t) return;
     this._confirm('Delete Task', 'Delete "' + t.task_name + '"? This cannot be undone.', 'Delete', function() {
       self.tasks = self.tasks.filter(function(x) { return x.id !== id; });
+      // Remove this task's id from any other task's predecessors array to avoid
+      // ghost dependency references that break CPM topology checks.
+      self.tasks.forEach(function(x) {
+        if (Array.isArray(x.predecessors)) {
+          x.predecessors = x.predecessors.filter(function(p) { return p !== id && p !== t.task_name; });
+        }
+      });
+      // Invalidate cached aggregate — it included the deleted task.
+      self._lastAggResult = null;
       self._markDirty();
       self._renderTaskList();
       self._syncToLegacy();
       self._updateBar();
+      // In aggregate mode auto-recompute so results reflect the removal immediately.
+      if (self.mode === 'aggregate') {
+        if (typeof self._renderGroupPicker === 'function') self._renderGroupPicker();
+        clearTimeout(self._aggDebounce);
+        self._aggDebounce = setTimeout(function() {
+          if (typeof self.saveAndRun === 'function') self.saveAndRun();
+        }, 120);
+      }
     });
   },
 
@@ -13356,6 +13735,12 @@ window.TM = {
       if (err) { err.textContent = 'Task name is required.'; err.style.display = 'block'; }
       return false;
     }
+    // Max length — long names break chart labels and report tables
+    if (val.length > 80) {
+      if (field) field.classList.add('error');
+      if (err) { err.textContent = 'Task name must be 80 characters or fewer (' + val.length + ' entered).'; err.style.display = 'block'; }
+      return false;
+    }
     // Duplicate check
     var id = this._editingTaskId;
     var dup = this.tasks.filter(function(t) { return t.id !== id && t.task_name.toLowerCase() === val.toLowerCase(); });
@@ -13396,6 +13781,12 @@ window.TM = {
     if (a > c) { setFieldState('tfBestField','tfBestErr','warn','Best case should be ≤ Most Likely.'); ok = false; }
     if (c > b) { setFieldState('tfWorstField','tfWorstErr','warn','Worst case should be ≥ Most Likely.'); ok = false; }
     if (a > b) { setFieldState('tfBestField','tfBestErr','error','Best case cannot be greater than Worst case.'); ok = false; }
+
+    // Warn on negative values (invalid for durations; valid for costs/margins)
+    if (ok && a < 0) { setFieldState('tfBestField','tfBestErr','warn','Negative value — valid for costs/margins but not durations. Verify units.'); }
+
+    // Warn on zero-variance (degenerate distribution — engine will produce a point spike)
+    if (ok && a === b) { setFieldState('tfBestField','tfBestErr','warn','All three values are equal — this is a deterministic estimate with zero uncertainty.'); }
 
     this._tfDrawTriangle();
     return ok;

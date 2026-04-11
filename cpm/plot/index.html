@@ -954,6 +954,30 @@ function computeAndRender(tasks, sacoResults, sliderContext) {
         return;
       }
 
+      // ── No-dependencies notice ─────────────────────────────────────────
+      // When no task has any predecessors, every task is both a source and a
+      // sink. The engine still runs (longest task = "critical") but there is
+      // no real network topology to analyse. Show a contextual banner so the
+      // user understands what they're seeing.
+      var hasDeps = tasks.some(function(t) {
+        return Array.isArray(t.predecessors) && t.predecessors.length > 0;
+      });
+      if (!hasDeps && tasks.length > 1) {
+        // Use a styled info banner (not the error-red panel) by directly setting the panel
+        var _noDepsPanel = document.getElementById('errorPanel');
+        if (_noDepsPanel) {
+          _noDepsPanel.innerHTML =
+            '<strong>&#9432; No task dependencies defined</strong>' +
+            '<p style="margin:6px 0 0;font-size:11px;">No predecessor relationships have been specified. ' +
+            'The critical path shown is simply the task with the longest SACO-estimated duration. ' +
+            'Add predecessors to unlock network analysis, float, schedule health, and stochastic path probabilities.</p>';
+          _noDepsPanel.style.display = 'block';
+          _noDepsPanel.style.background = '#EFF6FF';
+          _noDepsPanel.style.borderColor = '#BFDBFE';
+          _noDepsPanel.style.color = '#1D4ED8';
+        }
+      }
+
       renderAll(tasks, result, sacoResults);
       document.getElementById('resultsSection').style.display = 'block';
       var modeLabel = sacoResults ? 'SACO-enhanced' : 'PERT mode';
