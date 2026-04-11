@@ -2340,7 +2340,6 @@
       <!-- Status + refresh + report -->
       <span id="tmDirtyBadge" style="display:none;font-size:10px;color:#D97706;font-weight:700;">&#9679; Unsaved</span>
       <a id="tmReportLink" href="#" target="_blank" rel="noopener" style="display:none;font-size:11px;font-weight:600;color:#4338CA;text-decoration:none;padding:3px 8px;border:1px solid #C7D2FE;border-radius:6px;background:#EEF2FF;white-space:nowrap;" title="View one-page report for this task">&#128203; Report</a>
-      <a id="sacoCpmLink" href="/projectcare/cpm/plot/" target="_blank" rel="noopener" style="font-size:11px;font-weight:600;color:#065F46;text-decoration:none;padding:3px 8px;border:1px solid #6EE7B7;border-radius:6px;background:#ECFDF5;white-space:nowrap;" title="Open Critical Path with current tasks pre-loaded">&#128279; CPM</a>
       <span id="fetchStatus" class="status">Ready</span>
       <button id="refreshBtn" class="primary">&#x21bb;</button>
     </div><!-- /#pcToolbar -->
@@ -3188,6 +3187,7 @@
 <div class="pmc-wiz-footer">
   <button class="pmc-wiz-btn" onclick="pmcWizGo(1)" title="Back to Estimate">&#8249; Estimate</button>
   <span class="pmc-wiz-spacer"></span>
+  <button class="pmc-wiz-btn primary" onclick="pmcWizGo(3)" title="View CPM critical path analysis">CPM ›</button>
 </div>
 </div><!-- /wizPanel2 -->
 
@@ -3224,14 +3224,6 @@
     </div>
   </div>
 </div>
-
-<!-- Wizard footer: step 2 (dashboard mode hides this) -->
-<div class="pmc-wiz-footer">
-  <button class="pmc-wiz-btn" onclick="pmcWizGo(1)" title="Back to Estimate">‹ Estimate</button>
-  <span class="pmc-wiz-spacer"></span>
-  <button class="pmc-wiz-btn primary" onclick="pmcWizGo(3)" title="View CPM critical path analysis">CPM ›</button>
-</div>
-</div><!-- /wizPanel2 -->
 
 <!-- ══ STEP 3 — CPM ════════════════════════════════════════════════════ -->
 <div class="pmc-wiz-panel hidden" data-wiz="3" id="wizPanel3">
@@ -6979,6 +6971,22 @@
         var wrap = document.querySelector('.wrap');
         var isDash = wrap && wrap.classList.contains('pmc-dashboard');
 
+        // ── Step 3 → CPM panel — always exits dashboard, renders CPM ─────
+        if (step === 3) {
+          if (wrap) wrap.classList.remove('pmc-dashboard');
+          document.querySelectorAll('.pmc-wiz-panel').forEach(function(p) {
+            p.classList.toggle('hidden', parseInt(p.dataset.wiz, 10) !== 3);
+          });
+          document.querySelectorAll('.pmc-wiz-tab').forEach(function(t) {
+            t.classList.toggle('active', parseInt(t.dataset.wiz, 10) === 3);
+            t.classList.remove('done');
+          });
+          // Move charts back to step 1 container (CPM panel has its own content)
+          _chartsToStep1();
+          if (typeof window._renderCpmStep === 'function') window._renderCpmStep();
+          return;
+        }
+
         // ── Dashboard mode: non-step-1 clicks just scroll to the panel ──────
         if (isDash && step !== 1) {
           var scrollTarget = document.getElementById('wizPanel' + step);
@@ -7020,22 +7028,6 @@
           setTimeout(function() {
             if (typeof window.updateChart === 'function') window.updateChart();
           }, 100);
-          return;
-        }
-
-        // ── Step 3 → CPM panel (not dashboard mode) ──────────────────────
-        if (step === 3) {
-          if (wrap) wrap.classList.remove('pmc-dashboard');
-          document.querySelectorAll('.pmc-wiz-panel').forEach(function(p) {
-            p.classList.toggle('hidden', parseInt(p.dataset.wiz, 10) !== 3);
-          });
-          document.querySelectorAll('.pmc-wiz-tab').forEach(function(t) {
-            t.classList.toggle('active', parseInt(t.dataset.wiz, 10) === 3);
-            t.classList.remove('done');
-          });
-          // Move charts back to step 1 container (CPM panel has its own content)
-          _chartsToStep1();
-          if (typeof window._renderCpmStep === 'function') window._renderCpmStep();
           return;
         }
 
@@ -7463,16 +7455,7 @@
         if (hasDeps) _renderCpmNetwork(tasks, baseResult);
 
         // Sync #cpmFullLink
-        var cpmFullLink = document.getElementById('cpmFullLink');
-        if (cpmFullLink) {
-          var sacoCpmLink = document.getElementById('sacoCpmLink');
-          if (sacoCpmLink && sacoCpmLink.href && sacoCpmLink.href.indexOf('?data=') !== -1) {
-            cpmFullLink.href = sacoCpmLink.href;
-          } else if (typeof window._sacoUpdateCpmLink === 'function') {
-            window._sacoUpdateCpmLink();
-            if (sacoCpmLink && sacoCpmLink.href) cpmFullLink.href = sacoCpmLink.href;
-          }
-        }
+        if (typeof window._sacoUpdateCpmLink === 'function') window._sacoUpdateCpmLink();
 
         // Update nav badge
         var navBadge = document.getElementById('wizCpmBadge');
@@ -10007,15 +9990,14 @@
   }
 
   function _sacoUpdateCpmLink() {
-    var cpmLink = document.getElementById('sacoCpmLink');
+    // sacoCpmLink removed from toolbar; keep function to update #cpmFullLink (Step 3 footer)
+    var cpmLink = document.getElementById('cpmFullLink');
     if (!cpmLink) return;
-    // Portfolio demo == the CPM default (full_project) — bare URL is enough
     if (_sacoActiveSource === 'demo:portfolio') {
       cpmLink.href = '/projectcare/cpm/plot/';
       return;
     }
     try {
-      // Prefer bootstrap tasks (richer — carry id, predecessors, phase, resource, riskSignals)
       var bootstrapTasks = window._pmcBootstrap && window._pmcBootstrap.tasks;
       var sTasks = window.S && window.S.tasks;
       var tasks = bootstrapTasks || sTasks;
