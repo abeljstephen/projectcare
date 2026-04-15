@@ -7083,89 +7083,76 @@
 
         function coerce(a, b) { return Number(a != null && Number.isFinite(Number(a)) ? a : (b != null && Number.isFinite(Number(b)) ? b : 0)); }
 
-        // Build baseline tasks (PERT mean) and optimized tasks (p50 from stored percentiles)
-        var optimizedCount = 0;
+        // ── Build normalized task list with all per-scenario data ────────────
         var tasks = tm.tasks.map(function(t, idx) {
           var nt = (typeof tm._normalizeTask === 'function') ? tm._normalizeTask(t, idx) : t;
           var O  = coerce(nt.best_case,   nt.optimistic);
           var M  = coerce(nt.most_likely, nt.mostLikely);
           var P  = coerce(nt.worst_case,  nt.pessimistic);
           var pertMean = (O + 4*M + P) / 6;
-          var baseDur  = Number.isFinite(pertMean) ? pertMean : M;
-
-          // Prefer p50 from adaptive, then fixed optimization, then baseline
-          var optPerc  = t.adaptivePercentiles || t.optimizedPercentiles || null;
-          var optDur   = (optPerc && Number.isFinite(optPerc.p50)) ? optPerc.p50 : null;
-          if (optDur !== null) optimizedCount++;
-
+          var pBench = t.adaptivePercentiles   || null;
+          var pUncon = t.optimizedPercentiles  || null;
           return {
             id:           String(t.id || t.task_name || t.task || ('task_' + idx)),
             task:         t.task_name || t.task || t.id || ('Task ' + (idx+1)),
-            duration:     baseDur,
-            optDuration:  optDur,          // null = not yet optimized
-            optPerc:      optPerc,
+            duration:     Number.isFinite(pertMean) ? pertMean : M,
             O: O, M: M, P: P,
-            predecessors: Array.isArray(t.predecessors) ? t.predecessors : []
+            predecessors: Array.isArray(t.predecessors) ? t.predecessors : [],
+            percBench:    pBench,
+            percUncon:    pUncon,
+            durBench:     (pBench && Number.isFinite(pBench.p50)) ? pBench.p50 : null,
+            durUncon:     (pUncon && Number.isFinite(pUncon.p50)) ? pUncon.p50 : null
           };
         });
 
-        // ── Build CPM input arrays ──────────────────────────────────────────
-        // Include O/M/P so stochastic fallback (PERT probit) can sample properly
-        function toCpmInput(arr, useOpt) {
-          return arr.map(function(t) {
-            return {
-              id:           t.id,
-              task:         t.task,
-              duration:     (useOpt && t.optDuration !== null) ? t.optDuration : t.duration,
-              optimistic:   t.O,
-              mostLikely:   t.M,
-              pessimistic:  t.P,
-              predecessors: t.predecessors
-            };
+        var hasDeps = tasks.some(function(t) { return t.predecessors && t.predecessors.length > 0; });
+
+        // ── Scenario definitions ─────────────────────────────────────────────
+        var SCENARIO_DEFS = [
+          { id: 'benchmarked',   label: 'Benchmarked',   desc: 'PMBOK/CII-constrained', color: '#059669', bg: '#ECFDF5', durKey: 'durBench', percKey: 'percBench' },
+          { id: 'unconstrained', label: 'Unconstrained', desc: 'No benchmark ceiling',  color: '#3B82F6', bg: '#EFF6FF', durKey: 'durUncon', percKey: 'percUncon' }
+        ];
+        var availScenarios = SCENARIO_DEFS.filter(function(sc) {
+          return tasks.some(function(t) { return t[sc.durKey] != null; });
+        });
+
+        // ── CPM helpers ──────────────────────────────────────────────────────
+        function toCpmInput(scenarioId) {
+          return tasks.map(function(t) {
+            var dur = scenarioId === 'benchmarked' ? (t.durBench != null ? t.durBench : t.duration)
+                    : scenarioId === 'unconstrained' ? (t.durUncon != null ? t.durUncon : t.duration)
+                    : t.duration;
+            return { id: t.id, task: t.task, duration: dur,
+                     optimistic: t.O, mostLikely: t.M, pessimistic: t.P,
+                     predecessors: t.predecessors };
           });
         }
 
-        // ── Build sacoResults array for deterministic duration source labeling ──
-        // Each entry: { baseline: { monteCarloSmoothed: { cdfPoints } } } or null
-        // We construct a synthetic 5-point CDF from stored percentiles (p10/p50/p80/p90)
-        // so the engine labels duration source as 'saco_p80' instead of 'pert_mean_or_raw'
-        function buildSacoResults(taskArr, useOpt) {
-          return taskArr.map(function(t) {
-            var perc = useOpt ? (t.optPerc || t.optimizedPercentiles) : null;
-            // For baseline, use baseline percentiles from s.tasks if available
-            if (!perc && !useOpt) {
+        function buildSacoResults(scenarioId) {
+          return tasks.map(function(t) {
+            var perc = scenarioId === 'benchmarked' ? t.percBench
+                     : scenarioId === 'unconstrained' ? t.percUncon
+                     : null;
+            if (!perc) {
+              // baseline: fall back to s.tasks percentiles
               var sTask = window.S && window.S.tasks;
-              var idx   = sTask ? sTask.findIndex(function(st) { return (st.id || st.task) === (t.id || t.task); }) : -1;
-              if (idx >= 0 && sTask[idx] && sTask[idx].percentiles) perc = sTask[idx].percentiles;
+              var si = sTask ? sTask.findIndex(function(st) { return (st.id || st.task) === (t.id || t.task); }) : -1;
+              if (si >= 0 && sTask[si] && sTask[si].percentiles) perc = sTask[si].percentiles;
             }
             if (!perc) return null;
-            // Build a minimal CDF from 5 anchor points: 0→O, p10, p50, p80/p90, 1→P
-            var pts = [];
-            var O = t.O || 0, P = t.P || 0;
-            pts.push({ x: O,                            y: 0.00 });
+            var pts = [{ x: t.O || 0, y: 0.00 }];
             if (perc.p10 != null) pts.push({ x: perc.p10, y: 0.10 });
             if (perc.p50 != null) pts.push({ x: perc.p50, y: 0.50 });
             if (perc.p80 != null) pts.push({ x: perc.p80, y: 0.80 });
             else if (perc.p90 != null) pts.push({ x: perc.p90, y: 0.90 });
-            pts.push({ x: P,                            y: 1.00 });
-            // Remove duplicates and ensure monotone
+            pts.push({ x: t.P || 0, y: 1.00 });
             pts = pts.filter(function(p, i, a) { return i === 0 || p.x > a[i-1].x; });
             if (pts.length < 2) return null;
-            var src = useOpt ? 'optimize' : 'baseline';
-            var obj = {};
-            if (src === 'optimize') {
-              obj.optimize = { reshapedPoints: { cdfPoints: pts } };
-            } else {
-              obj.baseline = { monteCarloSmoothed: { cdfPoints: pts } };
-            }
-            return obj;
+            return scenarioId === 'baseline'
+              ? { baseline: { monteCarloSmoothed: { cdfPoints: pts } } }
+              : { optimize: { reshapedPoints:    { cdfPoints: pts } } };
           });
         }
-
-        var baseInput    = toCpmInput(tasks, false);
-        var optInput     = toCpmInput(tasks, true);
-        var baseSacoRes  = buildSacoResults(tasks, false);
-        var optSacoRes   = optimizedCount > 0 ? buildSacoResults(tasks, true) : null;
 
         function runCPM(input, sacoRes) {
           try {
@@ -7174,11 +7161,12 @@
           } catch(e) { return null; }
         }
 
-        var baseResult = runCPM(baseInput, baseSacoRes);
-        var optResult  = (optimizedCount > 0) ? runCPM(optInput, optSacoRes) : null;
+        // ── Baseline CPM ─────────────────────────────────────────────────────
+        var baseInput  = toCpmInput('baseline');
+        var baseSaco   = buildSacoResults('baseline');
+        var baseResult = runCPM(baseInput, baseSaco);
 
         if (!baseResult) {
-          // Try to show a useful error
           var errResult;
           try { errResult = runDeterministicCPM(baseInput); } catch(e) { errResult = { message: String(e.message || e) }; }
           var eMsg = errResult && errResult.message ? errResult.message : 'Unknown CPM error';
@@ -7189,174 +7177,237 @@
           return;
         }
 
-        // hasDeps must be defined before stochastic + health score (was previously after — bug)
-        var hasDeps = tasks.some(function(t) { return t.predecessors && t.predecessors.length > 0; });
-        var hasComparison = optResult !== null;
+        // ── Per-scenario CPMs (deterministic only — for Level 1 cards) ───────
+        var scenarioResults = availScenarios.map(function(sc) {
+          var inp  = toCpmInput(sc.id);
+          var saco = buildSacoResults(sc.id);
+          return { sc: sc, input: inp, saco: saco, result: runCPM(inp, saco) };
+        });
 
-        // ── Stochastic CPM (500 iterations — fast enough in-browser) ───────
-        // Uses PERT probit fallback when no SACO CDFs available
+        // ── Active scenario selection ─────────────────────────────────────────
+        var selId = window._cpmSelectedScenario;
+        if (selId && !scenarioResults.some(function(s) { return s.sc.id === selId; })) selId = null;
+        if (!selId && scenarioResults.length > 0) selId = scenarioResults[0].sc.id;
+        window._cpmSelectedScenario = selId;
+
+        var selSR       = selId ? scenarioResults.find(function(s) { return s.sc.id === selId; }) : null;
+        var optResult   = selSR ? selSR.result : null;
+        var hasComparison = !!(optResult && selSR);
+
+        // ── Stochastic CPM — run for selected scenario (or baseline) ─────────
+        var stochInput = selSR ? selSR.input  : baseInput;
+        var stochSaco  = selSR ? selSR.saco   : baseSaco;
+        var stochBasis = (selSR && selSR.result) ? selSR.result : baseResult;
         var stochResult = null;
-        if (hasDeps && baseResult && typeof runStochasticCPM === 'function') {
+        if (hasDeps && typeof runStochasticCPM === 'function') {
           try {
-            var _graph = cpmBuildGraph(baseInput);
-            var _order = baseResult.topologicalOrder;
-            stochResult = runStochasticCPM(
-              baseInput, baseSacoRes, _graph, _order,
-              { n: 500, nearCriticalThreshold: 0.10 },
-              baseResult, null
-            );
+            var _graph = cpmBuildGraph(stochInput);
+            var _order = stochBasis.topologicalOrder;
+            stochResult = runStochasticCPM(stochInput, stochSaco, _graph, _order,
+              { n: 500, nearCriticalThreshold: 0.10 }, stochBasis, null);
             if (stochResult && stochResult.status !== 'ok') stochResult = null;
           } catch(e) { stochResult = null; }
         }
 
-        // ── Schedule Health Score ────────────────────────────────────────────
+        // ── Health score — for selected scenario ─────────────────────────────
         var healthScore = null;
-        if (hasDeps && baseResult && typeof cpmScheduleHealthScore === 'function') {
-          try { healthScore = cpmScheduleHealthScore(baseResult, stochResult); } catch(e) {}
+        if (hasDeps && typeof cpmScheduleHealthScore === 'function') {
+          try { healthScore = cpmScheduleHealthScore(stochBasis, stochResult); } catch(e) {}
         }
 
-        // ── Helper: ordered task array from result map ──
+        // ── Task arrays ──────────────────────────────────────────────────────
         function toArr(res) {
           if (!res || !res.tasks) return [];
-          return (res.topologicalOrder || Object.keys(res.tasks)).map(function(id) { return res.tasks[id]; }).filter(Boolean);
+          return (res.topologicalOrder || Object.keys(res.tasks))
+            .map(function(id) { return res.tasks[id]; }).filter(Boolean);
         }
         var baseArr = toArr(baseResult);
         var optArr  = hasComparison ? toArr(optResult) : [];
 
         var html = '';
 
-        // ── No-deps notice ──
+        // ════════════════════════════════════════════════════════════════════
+        // LEVEL 1 — Scenario comparison cards
+        // ════════════════════════════════════════════════════════════════════
+        html += '<div style="margin-bottom:20px;">';
+        html += '<div style="font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Scenario Comparison</div>';
+        html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
+
+        // Estimate card — reference, not clickable
+        var estDur  = baseResult.projectDuration;
+        var estCrit = (baseResult.criticalPath || []).length;
+        var estFloat = baseArr.length
+          ? (baseArr.reduce(function(s, t) { return s + (t.totalFloat || 0); }, 0) / baseArr.length).toFixed(1) : '—';
+        html += '<div style="flex:1;min-width:130px;max-width:200px;border:2px solid #E5E7EB;border-radius:10px;padding:12px 14px;background:#F9FAFB;">';
+        html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin-bottom:6px;">Estimate</div>';
+        html += '<div style="font-size:24px;font-weight:800;color:#1E293B;line-height:1.1;">' + (Number.isFinite(estDur) ? estDur.toFixed(1) : '—') + '</div>';
+        html += '<div style="font-size:10px;color:#9CA3AF;">days · baseline</div>';
+        html += '<div style="margin-top:8px;font-size:10px;color:#6B7280;">' + estCrit + ' critical</div>';
+        html += '<div style="font-size:10px;color:#6B7280;">' + estFloat + ' avg float</div>';
+        html += '</div>';
+
+        // Scenario cards
+        scenarioResults.forEach(function(sr) {
+          var sc  = sr.sc;
+          var res = sr.result;
+          var isSelected = selId === sc.id;
+          var bord = isSelected ? '2px solid ' + sc.color : '2px solid #E5E7EB';
+          var bg   = isSelected ? sc.bg : '#F9FAFB';
+          var textColor = isSelected ? sc.color : '#1E293B';
+
+          html += '<div style="flex:1;min-width:130px;max-width:200px;border:' + bord + ';border-radius:10px;padding:12px 14px;background:' + bg + ';cursor:pointer;" onclick="window._cpmSelectedScenario=\'' + sc.id + '\';window._renderCpmStep();">';
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+          html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:' + sc.color + ';">' + _esc(sc.label) + '</div>';
+          if (isSelected) html += '<div style="font-size:9px;font-weight:700;color:' + sc.color + ';background:#fff;padding:1px 6px;border-radius:4px;border:1px solid ' + sc.color + ';">ACTIVE ▼</div>';
+          html += '</div>';
+
+          if (!res) {
+            html += '<div style="font-size:12px;color:#9CA3AF;font-style:italic;">CPM failed</div>';
+          } else {
+            var dur   = res.projectDuration;
+            var delta = Number.isFinite(dur) && Number.isFinite(estDur) ? estDur - dur : null;
+            var rArr  = toArr(res);
+            var crit  = (res.criticalPath || []).length;
+            var avgF  = rArr.length ? (rArr.reduce(function(s, t) { return s + (t.totalFloat || 0); }, 0) / rArr.length).toFixed(1) : '—';
+            html += '<div style="font-size:24px;font-weight:800;color:' + textColor + ';line-height:1.1;">' + (Number.isFinite(dur) ? dur.toFixed(1) : '—') + '</div>';
+            if (delta != null) {
+              var dCol = delta > 0 ? '#059669' : delta < 0 ? '#DC2626' : '#6B7280';
+              html += '<div style="font-size:11px;font-weight:700;color:' + dCol + ';">' + (delta > 0 ? '▼ ' : delta < 0 ? '▲ ' : '') + Math.abs(delta).toFixed(1) + ' days ' + (delta > 0 ? 'faster' : delta < 0 ? 'slower' : '') + '</div>';
+            }
+            html += '<div style="margin-top:8px;font-size:10px;color:#6B7280;">' + crit + ' critical</div>';
+            html += '<div style="font-size:10px;color:#6B7280;">' + avgF + ' avg float</div>';
+          }
+          html += '<div style="margin-top:6px;font-size:10px;color:' + sc.color + ';opacity:.8;">' + _esc(sc.desc) + '</div>';
+          html += '</div>';
+        });
+
+        if (availScenarios.length === 0) {
+          html += '<div style="flex:2;border:1px dashed #E5E7EB;border-radius:10px;padding:14px;background:#FAFAFA;display:flex;align-items:center;font-size:12px;color:#9CA3AF;">&#9432; Run Step 2 (Optimize) to add Benchmarked and Unconstrained scenarios.</div>';
+        }
+        html += '</div></div>'; // end cards
+
+        // ════════════════════════════════════════════════════════════════════
+        // LEVEL 2 — Full drill-down for selected scenario vs Estimate
+        // ════════════════════════════════════════════════════════════════════
+        var l2Color = selSR ? selSR.sc.color : '#6B7280';
+        var l2Label = selSR ? selSR.sc.label : 'Estimate';
+        html += '<div style="border-top:2px solid ' + l2Color + ';padding-top:16px;">';
+        html += '<div style="font-size:11px;font-weight:700;color:' + l2Color + ';text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px;">';
+        html += selSR ? ('&#9660; Estimate vs ' + _esc(l2Label) + ' — Detailed Analysis') : '&#9660; Estimate — Detailed Analysis';
+        html += '</div>';
+
+        // No-deps notice
         if (!hasDeps) {
-          html += '<div class="cpm-no-deps" style="margin-bottom:12px;">&#9432; No dependencies defined — showing task durations only. Add predecessors for critical path analysis.</div>';
+          html += '<div class="cpm-no-deps" style="margin-bottom:12px;">&#9432; No dependencies defined — showing task durations only. Add predecessors for full critical path analysis.</div>';
         }
 
-        // ── Merge bias warning ──
+        // Merge bias warning
         if (baseResult.mergePointBiasWarning) {
           html += '<div style="background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;">&#9888; ' + _esc(baseResult.mergePointBiasWarning) + '</div>';
         }
 
-        // ── Optimization coverage notice ──
-        if (optimizedCount > 0 && optimizedCount < tasks.length) {
-          html += '<div style="background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;">';
-          html += '&#9432; ' + optimizedCount + ' of ' + tasks.length + ' tasks have been optimized. ';
-          html += 'Unoptimized tasks use baseline PERT mean for the Optimized column.</div>';
-        }
-        if (optimizedCount === 0) {
-          html += '<div style="background:#F9FAFB;border:1px solid #E5E7EB;color:#6B7280;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;">';
-          html += '&#9432; Run Step 2 (Optimize) on one or more tasks to see Before vs After CPM comparison.</div>';
+        // Validation warnings (baseline graph — same structure regardless of scenario)
+        if (baseResult.validationErrors && baseResult.validationErrors.length > 0) {
+          html += '<div style="background:#FEF3C7;border:1px solid #FCD34D;color:#78350F;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;">';
+          html += '<strong>&#9888; ' + baseResult.validationErrors.length + ' input warning(s)</strong><br>';
+          baseResult.validationErrors.slice(0, 5).forEach(function(e) { html += _esc(e.message) + '<br>'; });
+          if (baseResult.validationErrors.length > 5) html += '…and ' + (baseResult.validationErrors.length - 5) + ' more.';
+          html += '</div>';
         }
 
-        // ── Delta summary banner (most prominent element) ──
+        // Optimization coverage
+        if (hasComparison) {
+          var optCount = tasks.filter(function(t) { return selSR && t[selSR.sc.durKey] != null; }).length;
+          if (optCount < tasks.length) {
+            html += '<div style="background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;">&#9432; ' + optCount + ' of ' + tasks.length + ' tasks have ' + _esc(l2Label) + ' data. Remaining tasks use baseline PERT mean.</div>';
+          }
+        }
+
+        // Delta impact banner
         if (hasComparison) {
           var bDur = baseResult.projectDuration, oDur = optResult.projectDuration;
           var delta = bDur - oDur;
-          var deltaSign = delta > 0 ? '▼' : (delta < 0 ? '▲' : '—');
-          var deltaColor = delta > 0 ? '#059669' : (delta < 0 ? '#DC2626' : '#6B7280');
+          var dSign = delta > 0 ? '▼' : (delta < 0 ? '▲' : '—');
+          var dCol  = delta > 0 ? '#059669' : (delta < 0 ? '#DC2626' : '#6B7280');
           var baseCritSet = new Set(baseResult.criticalPath || []);
           var optCritSet  = new Set(optResult.criticalPath  || []);
-          var leftCrit    = (baseResult.criticalPath || []).filter(function(id) { return !optCritSet.has(id); });
-          var joinedCrit  = (optResult.criticalPath  || []).filter(function(id) { return !baseCritSet.has(id); });
+          var leftCrit  = (baseResult.criticalPath || []).filter(function(id) { return !optCritSet.has(id); });
+          var joinCrit  = (optResult.criticalPath  || []).filter(function(id) { return !baseCritSet.has(id); });
+          var bannerBg  = l2Color === '#059669' ? '#F0FDF4' : '#EFF6FF';
+          var bannerBrd = l2Color === '#059669' ? '#86EFAC' : '#BFDBFE';
 
-          html += '<div style="background:#F0FDF4;border:2px solid #86EFAC;border-radius:10px;padding:12px 16px;margin-bottom:16px;">';
-          html += '<div style="font-size:11px;font-weight:700;color:#15803D;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Optimization Impact</div>';
+          html += '<div style="background:' + bannerBg + ';border:2px solid ' + bannerBrd + ';border-radius:10px;padding:12px 16px;margin-bottom:16px;">';
+          html += '<div style="font-size:11px;font-weight:700;color:' + l2Color + ';text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Optimization Impact — ' + _esc(l2Label) + '</div>';
           html += '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">';
-          html += '<div style="text-align:center;">';
-          html += '<div style="font-size:22px;font-weight:800;color:' + deltaColor + ';">' + deltaSign + ' ' + Math.abs(delta).toFixed(1) + '</div>';
-          html += '<div style="font-size:10px;color:#6B7280;">days ' + (delta > 0 ? 'saved' : delta < 0 ? 'added' : 'unchanged') + '</div></div>';
-          html += '<div style="text-align:center;">';
-          html += '<div style="font-size:22px;font-weight:800;color:#1D4ED8;">' + bDur.toFixed(1) + ' → ' + oDur.toFixed(1) + '</div>';
-          html += '<div style="font-size:10px;color:#6B7280;">project duration</div></div>';
-          if (leftCrit.length > 0) {
-            html += '<div style="text-align:center;">';
-            html += '<div style="font-size:18px;font-weight:700;color:#059669;">−' + leftCrit.length + '</div>';
-            html += '<div style="font-size:10px;color:#6B7280;">left critical path</div></div>';
-          }
-          if (joinedCrit.length > 0) {
-            html += '<div style="text-align:center;">';
-            html += '<div style="font-size:18px;font-weight:700;color:#DC2626;">+' + joinedCrit.length + '</div>';
-            html += '<div style="font-size:10px;color:#6B7280;">joined critical path</div></div>';
-          }
+          html += '<div style="text-align:center;"><div style="font-size:22px;font-weight:800;color:' + dCol + ';">' + dSign + ' ' + Math.abs(delta).toFixed(1) + '</div><div style="font-size:10px;color:#6B7280;">days ' + (delta > 0 ? 'saved' : delta < 0 ? 'added' : 'unchanged') + '</div></div>';
+          html += '<div style="text-align:center;"><div style="font-size:22px;font-weight:800;color:#1D4ED8;">' + bDur.toFixed(1) + ' → ' + oDur.toFixed(1) + '</div><div style="font-size:10px;color:#6B7280;">project duration</div></div>';
+          if (leftCrit.length > 0) html += '<div style="text-align:center;"><div style="font-size:18px;font-weight:700;color:#059669;">−' + leftCrit.length + '</div><div style="font-size:10px;color:#6B7280;">left critical path</div></div>';
+          if (joinCrit.length  > 0) html += '<div style="text-align:center;"><div style="font-size:18px;font-weight:700;color:#DC2626;">+' + joinCrit.length + '</div><div style="font-size:10px;color:#6B7280;">joined critical path</div></div>';
           html += '</div>';
-
-          // Left / joined chip lists
           if (leftCrit.length > 0) {
             html += '<div style="margin-top:8px;font-size:11px;color:#059669;">Freed: ';
-            leftCrit.forEach(function(id) {
-              var n = baseResult.tasks[id]; html += '<span style="background:#DCFCE7;padding:1px 6px;border-radius:4px;margin-right:4px;">' + _esc((n&&n.name)||id) + '</span>';
-            });
+            leftCrit.forEach(function(id) { var n = baseResult.tasks[id]; html += '<span style="background:#DCFCE7;padding:1px 6px;border-radius:4px;margin-right:4px;">' + _esc((n&&n.name)||id) + '</span>'; });
             html += '</div>';
           }
-          if (joinedCrit.length > 0) {
+          if (joinCrit.length > 0) {
             html += '<div style="margin-top:4px;font-size:11px;color:#DC2626;">New bottleneck: ';
-            joinedCrit.forEach(function(id) {
-              var n = optResult.tasks[id]; html += '<span style="background:#FEE2E2;padding:1px 6px;border-radius:4px;margin-right:4px;">' + _esc((n&&n.name)||id) + '</span>';
-            });
+            joinCrit.forEach(function(id) { var n = optResult.tasks[id]; html += '<span style="background:#FEE2E2;padding:1px 6px;border-radius:4px;margin-right:4px;">' + _esc((n&&n.name)||id) + '</span>'; });
             html += '</div>';
           }
           html += '</div>';
         }
 
-        // ── KPI bar (baseline / optimized side by side) ──
-        var bCpCount = (baseResult.criticalPath || []).length;
-        var oCpCount = hasComparison ? (optResult.criticalPath || []).length : null;
-        var bTotalFloat = 0; baseArr.forEach(function(t) { bTotalFloat += (t.totalFloat || 0); });
-        var bAvgFloat = baseArr.length ? (bTotalFloat / baseArr.length).toFixed(1) : '—';
-
-        // ── Health Score banner (shown when deps exist) ──────────────────────
+        // Health Score banner
         if (healthScore && healthScore.score != null) {
           var hGrade = healthScore.grade;
           var hScore = healthScore.score;
-          var hColor = hGrade === 'A' ? '#059669' : hGrade === 'B' ? '#16A34A' : hGrade === 'C' ? '#D97706' : hGrade === 'D' ? '#EA580C' : '#DC2626';
-          var hBg    = hGrade === 'A' ? '#ECFDF5' : hGrade === 'B' ? '#F0FDF4' : hGrade === 'C' ? '#FFFBEB' : hGrade === 'D' ? '#FFF7ED' : '#FEF2F2';
+          var hColor = hGrade==='A' ? '#059669' : hGrade==='B' ? '#16A34A' : hGrade==='C' ? '#D97706' : hGrade==='D' ? '#EA580C' : '#DC2626';
+          var hBg    = hGrade==='A' ? '#ECFDF5' : hGrade==='B' ? '#F0FDF4' : hGrade==='C' ? '#FFFBEB' : hGrade==='D' ? '#FFF7ED' : '#FEF2F2';
           html += '<div style="display:flex;align-items:center;gap:14px;background:' + hBg + ';border:1.5px solid ' + hColor + ';border-radius:10px;padding:10px 16px;margin-bottom:14px;">';
-          html += '<div style="text-align:center;min-width:52px;">';
-          html += '<div style="font-size:32px;font-weight:900;color:' + hColor + ';line-height:1;">' + hGrade + '</div>';
-          html += '<div style="font-size:9px;color:' + hColor + ';font-weight:700;text-transform:uppercase;">Schedule</div>';
-          html += '</div>';
-          html += '<div style="flex:1;">';
-          html += '<div style="font-size:13px;font-weight:700;color:' + hColor + ';">Schedule Health: ' + hScore + '/100</div>';
+          html += '<div style="text-align:center;min-width:52px;"><div style="font-size:32px;font-weight:900;color:' + hColor + ';line-height:1;">' + hGrade + '</div>';
+          html += '<div style="font-size:9px;color:' + hColor + ';font-weight:700;text-transform:uppercase;">' + _esc(l2Label) + '</div></div>';
+          html += '<div style="flex:1;"><div style="font-size:13px;font-weight:700;color:' + hColor + ';">Schedule Health: ' + hScore + '/100</div>';
           html += '<div style="font-size:11px;color:#6B7280;margin-top:2px;">' + _esc(healthScore.interpretation || '') + '</div>';
-          // Factor bar
           var f = healthScore.factors || {};
           html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">';
-          function factorChip(label, val, inverse) {
+          function factorChip(label, val, inv) {
             if (val == null) return '';
-            var pct = Math.round((inverse ? 1 - val : val) * 100);
-            var col = pct > 66 ? '#059669' : pct > 33 ? '#D97706' : '#DC2626';
-            return '<span style="font-size:10px;background:#fff;border:1px solid #E5E7EB;border-radius:4px;padding:1px 6px;color:' + col + ';font-weight:600;">' + label + ': ' + pct + '%</span>';
+            var pct = Math.round((inv ? 1-val : val)*100);
+            var col = pct>66 ? '#059669' : pct>33 ? '#D97706' : '#DC2626';
+            return '<span style="font-size:10px;background:#fff;border:1px solid #E5E7EB;border-radius:4px;padding:1px 6px;color:'+col+';font-weight:600;">'+label+': '+pct+'%</span>';
           }
           if (f.nearCriticalFraction != null) html += factorChip('Float', f.nearCriticalFraction, true);
           if (f.convergenceDensity   != null) html += factorChip('Merge', f.convergenceDensity,   true);
-          if (f.hasNegativeFloat)             html += '<span style="font-size:10px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:4px;padding:1px 6px;color:#DC2626;font-weight:700;">⚠ Negative Float</span>';
+          if (f.hasNegativeFloat) html += '<span style="font-size:10px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:4px;padding:1px 6px;color:#DC2626;font-weight:700;">⚠ Negative Float</span>';
           html += '</div></div>';
           if (stochResult) {
-            html += '<div style="text-align:center;min-width:60px;">';
-            html += '<div style="font-size:10px;color:#6B7280;font-weight:600;">Stochastic</div>';
-            html += '<div style="font-size:11px;color:#374151;">' + (stochResult.n || 500) + ' iters</div>';
-            html += '</div>';
+            html += '<div style="text-align:center;min-width:60px;"><div style="font-size:10px;color:#6B7280;font-weight:600;">Stochastic</div><div style="font-size:11px;color:#374151;">' + (stochResult.n || 500) + ' iters</div></div>';
           }
           html += '</div>';
         }
 
+        // KPI bar
+        var bCpCount  = (baseResult.criticalPath || []).length;
+        var oCpCount  = hasComparison ? (optResult.criticalPath || []).length : null;
+        var bTotFloat = 0; baseArr.forEach(function(t) { bTotFloat += (t.totalFloat || 0); });
+        var bAvgFloat = baseArr.length ? (bTotFloat / baseArr.length).toFixed(1) : '—';
         html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">';
         function kpi(val, lbl, valOpt) {
           var inner = '<div class="cpm-kpi-val">' + val + '</div>';
-          if (valOpt !== undefined) inner += '<div style="font-size:11px;font-weight:600;color:#059669;">' + valOpt + '</div>';
+          if (valOpt !== undefined) inner += '<div style="font-size:11px;font-weight:600;color:' + l2Color + ';">' + valOpt + '</div>';
           return '<div class="cpm-kpi">' + inner + '<div class="cpm-kpi-lbl">' + lbl + '</div></div>';
         }
-        html += kpi(
-          Number.isFinite(baseResult.projectDuration) ? baseResult.projectDuration.toFixed(1) : '—',
-          'Baseline Duration',
-          hasComparison && Number.isFinite(optResult.projectDuration) ? optResult.projectDuration.toFixed(1) + ' opt' : undefined
-        );
-        html += kpi(bCpCount, 'Critical Tasks', hasComparison ? oCpCount + ' opt' : undefined);
+        html += kpi(Number.isFinite(estDur) ? estDur.toFixed(1) : '—', 'Estimate Duration',
+          hasComparison && Number.isFinite(optResult.projectDuration) ? optResult.projectDuration.toFixed(1) + ' ' + l2Label : undefined);
+        html += kpi(bCpCount, 'Critical Tasks (Base)', hasComparison ? oCpCount + ' ' + l2Label : undefined);
         html += kpi(baseArr.length, 'Total Tasks');
-        html += kpi(bAvgFloat, 'Avg Float');
-        if (optimizedCount > 0) html += kpi(optimizedCount + '/' + tasks.length, 'Tasks Optimized');
-        if (stochResult) html += kpi(stochResult.projectDuration && stochResult.projectDuration.p80 != null ? stochResult.projectDuration.p80.toFixed(1) : '—', 'P80 Duration (MC)');
+        html += kpi(bAvgFloat, 'Avg Float (Base)');
+        if (stochResult && stochResult.projectDuration && stochResult.projectDuration.p80 != null) {
+          html += kpi(stochResult.projectDuration.p80.toFixed(1), 'P80 Duration (MC)');
+        }
         html += '</div>';
 
-        // ── Critical path chips (baseline / optimized) ──
+        // Critical path chips
         function critChips(res, label, chipClass) {
           if (!res || !res.criticalPath || !res.criticalPath.length) return '';
           var out = '<div style="margin-bottom:10px;"><strong style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">' + label + '</strong>';
@@ -7367,79 +7418,64 @@
           });
           return out + '</div></div>';
         }
-        html += critChips(baseResult, 'Baseline Critical Path', '');
-        if (hasComparison) html += critChips(optResult, 'Optimized Critical Path', 'opt');
+        html += critChips(baseResult, 'Estimate Critical Path', '');
+        if (hasComparison) html += critChips(optResult, _esc(l2Label) + ' Critical Path', 'opt');
 
-        // ── Validation warnings ──
-        if (baseResult.validationErrors && baseResult.validationErrors.length > 0) {
-          html += '<div style="background:#FEF3C7;border:1px solid #FCD34D;color:#78350F;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;">';
-          html += '<strong>&#9888; ' + baseResult.validationErrors.length + ' input warning(s)</strong><br>';
-          baseResult.validationErrors.slice(0, 5).forEach(function(e) { html += _esc(e.message) + '<br>'; });
-          if (baseResult.validationErrors.length > 5) html += '…and ' + (baseResult.validationErrors.length - 5) + ' more.';
-          html += '</div>';
-        }
-
-        // ── Task table: baseline + optimized columns ──
+        // Task table
         if (baseArr.length > 0) {
-          // Sort: critical first, then by earlyStart
           var sortedBase = baseArr.slice().sort(function(a, b) {
             if (a.onCriticalPath && !b.onCriticalPath) return -1;
             if (!a.onCriticalPath && b.onCriticalPath) return 1;
             return (a.earlyStart || 0) - (b.earlyStart || 0);
           });
+          var hasCI = stochResult && stochResult.criticalityIndex && Object.keys(stochResult.criticalityIndex).length > 0;
           html += '<div style="margin-bottom:6px;margin-top:4px;"><strong style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Task Schedule</strong></div>';
           html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
           html += '<thead><tr style="border-bottom:2px solid #e5e7eb;">';
-          var hasCI   = stochResult && stochResult.criticalityIndex && Object.keys(stochResult.criticalityIndex).length > 0;
-          var headers = ['Task', 'ES', 'EF', 'Float', 'Status'];
-          if (hasCI)         headers.push('CI %');
-          if (hasComparison) headers = ['Task', 'Base ES', 'Base EF', 'Opt EF', 'Δ Float', 'Status', hasCI ? 'CI %' : null].filter(Boolean);
+          var headers = hasComparison
+            ? ['Task', 'Base ES', 'Base EF', _esc(l2Label) + ' EF', 'Δ Float', 'Status', hasCI ? 'CI %' : null].filter(Boolean)
+            : ['Task', 'ES', 'EF', 'Float', 'Status', hasCI ? 'CI %' : null].filter(Boolean);
           headers.forEach(function(h) {
             html += '<th style="text-align:left;padding:4px 7px;font-size:10px;color:#6b7280;font-weight:700;white-space:nowrap;">' + h + '</th>';
           });
           html += '</tr></thead><tbody>';
 
           sortedBase.forEach(function(t) {
-            var isCrit  = t.onCriticalPath;
-            var optTask = hasComparison ? (optResult.tasks && optResult.tasks[t.id]) : null;
-            var wasFreed = hasComparison && isCrit && optTask && !optTask.onCriticalPath;
-            var becameCrit = hasComparison && !isCrit && optTask && optTask.onCriticalPath;
+            var isCrit     = t.onCriticalPath;
+            var optTask    = hasComparison ? (optResult.tasks && optResult.tasks[t.id]) : null;
+            var wasFreed   = hasComparison && isCrit  && optTask && !optTask.onCriticalPath;
+            var becameCrit = hasComparison && !isCrit && optTask &&  optTask.onCriticalPath;
             var rowBg = isCrit ? (wasFreed ? '#F0FDF4' : '#FEF2F2') : (becameCrit ? '#FEF2F2' : '');
             var fmt = function(v) { return (v != null && Number.isFinite(v)) ? v.toFixed(1) : '—'; };
-
-            var badge;
-            if (wasFreed)   badge = '<span class="crit-badge crit-none">FREED ✓</span>';
-            else if (becameCrit) badge = '<span class="crit-badge crit-high">NEW CRIT</span>';
-            else if (isCrit) badge = '<span class="crit-badge crit-high">CRITICAL</span>';
-            else if (t.tippingSeverity === 'high' || (t.totalFloat != null && t.totalFloat < 2)) badge = '<span class="crit-badge crit-med">AT RISK</span>';
-            else badge = '<span class="crit-badge crit-none">OK</span>';
+            var badge = wasFreed   ? '<span class="crit-badge crit-none">FREED ✓</span>'
+                      : becameCrit ? '<span class="crit-badge crit-high">NEW CRIT</span>'
+                      : isCrit     ? '<span class="crit-badge crit-high">CRITICAL</span>'
+                      : (t.tippingSeverity === 'high' || (t.totalFloat != null && t.totalFloat < 2))
+                                   ? '<span class="crit-badge crit-med">AT RISK</span>'
+                      : '<span class="crit-badge crit-none">OK</span>';
 
             html += '<tr style="border-bottom:1px solid #f3f4f6;background:' + rowBg + ';">';
             html += '<td style="padding:4px 7px;font-weight:' + (isCrit?'600':'400') + ';">' + _esc(t.name || t.id) + '</td>';
-            html += '<td style="padding:4px 7px;">' + fmt(t.earlyStart)  + '</td>';
+            html += '<td style="padding:4px 7px;">' + fmt(t.earlyStart) + '</td>';
             html += '<td style="padding:4px 7px;">' + fmt(t.earlyFinish) + '</td>';
             if (hasComparison) {
-              var optEF = optTask ? fmt(optTask.earlyFinish) : '—';
-              var bFloat = t.totalFloat, oFloat = optTask ? optTask.totalFloat : null;
-              var dFloat = (oFloat != null && bFloat != null) ? (oFloat - bFloat) : null;
-              var dFloatStr = dFloat != null ? ((dFloat >= 0 ? '+' : '') + dFloat.toFixed(1)) : '—';
-              var dColor = dFloat != null ? (dFloat > 0 ? '#059669' : dFloat < 0 ? '#DC2626' : '#6B7280') : '#6B7280';
-              html += '<td style="padding:4px 7px;color:#059669;font-weight:600;">' + optEF + '</td>';
-              html += '<td style="padding:4px 7px;color:' + dColor + ';font-weight:600;">' + dFloatStr + '</td>';
+              var oEF  = optTask ? fmt(optTask.earlyFinish) : '—';
+              var dF   = (optTask && optTask.totalFloat != null && t.totalFloat != null) ? optTask.totalFloat - t.totalFloat : null;
+              var dFS  = dF != null ? ((dF >= 0 ? '+' : '') + dF.toFixed(1)) : '—';
+              var dFC  = dF != null ? (dF > 0 ? '#059669' : dF < 0 ? '#DC2626' : '#6B7280') : '#6B7280';
+              html += '<td style="padding:4px 7px;color:' + l2Color + ';font-weight:600;">' + oEF + '</td>';
+              html += '<td style="padding:4px 7px;color:' + dFC + ';font-weight:600;">' + dFS + '</td>';
             } else {
               html += '<td style="padding:4px 7px;">' + fmt(t.totalFloat) + '</td>';
             }
             html += '<td style="padding:4px 7px;">' + badge + '</td>';
-            // Criticality Index column
             if (hasCI) {
               var ci = stochResult.criticalityIndex[t.id];
               if (ci != null) {
-                var ciPct  = Math.round(ci * 100);
-                var ciCol  = ci >= 0.8 ? '#DC2626' : ci >= 0.4 ? '#D97706' : '#059669';
-                var ciBar  = '<div style="width:' + ciPct + '%;height:4px;background:' + ciCol + ';border-radius:2px;margin-top:2px;"></div>';
-                html += '<td style="padding:4px 7px;white-space:nowrap;">';
-                html += '<span style="font-weight:700;color:' + ciCol + ';font-size:11px;">' + ciPct + '%</span>' + ciBar;
-                html += '</td>';
+                var ciPct = Math.round(ci * 100);
+                var ciC   = ci >= 0.8 ? '#DC2626' : ci >= 0.4 ? '#D97706' : '#059669';
+                html += '<td style="padding:4px 7px;white-space:nowrap;"><span style="font-weight:700;color:' + ciC + ';font-size:11px;">' + ciPct + '%</span>';
+                html += '<div style="width:' + ciPct + '%;height:4px;background:' + ciC + ';border-radius:2px;margin-top:2px;"></div></td>';
               } else {
                 html += '<td style="padding:4px 7px;color:#9CA3AF;">—</td>';
               }
@@ -7449,39 +7485,41 @@
           html += '</tbody></table></div>';
         }
 
-        // ── Gantt container ──
+        // Gantt container
         var ganttH = Math.max(140, baseArr.length * (hasComparison ? 52 : 36) + 50);
         html += '<div style="margin-top:20px;">';
-        html += '<strong style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Gantt Chart' + (hasComparison ? ' — Baseline vs Optimized' : '') + '</strong>';
+        html += '<strong style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Gantt Chart' + (hasComparison ? ' — Estimate vs ' + _esc(l2Label) : '') + '</strong>';
         html += '<div style="position:relative;height:' + ganttH + 'px;margin-top:8px;"><canvas id="cpmStepGanttCanvas"></canvas></div></div>';
 
-        // ── Network diagram container ──
+        // Network diagram container
         if (hasDeps) {
           html += '<div style="margin-top:20px;">';
-          html += '<strong style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Network Diagram</strong>';
+          html += '<strong style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Network Diagram' + (selSR ? ' — ' + _esc(l2Label) + ' Critical Path' : '') + '</strong>';
           html += '<div id="cpmStepNetworkSvg" style="margin-top:8px;overflow-x:auto;"></div></div>';
         }
 
+        html += '</div>'; // end level 2
         el.innerHTML = html;
 
-        // Render Gantt
+        // Render Gantt (baseline bars vs selected scenario bars)
         _renderCpmGantt(baseArr, baseResult.projectDuration, hasComparison ? optArr : null);
 
-        // Render network SVG (use baseline result for critical path coloring)
-        if (hasDeps) _renderCpmNetwork(tasks, baseResult);
+        // Network: critical path coloring from selected scenario (or baseline)
+        var networkResult = (selSR && selSR.result) ? selSR.result : baseResult;
+        if (hasDeps) _renderCpmNetwork(tasks, networkResult);
 
-        // Sync #cpmFullLink
+        // Sync Full CPM link
         if (typeof window._sacoUpdateCpmLink === 'function') window._sacoUpdateCpmLink();
 
-        // Update nav badge
+        // Nav badge (baseline critical count)
         var navBadge = document.getElementById('wizCpmBadge');
         if (navBadge) {
           navBadge.textContent = bCpCount > 0 ? bCpCount + ' critical' : '';
           navBadge.style.display = bCpCount > 0 ? '' : 'none';
         }
 
-        window._lastCpmResult = baseResult;
-        _updateCritBadgesInTaskList(baseResult);
+        window._lastCpmResult = networkResult;
+        _updateCritBadgesInTaskList(networkResult);
       };
 
       // Inject criticality badges into the already-rendered task list (non-destructive)
