@@ -7260,36 +7260,91 @@
         var html = '';
 
         // ════════════════════════════════════════════════════════════════════
-        // SCENARIO SELECTOR ROW
+        // SCENARIO SELECTOR ROW — rich info cards
         // ════════════════════════════════════════════════════════════════════
-        html += '<div style="margin-bottom:14px;">';
-        html += '<div style="font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Scenario</div>';
-        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
-        // Estimate reference pill
-        html += '<div style="padding:5px 12px;border-radius:20px;border:2px solid #E5E7EB;background:#F9FAFB;font-size:11px;font-weight:600;color:#6B7280;">';
-        html += 'Estimate &middot; ' + (Number.isFinite(estDur) ? estDur.toFixed(1) : '—') + 'd</div>';
-        // Available scenario pills
-        scenarioResults.forEach(function(sr) {
-          var sc = sr.sc;
-          var res = sr.result;
+        var scenDescMap = {
+          'opt_bench':    'PMBOK/CII-constrained',
+          'opt_unbench':  'No benchmark ceiling',
+          'cond_unbench': 'Your slider conditions',
+          'cond_bench':   'Benchmarked conditions'
+        };
+
+        html += '<div style="margin-bottom:16px;">';
+        html += '<div style="font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Critical Path Scenario Comparison</div>';
+        html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
+
+        // ── Estimate reference card ─────────────────────────────────────────
+        html += '<div style="flex:0 0 auto;min-width:142px;max-width:175px;padding:12px 14px;border-radius:10px;border:2px solid #E5E7EB;background:#F9FAFB;">';
+        html += '<div style="font-size:9px;font-weight:800;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Estimate</div>';
+        html += '<div style="font-size:26px;font-weight:800;color:#111827;line-height:1;margin-bottom:3px;">'
+              + (Number.isFinite(estDur) ? estDur.toFixed(1) : '—')
+              + '<span style="font-size:12px;font-weight:600;color:#6B7280;">d</span></div>';
+        html += '<div style="font-size:10px;color:#9CA3AF;margin-bottom:7px;">baseline</div>';
+        html += '<div style="font-size:10px;color:#374151;display:flex;gap:8px;flex-wrap:wrap;">';
+        html += '<span>' + bCpCount + ' critical</span>';
+        if (bAvgFloat != null) html += '<span>' + bAvgFloat.toFixed(1) + 'd float</span>';
+        html += '</div>';
+        html += '</div>';
+
+        // ── 4 scenario cards ────────────────────────────────────────────────
+        SCENARIO_DEFS.forEach(function(sc) {
+          var sr = scenarioResults.find(function(r) { return r.sc.id === sc.id; });
           var isSel = selId === sc.id;
+          var hasData = !!sr;
+          var res = sr ? sr.result : null;
           var dur = res ? res.projectDuration : null;
           var delta = (Number.isFinite(dur) && Number.isFinite(estDur)) ? estDur - dur : null;
-          var dStr = delta != null ? (' &middot; ' + (delta > 0 ? '&#9660; ' : delta < 0 ? '&#9650; ' : '') + Math.abs(delta).toFixed(1) + 'd') : '';
-          html += '<div style="padding:5px 12px;border-radius:20px;border:2px solid ' + (isSel ? sc.color : '#E5E7EB') + ';'
-                + 'background:' + (isSel ? sc.bg : '#F9FAFB') + ';font-size:11px;font-weight:' + (isSel ? '700' : '600') + ';'
-                + 'color:' + (isSel ? sc.color : '#374151') + ';cursor:pointer;"'
-                + ' onclick="window._cpmSelectedScenario=\'' + sc.id + '\';window._renderCpmStep();">'
-                + _esc(sc.shortLabel) + dStr + '</div>';
+          var cpCount = res ? (res.criticalPath || []).length : null;
+          var scArr = toArr(res); var totF = 0;
+          scArr.forEach(function(t) { totF += (t.totalFloat || 0); });
+          var avgF = (scArr.length && res) ? totF / scArr.length : null;
+
+          var borderColor = isSel ? sc.color : (hasData ? '#D1D5DB' : '#E5E7EB');
+          var bgCard      = isSel ? sc.bg    : (hasData ? '#FFFFFF'  : '#FAFAFA');
+          var labelColor  = isSel ? sc.color : (hasData ? '#374151'  : '#9CA3AF');
+
+          html += '<div style="flex:0 0 auto;min-width:142px;max-width:175px;padding:12px 14px;border-radius:10px;'
+                + 'border:2px solid ' + borderColor + ';background:' + bgCard + ';'
+                + (hasData ? 'cursor:pointer;' : 'cursor:default;') + '"'
+                + (hasData ? ' onclick="window._cpmSelectedScenario=\'' + sc.id + '\';window._renderCpmStep();"' : '') + '>';
+
+          // Header: label + ACTIVE badge
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+          html += '<div style="font-size:9px;font-weight:800;color:' + labelColor + ';text-transform:uppercase;letter-spacing:.06em;">' + _esc(sc.shortLabel) + '</div>';
+          if (isSel) html += '<div style="font-size:8px;font-weight:700;background:' + sc.color + ';color:#fff;padding:1px 5px;border-radius:4px;white-space:nowrap;">ACTIVE</div>';
+          html += '</div>';
+
+          if (hasData) {
+            // Duration
+            html += '<div style="font-size:26px;font-weight:800;color:' + (isSel ? sc.color : '#111827') + ';line-height:1;margin-bottom:3px;">'
+                  + dur.toFixed(1) + '<span style="font-size:12px;font-weight:600;color:#6B7280;">d</span></div>';
+            // Delta vs estimate
+            if (delta != null) {
+              var dIcon  = delta >  0.05 ? '&#9660; ' : delta < -0.05 ? '&#9650; ' : '';
+              var dColor = delta >  0.05 ? '#059669'  : delta < -0.05 ? '#DC2626'  : '#6B7280';
+              html += '<div style="font-size:10px;color:' + dColor + ';margin-bottom:6px;">' + dIcon + Math.abs(delta).toFixed(1) + 'd vs estimate</div>';
+            } else {
+              html += '<div style="font-size:10px;color:#9CA3AF;margin-bottom:6px;">—</div>';
+            }
+            // Stats row
+            html += '<div style="font-size:10px;color:#374151;display:flex;gap:8px;flex-wrap:wrap;">';
+            if (cpCount != null) html += '<span>' + cpCount + ' critical</span>';
+            if (avgF    != null) html += '<span>' + avgF.toFixed(1) + 'd float</span>';
+            html += '</div>';
+            // Sub-label description
+            var desc = scenDescMap[sc.id] || '';
+            if (desc) html += '<div style="font-size:9px;color:#9CA3AF;margin-top:5px;">' + _esc(desc) + '</div>';
+          } else if (sc.locked) {
+            html += '<div style="font-size:11px;color:#9CA3AF;margin-top:4px;">&#128274; Locked</div>';
+          } else {
+            html += '<div style="font-size:26px;font-weight:800;color:#D1D5DB;line-height:1;margin-bottom:3px;">—</div>';
+            html += '<div style="font-size:10px;color:#9CA3AF;margin-bottom:6px;">not computed</div>';
+            html += '<div style="font-size:9px;color:#6B7280;">Run Step 2 to unlock</div>';
+          }
+
+          html += '</div>';
         });
-        // Locked scenario pills
-        SCENARIO_DEFS.filter(function(sc) { return sc.locked; }).forEach(function(sc) {
-          html += '<div style="padding:5px 12px;border-radius:20px;border:2px dashed #E5E7EB;background:#FAFAFA;font-size:11px;font-weight:500;color:#9CA3AF;cursor:default;" title="Run SACO to unlock">'
-                + '&#128274; ' + _esc(sc.shortLabel) + '</div>';
-        });
-        if (availScenarios.length === 0) {
-          html += '<span style="font-size:11px;color:#9CA3AF;font-style:italic;">Run Step 2 (Optimize) to unlock scenario comparison</span>';
-        }
+
         html += '</div></div>';
 
         // ════════════════════════════════════════════════════════════════════
