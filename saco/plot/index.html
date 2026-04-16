@@ -1312,6 +1312,16 @@
       padding: 10px 12px; background: #FEF2F2; border: 1px solid #FCA5A5;
       border-radius: 8px; color: #991B1B; font-size: 11px;
     }
+    /* ── CPM content tab bar ── */
+    .cpm-tab-btn {
+      padding: 7px 13px; border: none; background: transparent;
+      font-size: 11px; font-weight: 500; color: var(--muted);
+      cursor: pointer; border-bottom: 2px solid transparent;
+      font-family: inherit; margin-bottom: -2px; white-space: nowrap;
+      transition: color .1s, border-color .1s; flex-shrink: 0;
+    }
+    .cpm-tab-btn:hover { color: var(--fg); }
+    .cpm-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
     .pmc-wiz-footer {
       display: flex; gap: 8px; align-items: center;
       margin-top: 14px; padding-top: 10px;
@@ -7083,58 +7093,72 @@
 
         function coerce(a, b) { return Number(a != null && Number.isFinite(Number(a)) ? a : (b != null && Number.isFinite(Number(b)) ? b : 0)); }
 
-        // ── Build normalized task list with all per-scenario data ────────────
+        // ── Task normalization — include riskSignals/resource/phase for correlation model ──
         var tasks = tm.tasks.map(function(t, idx) {
           var nt = (typeof tm._normalizeTask === 'function') ? tm._normalizeTask(t, idx) : t;
           var O  = coerce(nt.best_case,   nt.optimistic);
           var M  = coerce(nt.most_likely, nt.mostLikely);
           var P  = coerce(nt.worst_case,  nt.pessimistic);
           var pertMean = (O + 4*M + P) / 6;
-          var pBench = t.adaptivePercentiles   || null;
-          var pUncon = t.optimizedPercentiles  || null;
+          var pBench = t.adaptivePercentiles    || null;
+          var pUncon = t.optimizedPercentiles   || null;
+          var pCB    = t.condBenchPercentiles   || null;
+          var pCU    = t.condUnbenchPercentiles || null;
           return {
-            id:           String(t.id || t.task_name || t.task || ('task_' + idx)),
-            task:         t.task_name || t.task || t.id || ('Task ' + (idx+1)),
-            duration:     Number.isFinite(pertMean) ? pertMean : M,
+            id:              String(t.id || t.task_name || t.task || ('task_' + idx)),
+            task:            t.task_name || t.task || t.id || ('Task ' + (idx+1)),
+            duration:        Number.isFinite(pertMean) ? pertMean : M,
             O: O, M: M, P: P,
-            predecessors: Array.isArray(t.predecessors) ? t.predecessors : [],
-            percBench:    pBench,
-            percUncon:    pUncon,
-            durBench:     (pBench && Number.isFinite(pBench.p50)) ? pBench.p50 : null,
-            durUncon:     (pUncon && Number.isFinite(pUncon.p50)) ? pUncon.p50 : null
+            predecessors:    Array.isArray(t.predecessors) ? t.predecessors : [],
+            percBench:       pBench,
+            percUncon:       pUncon,
+            percCondBench:   pCB,
+            percCondUnbench: pCU,
+            durBench:        (pBench && Number.isFinite(pBench.p50)) ? pBench.p50 : null,
+            durUncon:        (pUncon && Number.isFinite(pUncon.p50)) ? pUncon.p50 : null,
+            durCondBench:    (pCB   && Number.isFinite(pCB.p50))    ? pCB.p50    : null,
+            durCondUnbench:  (pCU   && Number.isFinite(pCU.p50))    ? pCU.p50    : null,
+            riskSignals:     t.riskSignals || null,
+            resource:        t.resource    || null,
+            phase:           t.phase       || null
           };
         });
 
         var hasDeps = tasks.some(function(t) { return t.predecessors && t.predecessors.length > 0; });
 
-        // ── Scenario definitions ─────────────────────────────────────────────
+        // ── Scenario definitions — 4 scenarios with correct labels ───────────
         var SCENARIO_DEFS = [
-          { id: 'benchmarked',   label: 'Benchmarked',   desc: 'PMBOK/CII-constrained', color: '#059669', bg: '#ECFDF5', durKey: 'durBench', percKey: 'percBench' },
-          { id: 'unconstrained', label: 'Unconstrained', desc: 'No benchmark ceiling',  color: '#3B82F6', bg: '#EFF6FF', durKey: 'durUncon', percKey: 'percUncon' }
+          { id: 'opt_bench',    label: 'Optimization / Benchmarked',        shortLabel: 'Opt / Bench',
+            durKey: 'durBench',       percKey: 'percBench',       color: '#059669', bg: '#ECFDF5', locked: false },
+          { id: 'opt_unbench',  label: 'Optimization / Not Benchmarked',    shortLabel: 'Opt / Unbench',
+            durKey: 'durUncon',       percKey: 'percUncon',       color: '#3B82F6', bg: '#EFF6FF', locked: false },
+          { id: 'cond_bench',   label: 'Your Conditions / Benchmarked',     shortLabel: 'Cond / Bench',
+            durKey: 'durCondBench',   percKey: 'percCondBench',   color: '#7C3AED', bg: '#F5F3FF', locked: true  },
+          { id: 'cond_unbench', label: 'Your Conditions / Not Benchmarked', shortLabel: 'Cond / Unbench',
+            durKey: 'durCondUnbench', percKey: 'percCondUnbench', color: '#DC2626', bg: '#FEF2F2', locked: true  }
         ];
+
         var availScenarios = SCENARIO_DEFS.filter(function(sc) {
-          return tasks.some(function(t) { return t[sc.durKey] != null; });
+          return !sc.locked && tasks.some(function(t) { return t[sc.durKey] != null; });
         });
 
         // ── CPM helpers ──────────────────────────────────────────────────────
-        function toCpmInput(scenarioId) {
+        function toCpmInput(scId) {
+          var sc = scId ? SCENARIO_DEFS.find(function(s) { return s.id === scId; }) : null;
           return tasks.map(function(t) {
-            var dur = scenarioId === 'benchmarked' ? (t.durBench != null ? t.durBench : t.duration)
-                    : scenarioId === 'unconstrained' ? (t.durUncon != null ? t.durUncon : t.duration)
-                    : t.duration;
+            var dur = sc ? (t[sc.durKey] != null ? t[sc.durKey] : t.duration) : t.duration;
             return { id: t.id, task: t.task, duration: dur,
                      optimistic: t.O, mostLikely: t.M, pessimistic: t.P,
-                     predecessors: t.predecessors };
+                     predecessors: t.predecessors,
+                     riskSignals: t.riskSignals, resource: t.resource, phase: t.phase };
           });
         }
 
-        function buildSacoResults(scenarioId) {
+        function buildSacoResults(scId) {
+          var sc = scId ? SCENARIO_DEFS.find(function(s) { return s.id === scId; }) : null;
           return tasks.map(function(t) {
-            var perc = scenarioId === 'benchmarked' ? t.percBench
-                     : scenarioId === 'unconstrained' ? t.percUncon
-                     : null;
+            var perc = sc ? t[sc.percKey] : null;
             if (!perc) {
-              // baseline: fall back to s.tasks percentiles
               var sTask = window.S && window.S.tasks;
               var si = sTask ? sTask.findIndex(function(st) { return (st.id || st.task) === (t.id || t.task); }) : -1;
               if (si >= 0 && sTask[si] && sTask[si].percentiles) perc = sTask[si].percentiles;
@@ -7148,7 +7172,7 @@
             pts.push({ x: t.P || 0, y: 1.00 });
             pts = pts.filter(function(p, i, a) { return i === 0 || p.x > a[i-1].x; });
             if (pts.length < 2) return null;
-            return scenarioId === 'baseline'
+            return !sc
               ? { baseline: { monteCarloSmoothed: { cdfPoints: pts } } }
               : { optimize: { reshapedPoints:    { cdfPoints: pts } } };
           });
@@ -7162,13 +7186,13 @@
         }
 
         // ── Baseline CPM ─────────────────────────────────────────────────────
-        var baseInput  = toCpmInput('baseline');
-        var baseSaco   = buildSacoResults('baseline');
+        var baseInput  = toCpmInput(null);
+        var baseSaco   = buildSacoResults(null);
         var baseResult = runCPM(baseInput, baseSaco);
 
         if (!baseResult) {
           var errResult;
-          try { errResult = runDeterministicCPM(baseInput); } catch(e) { errResult = { message: String(e.message || e) }; }
+          try { errResult = runDeterministicCPM(baseInput); } catch(e2) { errResult = { message: String(e2.message || e2) }; }
           var eMsg = errResult && errResult.message ? errResult.message : 'Unknown CPM error';
           if (errResult && errResult.code === 'CYCLES_DETECTED' && errResult.cycleDescriptions) {
             eMsg += '<br>' + errResult.cycleDescriptions.map(_esc).join('<br>');
@@ -7177,149 +7201,161 @@
           return;
         }
 
-        // ── Per-scenario CPMs (deterministic only — for Level 1 cards) ───────
+        // ── Per-scenario CPMs (deterministic) ────────────────────────────────
         var scenarioResults = availScenarios.map(function(sc) {
           var inp  = toCpmInput(sc.id);
           var saco = buildSacoResults(sc.id);
           return { sc: sc, input: inp, saco: saco, result: runCPM(inp, saco) };
         });
 
-        // ── Active scenario selection ─────────────────────────────────────────
+        // ── Active scenario ───────────────────────────────────────────────────
         var selId = window._cpmSelectedScenario;
         if (selId && !scenarioResults.some(function(s) { return s.sc.id === selId; })) selId = null;
         if (!selId && scenarioResults.length > 0) selId = scenarioResults[0].sc.id;
         window._cpmSelectedScenario = selId;
 
-        var selSR       = selId ? scenarioResults.find(function(s) { return s.sc.id === selId; }) : null;
-        var optResult   = selSR ? selSR.result : null;
+        var selSR = selId ? scenarioResults.find(function(s) { return s.sc.id === selId; }) : null;
+        var optResult     = selSR ? selSR.result : null;
         var hasComparison = !!(optResult && selSR);
 
-        // ── Stochastic CPM — run for selected scenario (or baseline) ─────────
-        var stochInput = selSR ? selSR.input  : baseInput;
-        var stochSaco  = selSR ? selSR.saco   : baseSaco;
-        var stochBasis = (selSR && selSR.result) ? selSR.result : baseResult;
+        // ── Stochastic CPM — FIX: pass real sliderContext (was always null) ──
+        var stochInput  = selSR ? selSR.input  : baseInput;
+        var stochSaco   = selSR ? selSR.saco   : baseSaco;
+        var stochBasis  = (selSR && selSR.result) ? selSR.result : baseResult;
         var stochResult = null;
         if (hasDeps && typeof runStochasticCPM === 'function') {
           try {
-            var _graph = cpmBuildGraph(stochInput);
-            var _order = stochBasis.topologicalOrder;
-            stochResult = runStochasticCPM(stochInput, stochSaco, _graph, _order,
-              { n: 500, nearCriticalThreshold: 0.10 }, stochBasis, null);
+            var _sg   = cpmBuildGraph(stochInput);
+            var _so   = stochBasis.topologicalOrder;
+            var _sctx = typeof window.sliderValues === 'function' ? window.sliderValues() : null;
+            stochResult = runStochasticCPM(stochInput, stochSaco, _sg, _so,
+              { n: 500, nearCriticalThreshold: 0.10 }, stochBasis, _sctx);
             if (stochResult && stochResult.status !== 'ok') stochResult = null;
-          } catch(e) { stochResult = null; }
+          } catch(e3) { stochResult = null; }
         }
 
-        // ── Health score — for selected scenario ─────────────────────────────
+        // ── Health score ──────────────────────────────────────────────────────
         var healthScore = null;
         if (hasDeps && typeof cpmScheduleHealthScore === 'function') {
-          try { healthScore = cpmScheduleHealthScore(stochBasis, stochResult); } catch(e) {}
+          try { healthScore = cpmScheduleHealthScore(stochBasis, stochResult); } catch(e4) {}
         }
 
-        // ── Task arrays ──────────────────────────────────────────────────────
+        // ── Task arrays ───────────────────────────────────────────────────────
         function toArr(res) {
           if (!res || !res.tasks) return [];
-          return (res.topologicalOrder || Object.keys(res.tasks))
-            .map(function(id) { return res.tasks[id]; }).filter(Boolean);
+          return (res.topologicalOrder || Object.keys(res.tasks)).map(function(id) { return res.tasks[id]; }).filter(Boolean);
         }
         var baseArr = toArr(baseResult);
         var optArr  = hasComparison ? toArr(optResult) : [];
 
+        // ── Shared values ─────────────────────────────────────────────────────
+        var networkResult = (selSR && selSR.result) ? selSR.result : baseResult;
+        var l2Color = selSR ? selSR.sc.color : '#6B7280';
+        var l2Label = selSR ? selSR.sc.shortLabel : 'Estimate';
+        var estDur   = baseResult.projectDuration;
+        var bCpCount = (baseResult.criticalPath || []).length;
+        var bTotFloat = 0;
+        baseArr.forEach(function(t) { bTotFloat += (t.totalFloat || 0); });
+        var bAvgFloat = baseArr.length ? bTotFloat / baseArr.length : null;
+        var pd = stochResult && stochResult.projectDuration;
+
         var html = '';
 
         // ════════════════════════════════════════════════════════════════════
-        // LEVEL 1 — Scenario comparison cards
+        // SCENARIO SELECTOR ROW
         // ════════════════════════════════════════════════════════════════════
-        html += '<div style="margin-bottom:20px;">';
-        html += '<div style="font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Scenario Comparison</div>';
-        html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
-
-        // Estimate card — reference, not clickable
-        var estDur  = baseResult.projectDuration;
-        var estCrit = (baseResult.criticalPath || []).length;
-        var estFloat = baseArr.length
-          ? (baseArr.reduce(function(s, t) { return s + (t.totalFloat || 0); }, 0) / baseArr.length).toFixed(1) : '—';
-        html += '<div style="flex:1;min-width:130px;max-width:200px;border:2px solid #E5E7EB;border-radius:10px;padding:12px 14px;background:#F9FAFB;">';
-        html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin-bottom:6px;">Estimate</div>';
-        html += '<div style="font-size:24px;font-weight:800;color:#1E293B;line-height:1.1;">' + (Number.isFinite(estDur) ? estDur.toFixed(1) : '—') + '</div>';
-        html += '<div style="font-size:10px;color:#9CA3AF;">days · baseline</div>';
-        html += '<div style="margin-top:8px;font-size:10px;color:#6B7280;">' + estCrit + ' critical</div>';
-        html += '<div style="font-size:10px;color:#6B7280;">' + estFloat + ' avg float</div>';
-        html += '</div>';
-
-        // Scenario cards
+        html += '<div style="margin-bottom:14px;">';
+        html += '<div style="font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Scenario</div>';
+        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
+        // Estimate reference pill
+        html += '<div style="padding:5px 12px;border-radius:20px;border:2px solid #E5E7EB;background:#F9FAFB;font-size:11px;font-weight:600;color:#6B7280;">';
+        html += 'Estimate &middot; ' + (Number.isFinite(estDur) ? estDur.toFixed(1) : '—') + 'd</div>';
+        // Available scenario pills
         scenarioResults.forEach(function(sr) {
-          var sc  = sr.sc;
+          var sc = sr.sc;
           var res = sr.result;
-          var isSelected = selId === sc.id;
-          var bord = isSelected ? '2px solid ' + sc.color : '2px solid #E5E7EB';
-          var bg   = isSelected ? sc.bg : '#F9FAFB';
-          var textColor = isSelected ? sc.color : '#1E293B';
-
-          html += '<div style="flex:1;min-width:130px;max-width:200px;border:' + bord + ';border-radius:10px;padding:12px 14px;background:' + bg + ';cursor:pointer;" onclick="window._cpmSelectedScenario=\'' + sc.id + '\';window._renderCpmStep();">';
-          html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
-          html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:' + sc.color + ';">' + _esc(sc.label) + '</div>';
-          if (isSelected) html += '<div style="font-size:9px;font-weight:700;color:' + sc.color + ';background:#fff;padding:1px 6px;border-radius:4px;border:1px solid ' + sc.color + ';">ACTIVE ▼</div>';
-          html += '</div>';
-
-          if (!res) {
-            html += '<div style="font-size:12px;color:#9CA3AF;font-style:italic;">CPM failed</div>';
-          } else {
-            var dur   = res.projectDuration;
-            var delta = Number.isFinite(dur) && Number.isFinite(estDur) ? estDur - dur : null;
-            var rArr  = toArr(res);
-            var crit  = (res.criticalPath || []).length;
-            var avgF  = rArr.length ? (rArr.reduce(function(s, t) { return s + (t.totalFloat || 0); }, 0) / rArr.length).toFixed(1) : '—';
-            html += '<div style="font-size:24px;font-weight:800;color:' + textColor + ';line-height:1.1;">' + (Number.isFinite(dur) ? dur.toFixed(1) : '—') + '</div>';
-            if (delta != null) {
-              var dCol = delta > 0 ? '#059669' : delta < 0 ? '#DC2626' : '#6B7280';
-              html += '<div style="font-size:11px;font-weight:700;color:' + dCol + ';">' + (delta > 0 ? '▼ ' : delta < 0 ? '▲ ' : '') + Math.abs(delta).toFixed(1) + ' days ' + (delta > 0 ? 'faster' : delta < 0 ? 'slower' : '') + '</div>';
-            }
-            html += '<div style="margin-top:8px;font-size:10px;color:#6B7280;">' + crit + ' critical</div>';
-            html += '<div style="font-size:10px;color:#6B7280;">' + avgF + ' avg float</div>';
-          }
-          html += '<div style="margin-top:6px;font-size:10px;color:' + sc.color + ';opacity:.8;">' + _esc(sc.desc) + '</div>';
-          html += '</div>';
+          var isSel = selId === sc.id;
+          var dur = res ? res.projectDuration : null;
+          var delta = (Number.isFinite(dur) && Number.isFinite(estDur)) ? estDur - dur : null;
+          var dStr = delta != null ? (' &middot; ' + (delta > 0 ? '&#9660; ' : delta < 0 ? '&#9650; ' : '') + Math.abs(delta).toFixed(1) + 'd') : '';
+          html += '<div style="padding:5px 12px;border-radius:20px;border:2px solid ' + (isSel ? sc.color : '#E5E7EB') + ';'
+                + 'background:' + (isSel ? sc.bg : '#F9FAFB') + ';font-size:11px;font-weight:' + (isSel ? '700' : '600') + ';'
+                + 'color:' + (isSel ? sc.color : '#374151') + ';cursor:pointer;"'
+                + ' onclick="window._cpmSelectedScenario=\'' + sc.id + '\';window._renderCpmStep();">'
+                + _esc(sc.shortLabel) + dStr + '</div>';
         });
-
+        // Locked scenario pills
+        SCENARIO_DEFS.filter(function(sc) { return sc.locked; }).forEach(function(sc) {
+          html += '<div style="padding:5px 12px;border-radius:20px;border:2px dashed #E5E7EB;background:#FAFAFA;font-size:11px;font-weight:500;color:#9CA3AF;cursor:default;" title="Run SACO to unlock">'
+                + '&#128274; ' + _esc(sc.shortLabel) + '</div>';
+        });
         if (availScenarios.length === 0) {
-          html += '<div style="flex:2;border:1px dashed #E5E7EB;border-radius:10px;padding:14px;background:#FAFAFA;display:flex;align-items:center;font-size:12px;color:#9CA3AF;">&#9432; Run Step 2 (Optimize) to add Benchmarked and Unconstrained scenarios.</div>';
+          html += '<span style="font-size:11px;color:#9CA3AF;font-style:italic;">Run Step 2 (Optimize) to unlock scenario comparison</span>';
         }
-        html += '</div></div>'; // end cards
+        html += '</div></div>';
 
         // ════════════════════════════════════════════════════════════════════
-        // LEVEL 2 — Full drill-down for selected scenario vs Estimate
+        // CONTENT TAB BAR
         // ════════════════════════════════════════════════════════════════════
-        var l2Color = selSR ? selSR.sc.color : '#6B7280';
-        var l2Label = selSR ? selSR.sc.label : 'Estimate';
-        html += '<div style="border-top:2px solid ' + l2Color + ';padding-top:16px;">';
-        html += '<div style="font-size:11px;font-weight:700;color:' + l2Color + ';text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px;">';
-        html += selSR ? ('&#9660; Estimate vs ' + _esc(l2Label) + ' — Detailed Analysis') : '&#9660; Estimate — Detailed Analysis';
+        var TABS = [
+          { id: 'overview', label: 'Overview'      },
+          { id: 'network',  label: 'Network'        },
+          { id: 'gantt',    label: 'Gantt'          },
+          { id: 'risk',     label: 'Risk Analysis'  },
+          { id: 'health',   label: 'Health Score'   },
+          { id: 'corr',     label: 'Correlation'    }
+        ];
+        var activeTab = window._cpmActiveTab || 'overview';
+        html += '<div style="display:flex;border-bottom:2px solid #E5E7EB;margin-bottom:16px;overflow-x:auto;">';
+        TABS.forEach(function(tab) {
+          html += '<button class="cpm-tab-btn' + (tab.id === activeTab ? ' active' : '') + '" data-tab="' + tab.id + '"'
+                + ' onclick="window._cpmActivateTab(\'' + tab.id + '\')">' + _esc(tab.label) + '</button>';
+        });
         html += '</div>';
 
-        // No-deps notice
+        // ── Helper: open a tab panel ──
+        function tabPanel(id) {
+          return '<div class="cpm-tab-panel" data-tab="' + id + '" style="' + (id !== activeTab ? 'display:none;' : '') + '">';
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // OVERVIEW TAB
+        // ════════════════════════════════════════════════════════════════════
+        html += tabPanel('overview');
+
         if (!hasDeps) {
           html += '<div class="cpm-no-deps" style="margin-bottom:12px;">&#9432; No dependencies defined — showing task durations only. Add predecessors for full critical path analysis.</div>';
         }
 
-        // Merge bias warning
-        if (baseResult.mergePointBiasWarning) {
-          html += '<div style="background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;">&#9888; ' + _esc(baseResult.mergePointBiasWarning) + '</div>';
-        }
-
-        // Validation warnings (baseline graph — same structure regardless of scenario)
+        // Validation warnings
         if (baseResult.validationErrors && baseResult.validationErrors.length > 0) {
-          html += '<div style="background:#FEF3C7;border:1px solid #FCD34D;color:#78350F;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;">';
+          html += '<div style="background:#FEF3C7;border:1px solid #FCD34D;color:#78350F;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:10px;">';
           html += '<strong>&#9888; ' + baseResult.validationErrors.length + ' input warning(s)</strong><br>';
           baseResult.validationErrors.slice(0, 5).forEach(function(e) { html += _esc(e.message) + '<br>'; });
-          if (baseResult.validationErrors.length > 5) html += '…and ' + (baseResult.validationErrors.length - 5) + ' more.';
+          if (baseResult.validationErrors.length > 5) html += '&#8230;and ' + (baseResult.validationErrors.length - 5) + ' more.';
           html += '</div>';
+        }
+
+        // Orphan groups
+        if (baseResult.orphanGroups && baseResult.orphanGroups.length > 0) {
+          html += '<div style="background:#FEF3C7;border:1px solid #FCD34D;color:#78350F;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:10px;">';
+          html += '<strong>&#9888; ' + baseResult.orphanGroups.length + ' disconnected group(s)</strong> — tasks unreachable from main network: ';
+          baseResult.orphanGroups.forEach(function(g) {
+            html += g.map(function(id) { var n = baseResult.tasks[id]; return _esc((n&&n.name)||id); }).join(', ') + '. ';
+          });
+          html += '</div>';
+        }
+
+        // Merge bias warning
+        if (baseResult.mergePointBiasWarning) {
+          html += '<div style="background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:10px;">&#9888; ' + _esc(baseResult.mergePointBiasWarning) + '</div>';
         }
 
         // Optimization coverage
         if (hasComparison) {
           var optCount = tasks.filter(function(t) { return selSR && t[selSR.sc.durKey] != null; }).length;
           if (optCount < tasks.length) {
-            html += '<div style="background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;">&#9432; ' + optCount + ' of ' + tasks.length + ' tasks have ' + _esc(l2Label) + ' data. Remaining tasks use baseline PERT mean.</div>';
+            html += '<div style="background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:10px;">&#9432; ' + optCount + ' of ' + tasks.length + ' tasks have ' + _esc(l2Label) + ' data. Remaining use baseline PERT mean.</div>';
           }
         }
 
@@ -7327,22 +7363,22 @@
         if (hasComparison) {
           var bDur = baseResult.projectDuration, oDur = optResult.projectDuration;
           var delta = bDur - oDur;
-          var dSign = delta > 0 ? '▼' : (delta < 0 ? '▲' : '—');
+          var dSign = delta > 0 ? '&#9660;' : (delta < 0 ? '&#9650;' : '&#8212;');
           var dCol  = delta > 0 ? '#059669' : (delta < 0 ? '#DC2626' : '#6B7280');
-          var baseCritSet = new Set(baseResult.criticalPath || []);
-          var optCritSet  = new Set(optResult.criticalPath  || []);
-          var leftCrit  = (baseResult.criticalPath || []).filter(function(id) { return !optCritSet.has(id); });
-          var joinCrit  = (optResult.criticalPath  || []).filter(function(id) { return !baseCritSet.has(id); });
-          var bannerBg  = l2Color === '#059669' ? '#F0FDF4' : '#EFF6FF';
-          var bannerBrd = l2Color === '#059669' ? '#86EFAC' : '#BFDBFE';
+          var baseCritSet = {}; (baseResult.criticalPath||[]).forEach(function(id){baseCritSet[id]=true;});
+          var optCritSet  = {}; (optResult.criticalPath ||[]).forEach(function(id){optCritSet[id]=true;});
+          var leftCrit = (baseResult.criticalPath||[]).filter(function(id){return !optCritSet[id];});
+          var joinCrit = (optResult.criticalPath ||[]).filter(function(id){return !baseCritSet[id];});
+          var bannerBg  = l2Color === '#059669' ? '#F0FDF4' : l2Color === '#3B82F6' ? '#EFF6FF' : '#F5F3FF';
+          var bannerBrd = l2Color === '#059669' ? '#86EFAC' : l2Color === '#3B82F6' ? '#BFDBFE' : '#DDD6FE';
 
-          html += '<div style="background:' + bannerBg + ';border:2px solid ' + bannerBrd + ';border-radius:10px;padding:12px 16px;margin-bottom:16px;">';
-          html += '<div style="font-size:11px;font-weight:700;color:' + l2Color + ';text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Optimization Impact — ' + _esc(l2Label) + '</div>';
+          html += '<div style="background:' + bannerBg + ';border:2px solid ' + bannerBrd + ';border-radius:10px;padding:12px 16px;margin-bottom:14px;">';
+          html += '<div style="font-size:11px;font-weight:700;color:' + l2Color + ';text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Optimization Impact &#8212; ' + _esc(l2Label) + '</div>';
           html += '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">';
           html += '<div style="text-align:center;"><div style="font-size:22px;font-weight:800;color:' + dCol + ';">' + dSign + ' ' + Math.abs(delta).toFixed(1) + '</div><div style="font-size:10px;color:#6B7280;">days ' + (delta > 0 ? 'saved' : delta < 0 ? 'added' : 'unchanged') + '</div></div>';
-          html += '<div style="text-align:center;"><div style="font-size:22px;font-weight:800;color:#1D4ED8;">' + bDur.toFixed(1) + ' → ' + oDur.toFixed(1) + '</div><div style="font-size:10px;color:#6B7280;">project duration</div></div>';
-          if (leftCrit.length > 0) html += '<div style="text-align:center;"><div style="font-size:18px;font-weight:700;color:#059669;">−' + leftCrit.length + '</div><div style="font-size:10px;color:#6B7280;">left critical path</div></div>';
-          if (joinCrit.length  > 0) html += '<div style="text-align:center;"><div style="font-size:18px;font-weight:700;color:#DC2626;">+' + joinCrit.length + '</div><div style="font-size:10px;color:#6B7280;">joined critical path</div></div>';
+          html += '<div style="text-align:center;"><div style="font-size:22px;font-weight:800;color:#1D4ED8;">' + bDur.toFixed(1) + ' &#8594; ' + oDur.toFixed(1) + '</div><div style="font-size:10px;color:#6B7280;">project duration (days)</div></div>';
+          if (leftCrit.length > 0) html += '<div style="text-align:center;"><div style="font-size:18px;font-weight:700;color:#059669;">&#8722;' + leftCrit.length + '</div><div style="font-size:10px;color:#6B7280;">left critical</div></div>';
+          if (joinCrit.length  > 0) html += '<div style="text-align:center;"><div style="font-size:18px;font-weight:700;color:#DC2626;">+' + joinCrit.length + '</div><div style="font-size:10px;color:#6B7280;">joined critical</div></div>';
           html += '</div>';
           if (leftCrit.length > 0) {
             html += '<div style="margin-top:8px;font-size:11px;color:#059669;">Freed: ';
@@ -7357,61 +7393,31 @@
           html += '</div>';
         }
 
-        // Health Score banner
-        if (healthScore && healthScore.score != null) {
-          var hGrade = healthScore.grade;
-          var hScore = healthScore.score;
-          var hColor = hGrade==='A' ? '#059669' : hGrade==='B' ? '#16A34A' : hGrade==='C' ? '#D97706' : hGrade==='D' ? '#EA580C' : '#DC2626';
-          var hBg    = hGrade==='A' ? '#ECFDF5' : hGrade==='B' ? '#F0FDF4' : hGrade==='C' ? '#FFFBEB' : hGrade==='D' ? '#FFF7ED' : '#FEF2F2';
-          html += '<div style="display:flex;align-items:center;gap:14px;background:' + hBg + ';border:1.5px solid ' + hColor + ';border-radius:10px;padding:10px 16px;margin-bottom:14px;">';
-          html += '<div style="text-align:center;min-width:52px;"><div style="font-size:32px;font-weight:900;color:' + hColor + ';line-height:1;">' + hGrade + '</div>';
-          html += '<div style="font-size:9px;color:' + hColor + ';font-weight:700;text-transform:uppercase;">' + _esc(l2Label) + '</div></div>';
-          html += '<div style="flex:1;"><div style="font-size:13px;font-weight:700;color:' + hColor + ';">Schedule Health: ' + hScore + '/100</div>';
-          html += '<div style="font-size:11px;color:#6B7280;margin-top:2px;">' + _esc(healthScore.interpretation || '') + '</div>';
-          var f = healthScore.factors || {};
-          html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">';
-          function factorChip(label, val, inv) {
-            if (val == null) return '';
-            var pct = Math.round((inv ? 1-val : val)*100);
-            var col = pct>66 ? '#059669' : pct>33 ? '#D97706' : '#DC2626';
-            return '<span style="font-size:10px;background:#fff;border:1px solid #E5E7EB;border-radius:4px;padding:1px 6px;color:'+col+';font-weight:600;">'+label+': '+pct+'%</span>';
-          }
-          if (f.nearCriticalFraction != null) html += factorChip('Float', f.nearCriticalFraction, true);
-          if (f.convergenceDensity   != null) html += factorChip('Merge', f.convergenceDensity,   true);
-          if (f.hasNegativeFloat) html += '<span style="font-size:10px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:4px;padding:1px 6px;color:#DC2626;font-weight:700;">⚠ Negative Float</span>';
-          html += '</div></div>';
-          if (stochResult) {
-            html += '<div style="text-align:center;min-width:60px;"><div style="font-size:10px;color:#6B7280;font-weight:600;">Stochastic</div><div style="font-size:11px;color:#374151;">' + (stochResult.n || 500) + ' iters</div></div>';
-          }
-          html += '</div>';
+        // KPI bar — FIX: show P50/P80/P90/σ; FIX: stochResult.iterations not .n
+        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">';
+        function kpi(val, lbl, sub, subCol) {
+          var s = sub !== undefined ? '<div style="font-size:10px;font-weight:600;color:' + (subCol||l2Color) + ';margin-top:1px;">' + sub + '</div>' : '';
+          return '<div class="cpm-kpi"><div class="cpm-kpi-val">' + val + '</div>' + s + '<div class="cpm-kpi-lbl">' + lbl + '</div></div>';
         }
-
-        // KPI bar
-        var bCpCount  = (baseResult.criticalPath || []).length;
-        var oCpCount  = hasComparison ? (optResult.criticalPath || []).length : null;
-        var bTotFloat = 0; baseArr.forEach(function(t) { bTotFloat += (t.totalFloat || 0); });
-        var bAvgFloat = baseArr.length ? (bTotFloat / baseArr.length).toFixed(1) : '—';
-        html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">';
-        function kpi(val, lbl, valOpt) {
-          var inner = '<div class="cpm-kpi-val">' + val + '</div>';
-          if (valOpt !== undefined) inner += '<div style="font-size:11px;font-weight:600;color:' + l2Color + ';">' + valOpt + '</div>';
-          return '<div class="cpm-kpi">' + inner + '<div class="cpm-kpi-lbl">' + lbl + '</div></div>';
-        }
-        html += kpi(Number.isFinite(estDur) ? estDur.toFixed(1) : '—', 'Estimate Duration',
-          hasComparison && Number.isFinite(optResult.projectDuration) ? optResult.projectDuration.toFixed(1) + ' ' + l2Label : undefined);
-        html += kpi(bCpCount, 'Critical Tasks (Base)', hasComparison ? oCpCount + ' ' + l2Label : undefined);
-        html += kpi(baseArr.length, 'Total Tasks');
-        html += kpi(bAvgFloat, 'Avg Float (Base)');
-        if (stochResult && stochResult.projectDuration && stochResult.projectDuration.p80 != null) {
-          html += kpi(stochResult.projectDuration.p80.toFixed(1), 'P80 Duration (MC)');
+        html += kpi(Number.isFinite(estDur) ? estDur.toFixed(1) + 'd' : '&#8212;', 'Estimate',
+          hasComparison && Number.isFinite(optResult.projectDuration) ? optResult.projectDuration.toFixed(1) + 'd ' + _esc(l2Label) : undefined);
+        html += kpi(pd && pd.p50 != null ? pd.p50.toFixed(1) + 'd' : '&#8212;', 'P50 (MC)');
+        html += kpi(pd && pd.p80 != null ? pd.p80.toFixed(1) + 'd' : '&#8212;', 'P80 (MC)');
+        html += kpi(pd && pd.p90 != null ? pd.p90.toFixed(1) + 'd' : '&#8212;', 'P90 (MC)');
+        html += kpi(pd && pd.sigma != null ? '&#177;' + pd.sigma.toFixed(1) + 'd' : '&#8212;', '&#963; (MC)');
+        html += kpi(bCpCount, 'Critical Tasks', hasComparison ? (optResult.criticalPath||[]).length + ' ' + _esc(l2Label) : undefined);
+        html += kpi(bAvgFloat != null ? bAvgFloat.toFixed(1) + 'd' : '&#8212;', 'Avg Float');
+        if (stochResult) {
+          html += kpi(stochResult.iterations || 500, 'MC Iterations');
         }
         html += '</div>';
 
         // Critical path chips
         function critChips(res, label, chipClass) {
           if (!res || !res.criticalPath || !res.criticalPath.length) return '';
-          var out = '<div style="margin-bottom:10px;"><strong style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">' + label + '</strong>';
-          out += '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">';
+          var out = '<div style="margin-bottom:10px;">';
+          out += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin-bottom:5px;">' + label + '</div>';
+          out += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
           res.criticalPath.forEach(function(id) {
             var t = res.tasks && res.tasks[id]; var name = (t && t.name) || id;
             out += '<span class="cpm-path-chip ' + chipClass + '">' + _esc(name) + '</span>';
@@ -7421,22 +7427,41 @@
         html += critChips(baseResult, 'Estimate Critical Path', '');
         if (hasComparison) html += critChips(optResult, _esc(l2Label) + ' Critical Path', 'opt');
 
-        // Task table
+        // Near-critical chips
+        if (baseResult.nearCriticalTasks && baseResult.nearCriticalTasks.length > 0) {
+          html += '<div style="margin-bottom:10px;">';
+          html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin-bottom:5px;">Near-Critical (Estimate)</div>';
+          html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+          baseResult.nearCriticalTasks.forEach(function(id) {
+            var t = baseResult.tasks && baseResult.tasks[id]; var name = (t && t.name) || id;
+            html += '<span class="cpm-path-chip near">' + _esc(name) + '</span>';
+          });
+          html += '</div></div>';
+        }
+
+        // Task table — EXPANDED: all 4 float types + TP + CI% + NCI + SSI
+        // FIX: tippingSeverity (relative) not hardcoded totalFloat < 2
         if (baseArr.length > 0) {
           var sortedBase = baseArr.slice().sort(function(a, b) {
             if (a.onCriticalPath && !b.onCriticalPath) return -1;
             if (!a.onCriticalPath && b.onCriticalPath) return 1;
             return (a.earlyStart || 0) - (b.earlyStart || 0);
           });
-          var hasCI = stochResult && stochResult.criticalityIndex && Object.keys(stochResult.criticalityIndex).length > 0;
-          html += '<div style="margin-bottom:6px;margin-top:4px;"><strong style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Task Schedule</strong></div>';
-          html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
+          var hasCI  = stochResult && stochResult.criticalityIndex && Object.keys(stochResult.criticalityIndex).length > 0;
+          var hasNCI = stochResult && stochResult.nci  && Object.keys(stochResult.nci).length > 0;
+          var hasSSI = stochResult && stochResult.ssi  && Object.keys(stochResult.ssi).length > 0;
+
+          html += '<div style="margin-bottom:6px;"><strong style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Task Schedule</strong></div>';
+          html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">';
           html += '<thead><tr style="border-bottom:2px solid #e5e7eb;">';
-          var headers = hasComparison
-            ? ['Task', 'Base ES', 'Base EF', _esc(l2Label) + ' EF', 'Δ Float', 'Status', hasCI ? 'CI %' : null].filter(Boolean)
-            : ['Task', 'ES', 'EF', 'Float', 'Status', hasCI ? 'CI %' : null].filter(Boolean);
-          headers.forEach(function(h) {
-            html += '<th style="text-align:left;padding:4px 7px;font-size:10px;color:#6b7280;font-weight:700;white-space:nowrap;">' + h + '</th>';
+          var cols = ['Task', 'Dur', 'ES', 'EF', 'LF', 'TF', 'FF', 'IF', 'IndF', 'TP'];
+          if (hasComparison) { cols.push('&#916; EF'); cols.push('&#916; Float'); }
+          cols.push('Status');
+          if (hasCI)  cols.push('CI %');
+          if (hasNCI) cols.push('NCI %');
+          if (hasSSI) cols.push('SSI');
+          cols.forEach(function(h) {
+            html += '<th style="text-align:left;padding:4px 6px;font-size:9px;color:#6b7280;font-weight:700;white-space:nowrap;">' + h + '</th>';
           });
           html += '</tr></thead><tbody>';
 
@@ -7445,73 +7470,351 @@
             var optTask    = hasComparison ? (optResult.tasks && optResult.tasks[t.id]) : null;
             var wasFreed   = hasComparison && isCrit  && optTask && !optTask.onCriticalPath;
             var becameCrit = hasComparison && !isCrit && optTask &&  optTask.onCriticalPath;
-            var rowBg = isCrit ? (wasFreed ? '#F0FDF4' : '#FEF2F2') : (becameCrit ? '#FEF2F2' : '');
-            var fmt = function(v) { return (v != null && Number.isFinite(v)) ? v.toFixed(1) : '—'; };
-            var badge = wasFreed   ? '<span class="crit-badge crit-none">FREED ✓</span>'
+            var rowBg = isCrit ? (wasFreed ? '#F0FDF4' : '#FEF9F9') : (becameCrit ? '#FEF9F9' : '');
+            var fmt = function(v) { return (v != null && Number.isFinite(v)) ? v.toFixed(1) : '&#8212;'; };
+            // FIX: use tippingSeverity (computed relative to project duration) not < 2 absolute
+            var badge = wasFreed   ? '<span class="crit-badge crit-none">FREED &#10003;</span>'
                       : becameCrit ? '<span class="crit-badge crit-high">NEW CRIT</span>'
                       : isCrit     ? '<span class="crit-badge crit-high">CRITICAL</span>'
-                      : (t.tippingSeverity === 'high' || (t.totalFloat != null && t.totalFloat < 2))
-                                   ? '<span class="crit-badge crit-med">AT RISK</span>'
+                      : t.tippingSeverity === 'HIGH'   ? '<span class="crit-badge crit-med">HIGH RISK</span>'
+                      : t.tippingSeverity === 'MEDIUM' ? '<span class="crit-badge crit-low">MEDIUM</span>'
                       : '<span class="crit-badge crit-none">OK</span>';
 
             html += '<tr style="border-bottom:1px solid #f3f4f6;background:' + rowBg + ';">';
-            html += '<td style="padding:4px 7px;font-weight:' + (isCrit?'600':'400') + ';">' + _esc(t.name || t.id) + '</td>';
-            html += '<td style="padding:4px 7px;">' + fmt(t.earlyStart) + '</td>';
-            html += '<td style="padding:4px 7px;">' + fmt(t.earlyFinish) + '</td>';
+            html += '<td style="padding:4px 6px;font-weight:' + (isCrit?'600':'400') + ';max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + _esc(t.name||t.id) + '">' + _esc(t.name||t.id) + '</td>';
+            html += '<td style="padding:4px 6px;">' + fmt(t.duration) + '</td>';
+            html += '<td style="padding:4px 6px;">' + fmt(t.earlyStart) + '</td>';
+            html += '<td style="padding:4px 6px;">' + fmt(t.earlyFinish) + '</td>';
+            html += '<td style="padding:4px 6px;">' + fmt(t.lateFinish) + '</td>';
+            html += '<td style="padding:4px 6px;">' + fmt(t.totalFloat) + '</td>';
+            html += '<td style="padding:4px 6px;">' + fmt(t.freeFloat) + '</td>';
+            html += '<td style="padding:4px 6px;">' + fmt(t.interferingFloat) + '</td>';
+            html += '<td style="padding:4px 6px;">' + fmt(t.independentFloat) + '</td>';
+            html += '<td style="padding:4px 6px;" title="Joins critical path if duration exceeds this">' + fmt(t.tippingPoint) + '</td>';
             if (hasComparison) {
-              var oEF  = optTask ? fmt(optTask.earlyFinish) : '—';
-              var dF   = (optTask && optTask.totalFloat != null && t.totalFloat != null) ? optTask.totalFloat - t.totalFloat : null;
-              var dFS  = dF != null ? ((dF >= 0 ? '+' : '') + dF.toFixed(1)) : '—';
-              var dFC  = dF != null ? (dF > 0 ? '#059669' : dF < 0 ? '#DC2626' : '#6B7280') : '#6B7280';
-              html += '<td style="padding:4px 7px;color:' + l2Color + ';font-weight:600;">' + oEF + '</td>';
-              html += '<td style="padding:4px 7px;color:' + dFC + ';font-weight:600;">' + dFS + '</td>';
-            } else {
-              html += '<td style="padding:4px 7px;">' + fmt(t.totalFloat) + '</td>';
+              var oEF = optTask ? fmt(optTask.earlyFinish) : '&#8212;';
+              var dF  = (optTask && optTask.totalFloat != null && t.totalFloat != null) ? optTask.totalFloat - t.totalFloat : null;
+              var dFS = dF != null ? ((dF >= 0 ? '+' : '') + dF.toFixed(1)) : '&#8212;';
+              var dFC = dF != null ? (dF > 0 ? '#059669' : dF < 0 ? '#DC2626' : '#6B7280') : '#6B7280';
+              html += '<td style="padding:4px 6px;color:' + l2Color + ';font-weight:600;">' + oEF + '</td>';
+              html += '<td style="padding:4px 6px;color:' + dFC + ';font-weight:600;">' + dFS + '</td>';
             }
-            html += '<td style="padding:4px 7px;">' + badge + '</td>';
+            html += '<td style="padding:4px 6px;">' + badge + '</td>';
             if (hasCI) {
               var ci = stochResult.criticalityIndex[t.id];
               if (ci != null) {
                 var ciPct = Math.round(ci * 100);
-                var ciC   = ci >= 0.8 ? '#DC2626' : ci >= 0.4 ? '#D97706' : '#059669';
-                html += '<td style="padding:4px 7px;white-space:nowrap;"><span style="font-weight:700;color:' + ciC + ';font-size:11px;">' + ciPct + '%</span>';
-                html += '<div style="width:' + ciPct + '%;height:4px;background:' + ciC + ';border-radius:2px;margin-top:2px;"></div></td>';
-              } else {
-                html += '<td style="padding:4px 7px;color:#9CA3AF;">—</td>';
-              }
+                var ciC = ci >= 0.8 ? '#DC2626' : ci >= 0.4 ? '#D97706' : '#059669';
+                html += '<td style="padding:4px 6px;white-space:nowrap;"><span style="font-weight:700;color:' + ciC + ';font-size:10px;">' + ciPct + '%</span>';
+                html += '<div style="width:' + Math.max(ciPct,1) + '%;height:3px;background:' + ciC + ';border-radius:2px;margin-top:2px;"></div></td>';
+              } else html += '<td style="padding:4px 6px;color:#9CA3AF;">&#8212;</td>';
+            }
+            if (hasNCI) {
+              var nciV = stochResult.nci[t.id];
+              html += '<td style="padding:4px 6px;color:#6B7280;font-size:10px;">' + (nciV != null ? Math.round(nciV*100) + '%' : '&#8212;') + '</td>';
+            }
+            if (hasSSI) {
+              var ssiV = stochResult.ssi[t.id];
+              html += '<td style="padding:4px 6px;color:#6B7280;font-size:10px;">' + (ssiV != null ? ssiV.toFixed(3) : '&#8212;') + '</td>';
             }
             html += '</tr>';
           });
           html += '</tbody></table></div>';
         }
 
-        // Gantt container
-        var ganttH = Math.max(140, baseArr.length * (hasComparison ? 52 : 36) + 50);
-        html += '<div style="margin-top:20px;">';
-        html += '<strong style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Gantt Chart' + (hasComparison ? ' — Estimate vs ' + _esc(l2Label) : '') + '</strong>';
-        html += '<div style="position:relative;height:' + ganttH + 'px;margin-top:8px;"><canvas id="cpmStepGanttCanvas"></canvas></div></div>';
-
-        // Network diagram container
-        if (hasDeps) {
-          html += '<div style="margin-top:20px;">';
-          html += '<strong style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Network Diagram' + (selSR ? ' — ' + _esc(l2Label) + ' Critical Path' : '') + '</strong>';
-          html += '<div id="cpmStepNetworkSvg" style="margin-top:8px;overflow-x:auto;"></div></div>';
+        // Graph metrics
+        if (hasDeps && baseResult.graphMetrics) {
+          var gm = baseResult.graphMetrics;
+          html += '<div style="margin-top:14px;padding:10px 12px;background:#F8FAFC;border-radius:8px;border:1px solid #E5E7EB;">';
+          html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin-bottom:6px;">Graph Metrics</div>';
+          html += '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#374151;">';
+          html += '<span>Tasks: <strong>' + gm.nodeCount + '</strong></span>';
+          html += '<span>Dependencies: <strong>' + gm.edgeCount + '</strong></span>';
+          html += '<span>Density: <strong>' + (gm.density * 100).toFixed(1) + '%</strong></span>';
+          html += '<span>Convergence nodes: <strong>' + gm.convergenceCount + '</strong></span>';
+          html += '<span>Max in-degree: <strong>' + gm.maxInDegree + '</strong></span>';
+          html += '<span>Sources: <strong>' + (baseResult.sources||[]).length + '</strong></span>';
+          html += '<span>Sinks: <strong>' + (baseResult.sinks||[]).length + '</strong></span>';
+          html += '</div></div>';
         }
 
-        html += '</div>'; // end level 2
+        html += '</div>'; // end overview panel
+
+        // ════════════════════════════════════════════════════════════════════
+        // NETWORK TAB
+        // ════════════════════════════════════════════════════════════════════
+        html += tabPanel('network');
+        html += '<div style="font-size:11px;color:#6B7280;margin-bottom:8px;">Critical path coloring from <strong>' + _esc(l2Label) + '</strong>. Red = critical, orange = near-critical, blue = free.</div>';
+        html += '<div id="cpmStepNetworkSvg" style="overflow-x:auto;"></div>';
+        html += '</div>';
+
+        // ════════════════════════════════════════════════════════════════════
+        // GANTT TAB
+        // ════════════════════════════════════════════════════════════════════
+        var ganttH = Math.max(160, baseArr.length * (hasComparison ? 52 : 36) + 50);
+        html += tabPanel('gantt');
+        html += '<div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Gantt Chart' + (hasComparison ? ' &#8212; Estimate vs ' + _esc(l2Label) : '') + '</div>';
+        html += '<div style="position:relative;height:' + ganttH + 'px;"><canvas id="cpmStepGanttCanvas"></canvas></div>';
+        html += '</div>';
+
+        // ════════════════════════════════════════════════════════════════════
+        // RISK ANALYSIS TAB
+        // ════════════════════════════════════════════════════════════════════
+        html += tabPanel('risk');
+        if (!stochResult) {
+          html += '<div class="cpm-no-deps">&#9432; Monte Carlo requires tasks with dependencies and SACO distributions. Add predecessors and run Optimize to enable stochastic analysis.</div>';
+        } else {
+          // S-curve
+          html += '<div style="margin-bottom:20px;">';
+          html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin-bottom:8px;">S-Curve &#8212; Project Completion Probability</div>';
+          html += '<div style="position:relative;height:200px;"><canvas id="cpmScurveCanvas"></canvas></div>';
+          if (pd) {
+            html += '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;">';
+            html += '<span style="color:#6B7280;">Min: <strong>' + pd.min.toFixed(1) + 'd</strong></span>';
+            html += '<span style="color:#6B7280;">Mean: <strong>' + pd.mean.toFixed(1) + 'd</strong></span>';
+            html += '<span style="color:#3B82F6;">P50: <strong>' + pd.p50.toFixed(1) + 'd</strong></span>';
+            html += '<span style="color:#D97706;">P80: <strong>' + pd.p80.toFixed(1) + 'd</strong></span>';
+            html += '<span style="color:#DC2626;">P90: <strong>' + pd.p90.toFixed(1) + 'd</strong></span>';
+            html += '<span style="color:#6B7280;">Max: <strong>' + pd.max.toFixed(1) + 'd</strong></span>';
+            html += '<span style="color:#6B7280;">&#963;: <strong>' + pd.sigma.toFixed(1) + 'd</strong></span>';
+            html += '</div>';
+          }
+          html += '</div>';
+
+          // Tornado
+          html += '<div style="margin-bottom:20px;">';
+          html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin-bottom:8px;">Tornado Chart &#8212; Schedule Sensitivity Index (SSI)</div>';
+          var torN = stochResult.tornado ? Math.min(stochResult.tornado.length, 10) : 0;
+          var torH = Math.max(160, torN * 28 + 50);
+          html += '<div style="position:relative;height:' + torH + 'px;"><canvas id="cpmTornadoCanvas"></canvas></div>';
+          html += '<div style="margin-top:6px;font-size:10px;color:#9CA3AF;">SSI = CI &#215; (task &#963; / project &#963;). Higher SSI = greater schedule risk contribution.</div>';
+          html += '</div>';
+
+          // Top critical paths
+          if (stochResult.topCriticalPaths && stochResult.topCriticalPaths.length > 0) {
+            html += '<div style="margin-bottom:20px;">';
+            html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin-bottom:8px;">Top Critical Paths (Monte Carlo Frequency)</div>';
+            stochResult.topCriticalPaths.forEach(function(p, i) {
+              var pct = Math.round(p.frequency * 100);
+              var bColor = i===0 ? '#EF4444' : i===1 ? '#F97316' : '#94A3B8';
+              html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">';
+              html += '<div style="width:24px;font-size:11px;font-weight:700;color:#6B7280;flex-shrink:0;">#' + (i+1) + '</div>';
+              html += '<div style="flex:1;background:#F1F5F9;border-radius:4px;overflow:hidden;">';
+              html += '<div style="width:' + Math.max(4,pct) + '%;background:' + bColor + ';height:18px;border-radius:4px;"></div></div>';
+              html += '<div style="width:36px;text-align:right;font-size:11px;font-weight:600;color:#374151;">' + pct + '%</div></div>';
+              html += '<div style="font-size:10px;color:#6B7280;margin-bottom:10px;margin-left:32px;word-break:break-word;">' + _esc(p.path.replace(/→/g,' → ')) + '</div>';
+            });
+            html += '</div>';
+          }
+
+          // Merge bottlenecks
+          if (stochResult.mergeBottleneck && Object.keys(stochResult.mergeBottleneck).length > 0) {
+            html += '<div style="margin-bottom:20px;">';
+            html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin-bottom:8px;">Merge Node Bottlenecks</div>';
+            Object.keys(stochResult.mergeBottleneck).forEach(function(mergeId) {
+              var mb = stochResult.mergeBottleneck[mergeId];
+              var mNode = baseResult.tasks[mergeId];
+              var bNode = baseResult.tasks[mb.bottleneckTask];
+              html += '<div style="padding:8px 10px;background:#FEF9F9;border:1px solid #FCA5A5;border-radius:6px;margin-bottom:6px;font-size:11px;">';
+              html += '<strong>' + _esc((mNode&&mNode.name)||mergeId) + '</strong> is most often delayed by ';
+              html += '<strong style="color:#DC2626;">' + _esc((bNode&&bNode.name)||mb.bottleneckTask) + '</strong>';
+              html += ' in <strong>' + Math.round(mb.frequency * 100) + '%</strong> of simulations.</div>';
+            });
+            html += '</div>';
+          }
+        }
+        html += '</div>'; // end risk panel
+
+        // ════════════════════════════════════════════════════════════════════
+        // HEALTH SCORE TAB
+        // ════════════════════════════════════════════════════════════════════
+        html += tabPanel('health');
+        if (!healthScore || healthScore.score == null) {
+          html += '<div class="cpm-no-deps">&#9432; Health score requires tasks with dependencies.</div>';
+        } else {
+          var hGrade = healthScore.grade;
+          var hScore = healthScore.score;
+          var hColor = hGrade==='A'?'#059669':hGrade==='B'?'#16A34A':hGrade==='C'?'#D97706':hGrade==='D'?'#EA580C':'#DC2626';
+          var hBg    = hGrade==='A'?'#ECFDF5':hGrade==='B'?'#F0FDF4':hGrade==='C'?'#FFFBEB':hGrade==='D'?'#FFF7ED':'#FEF2F2';
+
+          html += '<div style="display:flex;align-items:center;gap:20px;padding:16px;background:' + hBg + ';border:2px solid ' + hColor + ';border-radius:12px;margin-bottom:16px;">';
+          html += '<div style="text-align:center;min-width:64px;"><div style="font-size:52px;font-weight:900;color:' + hColor + ';line-height:1;">' + hGrade + '</div>';
+          html += '<div style="font-size:11px;color:' + hColor + ';font-weight:700;">' + hScore + '/100</div></div>';
+          html += '<div><div style="font-size:14px;font-weight:700;color:' + hColor + ';">Schedule Health: ' + _esc(selSR ? selSR.sc.label : 'Estimate') + '</div>';
+          html += '<div style="font-size:12px;color:#6B7280;margin-top:4px;">' + _esc(healthScore.interpretation || '') + '</div></div>';
+          html += '</div>';
+
+          // FIX: show all 5 factors (was showing only 2)
+          var fDefs = [
+            { key: 'nearCriticalFraction', label: 'Near-Critical Fraction',  weight: '30%', inv: true,
+              desc: 'Fraction of tasks with float < 10% of project duration. Lower fraction = healthier.' },
+            { key: 'convergenceDensity',   label: 'Convergence Density',     weight: '20%', inv: true,
+              desc: 'Merge nodes / total nodes. Fewer merge points = less statistical bias risk.' },
+            { key: 'graphDensity',         label: 'Graph Density',           weight: '15%', inv: true,
+              desc: 'Edges / n(n-1). Sparser networks have more schedule flexibility.' },
+            { key: 'criticalitySpread',    label: 'Criticality Spread',      weight: '15%', inv: true,
+              desc: 'Std dev of CI across tasks. Low spread = most tasks equally critical (riskier).' },
+            { key: 'hasNegativeFloat',     label: 'Negative Float Penalty',  weight: '20%', inv: false,
+              desc: 'Any task with negative total float means the project is already behind schedule.' }
+          ];
+          html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin-bottom:10px;">Factor Breakdown</div>';
+          var f = healthScore.factors || {};
+          fDefs.forEach(function(fd) {
+            var rawVal = f[fd.key];
+            if (rawVal == null) return;
+            if (fd.key === 'hasNegativeFloat') {
+              if (!rawVal) return; // no negative float = no penalty, skip
+              html += '<div style="padding:8px 12px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:6px;margin-bottom:8px;">';
+              html += '<div style="display:flex;justify-content:space-between;"><span style="font-size:11px;font-weight:600;color:#DC2626;">&#9888; ' + _esc(fd.label) + ' (weight: ' + fd.weight + ')</span>';
+              html += '<span style="font-size:11px;color:#DC2626;font-weight:700;">&#8722;20 pts</span></div>';
+              html += '<div style="font-size:10px;color:#9CA3AF;margin-top:3px;">' + _esc(fd.desc) + '</div></div>';
+              return;
+            }
+            var pct = fd.inv ? Math.round((1 - rawVal) * 100) : Math.round(rawVal * 100);
+            var barColor = pct > 66 ? '#059669' : pct > 33 ? '#D97706' : '#DC2626';
+            html += '<div style="margin-bottom:12px;">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+            html += '<span style="font-size:11px;font-weight:600;color:#374151;">' + _esc(fd.label) + ' <span style="font-weight:400;color:#9CA3AF;">(weight: ' + fd.weight + ')</span></span>';
+            html += '<span style="font-size:11px;font-weight:700;color:' + barColor + ';">' + pct + '/100</span></div>';
+            html += '<div style="background:#F1F5F9;border-radius:4px;height:8px;overflow:hidden;">';
+            html += '<div style="width:' + pct + '%;background:' + barColor + ';height:100%;border-radius:4px;"></div></div>';
+            html += '<div style="font-size:10px;color:#9CA3AF;margin-top:3px;">' + _esc(fd.desc) + '</div></div>';
+          });
+
+          // Cross-scenario health comparison (det health scores — fast)
+          if (scenarioResults.length > 0) {
+            html += '<div style="margin-top:16px;">';
+            html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin-bottom:8px;">Cross-Scenario Health (Deterministic)</div>';
+            html += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
+            html += '<thead><tr style="border-bottom:2px solid #E5E7EB;"><th style="text-align:left;padding:4px 8px;font-size:9px;color:#6B7280;">Scenario</th><th style="padding:4px 8px;font-size:9px;color:#6B7280;text-align:center;">Duration</th><th style="padding:4px 8px;font-size:9px;color:#6B7280;text-align:center;">Critical</th><th style="padding:4px 8px;font-size:9px;color:#6B7280;text-align:center;">Grade</th></tr></thead><tbody>';
+            // Estimate row
+            var eHS = null;
+            if (typeof cpmScheduleHealthScore === 'function') { try { eHS = cpmScheduleHealthScore(baseResult, null); } catch(ex){} }
+            html += '<tr style="border-bottom:1px solid #F3F4F6;"><td style="padding:4px 8px;font-weight:600;">Estimate</td>';
+            html += '<td style="padding:4px 8px;text-align:center;">' + (Number.isFinite(estDur)?estDur.toFixed(1):'&#8212;') + '</td>';
+            html += '<td style="padding:4px 8px;text-align:center;">' + bCpCount + '</td>';
+            var eHSColor = eHS ? (eHS.grade==='A'?'#059669':eHS.grade==='B'?'#16A34A':eHS.grade==='C'?'#D97706':eHS.grade==='D'?'#EA580C':'#DC2626') : '#6B7280';
+            html += '<td style="padding:4px 8px;text-align:center;font-weight:700;color:' + eHSColor + ';">' + (eHS ? eHS.grade + ' (' + eHS.score + ')' : '&#8212;') + '</td></tr>';
+            scenarioResults.forEach(function(sr) {
+              if (!sr.result) return;
+              var sHS = null;
+              if (typeof cpmScheduleHealthScore === 'function') { try { sHS = cpmScheduleHealthScore(sr.result, null); } catch(ex2){} }
+              var sGC = sHS ? (sHS.grade==='A'?'#059669':sHS.grade==='B'?'#16A34A':sHS.grade==='C'?'#D97706':sHS.grade==='D'?'#EA580C':'#DC2626') : '#6B7280';
+              html += '<tr style="border-bottom:1px solid #F3F4F6;">';
+              html += '<td style="padding:4px 8px;"><span style="width:8px;height:8px;border-radius:50%;background:' + sr.sc.color + ';display:inline-block;margin-right:6px;vertical-align:middle;"></span>' + _esc(sr.sc.shortLabel) + '</td>';
+              html += '<td style="padding:4px 8px;text-align:center;">' + sr.result.projectDuration.toFixed(1) + '</td>';
+              html += '<td style="padding:4px 8px;text-align:center;">' + (sr.result.criticalPath||[]).length + '</td>';
+              html += '<td style="padding:4px 8px;text-align:center;font-weight:700;color:' + sGC + ';">' + (sHS ? sHS.grade + ' (' + sHS.score + ')' : '&#8212;') + '</td></tr>';
+            });
+            html += '</tbody></table></div>';
+          }
+        }
+        html += '</div>'; // end health panel
+
+        // ════════════════════════════════════════════════════════════════════
+        // CORRELATION TAB
+        // ════════════════════════════════════════════════════════════════════
+        html += tabPanel('corr');
+        if (!stochResult || !stochResult.correlationAudit) {
+          html += '<div class="cpm-no-deps">&#9432; Correlation data requires stochastic CPM (needs task dependencies).</div>';
+        } else {
+          var ca = stochResult.correlationAudit;
+          html += '<div style="background:#F8FAFC;border:1px solid #E5E7EB;border-radius:8px;padding:14px;margin-bottom:14px;">';
+          html += '<div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px;">Method: <span style="font-weight:400;">' + _esc(ca.method || '&#8212;') + '</span></div>';
+          if (ca.sliderMultiplierApplied) {
+            html += '<div style="font-size:11px;color:#374151;margin-bottom:4px;">Slider multiplier (m&#770;): <strong>' + (ca.mSlider||'&#8212;') + '</strong> &#8212; rework/certainty sliders amplify task-task correlations.</div>';
+          } else {
+            html += '<div style="padding:6px 10px;background:#FEF3C7;border:1px solid #FDE68A;border-radius:6px;font-size:11px;color:#92400E;margin-bottom:8px;">No slider context applied. Add project slider values to refine correlation model.</div>';
+          }
+          html += '<div style="font-size:11px;color:#374151;margin-bottom:4px;">Matrix: <strong>' + (ca.matrixSize||'&#8212;') + '</strong> tasks &nbsp;&#183;&nbsp; &#961; range: <strong>' + (ca.rhoRange ? ca.rhoRange[0] + ' &#8211; ' + ca.rhoRange[1] : '&#8212;') + '</strong></div>';
+
+          if (ca.weightsUsed) {
+            html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin:10px 0 6px;">Signal Weights</div>';
+            html += '<table style="font-size:11px;border-collapse:collapse;width:100%;">';
+            var wMap = {
+              driver:   { label: 'Risk Signals (riskSignals field)',  present: !!ca.driverSignalsPresent   },
+              graph:    { label: 'Graph Proximity',                    present: !!ca.graphDataPresent        },
+              critical: { label: 'Critical Path Overlap',             present: !!ca.graphDataPresent        },
+              merge:    { label: 'Merge Node Ancestry',               present: !!ca.graphDataPresent        },
+              resource: { label: 'Shared Resource (resource field)',  present: !!ca.resourceSignalsPresent  },
+              phase:    { label: 'Project Phase (phase field)',       present: !!ca.phaseSignalsPresent     }
+            };
+            Object.keys(ca.weightsUsed).forEach(function(k) {
+              var w = ca.weightsUsed[k];
+              var wm = wMap[k] || { label: k, present: true };
+              var pct = Math.round(w * 100);
+              var dormant = !wm.present;
+              html += '<tr style="border-bottom:1px solid #F3F4F6;">';
+              html += '<td style="padding:3px 6px;color:' + (dormant?'#9CA3AF':'#374151') + ';">' + _esc(wm.label) + (dormant ? ' <em style="font-size:9px;">(no data)</em>' : '') + '</td>';
+              html += '<td style="padding:3px 6px;width:44px;text-align:right;font-weight:' + (dormant?'400':'600') + ';color:' + (dormant?'#9CA3AF':'#374151') + ';">' + pct + '%</td>';
+              html += '<td style="padding:3px 6px;width:80px;"><div style="width:' + Math.max(2,pct) + '%;height:6px;background:' + (dormant?'#E5E7EB':'#3B82F6') + ';border-radius:3px;"></div></td>';
+              html += '</tr>';
+            });
+            html += '</table>';
+          }
+
+          if (!ca.driverSignalsPresent && !ca.resourceSignalsPresent && !ca.phaseSignalsPresent) {
+            html += '<div style="margin-top:8px;padding:8px 10px;background:#FEF3C7;border:1px solid #FDE68A;border-radius:6px;font-size:11px;color:#92400E;">';
+            html += '&#9888; No <code>riskSignals</code>, <code>resource</code>, or <code>phase</code> data on tasks. Correlation model uses graph-structure only. Add these fields to tasks for richer correlation modeling.';
+            html += '</div>';
+          }
+
+          if (ca.samplePairs && ca.samplePairs.length > 0) {
+            html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin:12px 0 6px;">Sample Pair Correlations</div>';
+            html += '<table style="font-size:11px;border-collapse:collapse;width:100%;">';
+            html += '<thead><tr style="border-bottom:1px solid #E5E7EB;"><th style="text-align:left;padding:3px 6px;font-size:9px;color:#6B7280;">Task i</th><th style="text-align:left;padding:3px 6px;font-size:9px;color:#6B7280;">Task j</th><th style="padding:3px 6px;font-size:9px;color:#6B7280;text-align:right;">&#961;</th><th style="padding:3px 6px;font-size:9px;color:#6B7280;">Bar</th></tr></thead><tbody>';
+            ca.samplePairs.forEach(function(p) {
+              var rhoBar = Math.round(p.rho * 100);
+              html += '<tr style="border-bottom:1px solid #F3F4F6;">';
+              html += '<td style="padding:3px 6px;color:#374151;">' + _esc(p.i) + '</td>';
+              html += '<td style="padding:3px 6px;color:#374151;">' + _esc(p.j) + '</td>';
+              html += '<td style="padding:3px 6px;text-align:right;font-weight:600;color:#3B82F6;">' + p.rho + '</td>';
+              html += '<td style="padding:3px 6px;"><div style="width:' + Math.max(2,rhoBar) + '%;height:6px;background:#3B82F6;border-radius:3px;"></div></td>';
+              html += '</tr>';
+            });
+            html += '</tbody></table>';
+          }
+          html += '</div>';
+        }
+        html += '</div>'; // end corr panel
+
+        // Full CPM link
+        html += '<div style="margin-top:14px;padding-top:10px;border-top:1px solid #E5E7EB;text-align:right;">';
+        html += '<a id="cpmFullLink" href="/cpm/plot/" target="_blank" style="font-size:11px;color:#6B7280;text-decoration:none;">Open full CPM page &#8599;</a>';
+        html += '</div>';
+
         el.innerHTML = html;
 
-        // Render Gantt (baseline bars vs selected scenario bars)
-        _renderCpmGantt(baseArr, baseResult.projectDuration, hasComparison ? optArr : null);
+        // ── Destroy old extra charts ──────────────────────────────────────────
+        if (window._cpmExtraCharts) {
+          window._cpmExtraCharts.forEach(function(c) { try { c.destroy(); } catch(ex3) {} });
+        }
+        window._cpmExtraCharts = [];
 
-        // Network: critical path coloring from selected scenario (or baseline)
-        var networkResult = (selSR && selSR.result) ? selSR.result : baseResult;
-        if (hasDeps) _renderCpmNetwork(tasks, networkResult);
+        // ── Tab activation with lazy chart creation ───────────────────────────
+        window._cpmActivateTab = function(tabId) {
+          window._cpmActiveTab = tabId;
+          el.querySelectorAll('.cpm-tab-btn').forEach(function(btn) {
+            btn.classList.toggle('active', btn.dataset.tab === tabId);
+          });
+          el.querySelectorAll('.cpm-tab-panel').forEach(function(panel) {
+            panel.style.display = panel.dataset.tab === tabId ? '' : 'none';
+          });
+          if (tabId === 'gantt')   { _renderCpmGantt(baseArr, baseResult.projectDuration, hasComparison ? optArr : null); }
+          if (tabId === 'network') { _renderCpmNetwork(tasks, networkResult); }
+          if (tabId === 'risk' && stochResult) { _renderCpmRiskCharts(stochResult); }
+        };
 
-        // Sync Full CPM link
+        // ── Activate initial tab ──────────────────────────────────────────────
+        window._cpmActivateTab(activeTab);
+
+        // ── Always pre-render network SVG (fast, so safe to do upfront) ───────
+        if (activeTab !== 'network') _renderCpmNetwork(tasks, networkResult);
+
+        // ── Sync full CPM link ────────────────────────────────────────────────
         if (typeof window._sacoUpdateCpmLink === 'function') window._sacoUpdateCpmLink();
 
-        // Nav badge (baseline critical count)
+        // ── Nav badge ─────────────────────────────────────────────────────────
         var navBadge = document.getElementById('wizCpmBadge');
         if (navBadge) {
           navBadge.textContent = bCpCount > 0 ? bCpCount + ' critical' : '';
@@ -7543,7 +7846,7 @@
           }
           if (existing) {
             var isCrit = tInfo.onCriticalPath;
-            var isAtRisk = !isCrit && (tInfo.tippingSeverity === 'high' || (tInfo.totalFloat != null && tInfo.totalFloat < 2));
+            var isAtRisk = !isCrit && (tInfo.tippingSeverity === 'CRITICAL' || tInfo.tippingSeverity === 'HIGH' || tInfo.tippingSeverity === 'MEDIUM');
             existing.className = 'crit-badge-inline crit-badge ' + (isCrit ? 'crit-high' : (isAtRisk ? 'crit-med' : 'crit-none'));
             existing.textContent = isCrit ? 'CRIT' : (isAtRisk ? 'LOW' : '');
             existing.style.display = (isCrit || isAtRisk) ? '' : 'none';
@@ -7551,6 +7854,125 @@
         });
       }
       window._updateCritBadgesInTaskList = _updateCritBadgesInTaskList;
+
+      // ── CPM Risk Charts (S-curve + tornado) ──
+      function _renderCpmRiskCharts(sr) {
+        if (typeof Chart === 'undefined' || !sr) return;
+        var pd = sr.projectDuration || {};
+
+        // S-curve ─────────────────────────────────────────────────────────────
+        var scCanvas = document.getElementById('cpmScurveCanvas');
+        if (scCanvas && sr.sCurve && sr.sCurve.length > 0) {
+          var markers = [];
+          if (pd.p50 != null) markers.push({ x: pd.p50, label: 'P50', color: '#3B82F6' });
+          if (pd.p80 != null) markers.push({ x: pd.p80, label: 'P80', color: '#D97706' });
+          if (pd.p90 != null) markers.push({ x: pd.p90, label: 'P90', color: '#DC2626' });
+
+          var scData = sr.sCurve.map(function(p) { return { x: p.x, y: p.y * 100 }; });
+          var scDatasets = [{
+            label: 'S-Curve', data: scData,
+            borderColor: '#3B82F6', backgroundColor: 'rgba(59,130,246,0.08)',
+            fill: true, tension: 0.4, borderWidth: 2, pointRadius: 0
+          }];
+          markers.forEach(function(m) {
+            scDatasets.push({
+              label: m.label, data: [{ x: m.x, y: 0 }, { x: m.x, y: 100 }],
+              borderColor: m.color, borderWidth: 1.5, borderDash: [4, 4],
+              fill: false, pointRadius: 0
+            });
+          });
+
+          var scChart = new Chart(scCanvas, {
+            type: 'line',
+            data: { datasets: scDatasets },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: function(ctx) {
+                      if (ctx.dataset.label === 'S-Curve')
+                        return ctx.parsed.y.toFixed(1) + '% probability by day ' + ctx.parsed.x.toFixed(1);
+                      return ctx.dataset.label + ': day ' + ctx.parsed.x.toFixed(1);
+                    }
+                  }
+                }
+              },
+              scales: {
+                x: {
+                  type: 'linear',
+                  title: { display: true, text: 'Project Duration (days)', font: { size: 10 }, color: '#9ca3af' },
+                  ticks: { font: { size: 10 }, color: '#9ca3af' },
+                  grid: { color: '#f3f4f6' }
+                },
+                y: {
+                  min: 0, max: 100,
+                  title: { display: true, text: 'Probability (%)', font: { size: 10 }, color: '#9ca3af' },
+                  ticks: { font: { size: 10 }, color: '#9ca3af', callback: function(v) { return v + '%'; } },
+                  grid: { color: '#f3f4f6' }
+                }
+              }
+            }
+          });
+          window._cpmExtraCharts.push(scChart);
+        }
+
+        // Tornado ─────────────────────────────────────────────────────────────
+        var torCanvas = document.getElementById('cpmTornadoCanvas');
+        if (torCanvas && sr.tornado && sr.tornado.length > 0) {
+          var topN = sr.tornado.slice(0, 10);
+          var torChart = new Chart(torCanvas, {
+            type: 'bar',
+            data: {
+              labels: topN.map(function(t) { return t.name || t.id; }),
+              datasets: [{
+                label: 'SSI',
+                data: topN.map(function(t) { return +(t.ssi || 0).toFixed(4); }),
+                backgroundColor: topN.map(function(t) {
+                  var ci = t.criticalityIndex || 0;
+                  return ci >= 0.8 ? 'rgba(239,68,68,0.85)'
+                       : ci >= 0.4 ? 'rgba(245,158,11,0.85)'
+                       :             'rgba(99,102,241,0.75)';
+                }),
+                borderWidth: 0,
+                borderRadius: 3
+              }]
+            },
+            options: {
+              indexAxis: 'y',
+              responsive: true, maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: function(ctx) {
+                      var t = topN[ctx.dataIndex];
+                      return 'SSI: ' + (t.ssi || 0).toFixed(3)
+                           + '  CI: ' + Math.round((t.criticalityIndex || 0) * 100) + '%'
+                           + '  NCI: ' + Math.round((t.nci || 0) * 100) + '%';
+                    }
+                  }
+                }
+              },
+              scales: {
+                x: {
+                  min: 0,
+                  title: { display: true, text: 'Schedule Sensitivity Index (SSI)', font: { size: 10 }, color: '#9ca3af' },
+                  ticks: { font: { size: 10 }, color: '#9ca3af' },
+                  grid: { color: '#f3f4f6' }
+                },
+                y: {
+                  ticks: { font: { size: 10 }, color: '#374151' },
+                  grid: { display: false }
+                }
+              }
+            }
+          });
+          window._cpmExtraCharts.push(torChart);
+        }
+      }
+      window._renderCpmRiskCharts = _renderCpmRiskCharts;
 
       // ── CPM Gantt (Chart.js horizontal floating-bar, optional before/after) ──
       var _cpmStepGanttChart = null;
@@ -7575,7 +7997,7 @@
 
         var labels = sorted.map(function(t) { return t.name || t.id; });
         var maxX   = projectDuration || 0;
-        if (hasOpt) optArr.forEach(function(t) { if (t) maxX = Math.max(maxX, t.earlyFinish || 0, t.lateFinish || 0); });
+        if (hasOpt) optArr.forEach(function(t) { if (t) maxX = Math.max(maxX, t.earlyFinish || 0); });
 
         // Dataset builder helpers
         function baseBars()  { return sorted.map(function(t) { return [t.earlyStart || 0, t.earlyFinish || 0]; }); }
@@ -7644,16 +8066,32 @@
         var container = document.getElementById('cpmStepNetworkSvg');
         if (!container || !cpmResult || !cpmResult.tasks) return;
 
+        // Helper: extract predecessor ID from string, number, or object
+        function predToId(p) {
+          if (p === null || p === undefined) return '';
+          if (typeof p === 'object') return String(p.id || p.task || '');
+          return String(p);
+        }
+
         var order = cpmResult.topologicalOrder || tasks.map(function(t) { return t.id; });
         var nodeMap = {};
         tasks.forEach(function(t) { nodeMap[t.id] = t; });
+
+        // Near-critical set from engine result
+        var nearCritSet = {};
+        if (Array.isArray(cpmResult.nearCriticalTasks)) {
+          cpmResult.nearCriticalTasks.forEach(function(id) { nearCritSet[id] = true; });
+        }
 
         // Assign topological rank using predecessors
         var ranks = {};
         order.forEach(function(id) {
           var preds = (nodeMap[id] && nodeMap[id].predecessors) || [];
           var rank  = 0;
-          preds.forEach(function(p) { rank = Math.max(rank, (ranks[String(p)] || 0) + 1); });
+          preds.forEach(function(p) {
+            var pid = predToId(p);
+            rank = Math.max(rank, (ranks[pid] || 0) + 1);
+          });
           ranks[id] = rank;
         });
 
@@ -7675,13 +8113,13 @@
         }
 
         var nodeW = 114, nodeH = 40, xGap = 48, yGap = 14;
-        var totalH = maxColSize * (nodeH + yGap) + 20;   // all columns same height → no overlap
+        var totalH = maxColSize * (nodeH + yGap) + 20;
 
         var positions = {};
         for (var r = 0; r <= maxRank; r++) {
           var group = rankGroups[r] || [];
           var colH  = group.length * (nodeH + yGap) - yGap;
-          var startY = (totalH - colH) / 2;               // vertically centred within total height
+          var startY = (totalH - colH) / 2;
           var colX  = r * (nodeW + xGap) + 20;
           group.forEach(function(id, yi) {
             positions[id] = { x: colX, y: startY + yi * (nodeH + yGap) };
@@ -7695,25 +8133,30 @@
         var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgW + '" height="' + svgH + '" style="font-family:system-ui,sans-serif;">';
         svg += '<defs>';
         svg += '<marker id="arrr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#EF4444"/></marker>';
+        svg += '<marker id="arrn" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#D97706"/></marker>';
         svg += '<marker id="arrg" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#94A3B8"/></marker>';
         svg += '</defs>';
 
         // Edges
         tasks.forEach(function(t) {
           if (!t.predecessors || !t.predecessors.length) return;
-          t.predecessors.forEach(function(predId) {
-            var from = positions[String(predId)];
-            var to   = positions[t.id];
+          t.predecessors.forEach(function(pred) {
+            var fromId = predToId(pred);
+            var from   = positions[fromId];
+            var to     = positions[t.id];
             if (!from || !to) return;
             var x1 = from.x + nodeW, y1 = from.y + nodeH / 2;
             var x2 = to.x,           y2 = to.y   + nodeH / 2;
-            var bothCrit = cpmResult.tasks[t.id] && cpmResult.tasks[String(predId)] &&
-                           cpmResult.tasks[t.id].onCriticalPath && cpmResult.tasks[String(predId)].onCriticalPath;
-            var stroke = bothCrit ? '#EF4444' : '#94A3B8';
-            var sw     = bothCrit ? 2.5 : 1.5;
+            var fromInfo = cpmResult.tasks[fromId];
+            var toInfo   = cpmResult.tasks[t.id];
+            var bothCrit = fromInfo && toInfo && fromInfo.onCriticalPath && toInfo.onCriticalPath;
+            var eitherNear = !bothCrit && (nearCritSet[fromId] || nearCritSet[t.id]);
+            var stroke = bothCrit ? '#EF4444' : eitherNear ? '#D97706' : '#94A3B8';
+            var sw     = bothCrit ? 2.5 : eitherNear ? 2 : 1.5;
+            var arrowId = bothCrit ? 'arrr' : eitherNear ? 'arrn' : 'arrg';
             var mx = (x1 + x2) / 2;
             svg += '<path d="M' + x1 + ',' + y1 + ' C' + mx + ',' + y1 + ' ' + mx + ',' + y2 + ' ' + x2 + ',' + y2 + '"';
-            svg += ' fill="none" stroke="' + stroke + '" stroke-width="' + sw + '" marker-end="url(#arr' + (bothCrit?'r':'g') + ')"/>';
+            svg += ' fill="none" stroke="' + stroke + '" stroke-width="' + sw + '" marker-end="url(#' + arrowId + ')"/>';
           });
         });
 
@@ -7721,20 +8164,23 @@
         order.forEach(function(id) {
           var pos    = positions[id];
           if (!pos) return;
-          var tInfo  = cpmResult.tasks[id];
-          var isCrit = tInfo && tInfo.onCriticalPath;
-          var label  = (tInfo && tInfo.name) || id;
+          var tInfo    = cpmResult.tasks[id];
+          var isCrit   = tInfo && tInfo.onCriticalPath;
+          var isNear   = !isCrit && nearCritSet[id];
+          var label    = (tInfo && tInfo.name) || id;
           if (label.length > 15) label = label.slice(0, 14) + '…';
-          var fill   = isCrit ? '#FEF2F2' : '#F8FAFC';
-          var border = isCrit ? '#EF4444' : '#CBD5E1';
-          var bw     = isCrit ? 2 : 1;
-          var dur    = tInfo ? tInfo.duration.toFixed(1) : '';
+          var fill   = isCrit ? '#FEF2F2' : isNear ? '#FFFBEB' : '#F8FAFC';
+          var border = isCrit ? '#EF4444' : isNear ? '#D97706' : '#CBD5E1';
+          var bw     = (isCrit || isNear) ? 2 : 1;
+          var textCol = isCrit ? '#B91C1C' : isNear ? '#92400E' : '#1E293B';
+          var fontW   = (isCrit || isNear) ? '700' : '400';
+          var dur     = tInfo && tInfo.duration != null ? tInfo.duration.toFixed(1) : '';
           var floatVal = (tInfo && tInfo.totalFloat != null) ? ' f:' + tInfo.totalFloat.toFixed(1) : '';
 
           svg += '<rect x="' + pos.x + '" y="' + pos.y + '" width="' + nodeW + '" height="' + nodeH + '" rx="7"';
           svg += ' fill="' + fill + '" stroke="' + border + '" stroke-width="' + bw + '"/>';
           svg += '<text x="' + (pos.x + nodeW/2) + '" y="' + (pos.y + 15) + '"';
-          svg += ' text-anchor="middle" font-size="11" font-weight="' + (isCrit?'700':'400') + '" fill="' + (isCrit?'#B91C1C':'#1E293B') + '">';
+          svg += ' text-anchor="middle" font-size="11" font-weight="' + fontW + '" fill="' + textCol + '">';
           svg += label.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</text>';
           svg += '<text x="' + (pos.x + nodeW/2) + '" y="' + (pos.y + 30) + '"';
           svg += ' text-anchor="middle" font-size="9" fill="#6B7280">' + dur + 'd' + floatVal + '</text>';
