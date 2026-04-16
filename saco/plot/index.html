@@ -44,6 +44,8 @@
   <!-- Export helpers -->
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- vis-network for interactive CPM network diagram -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/dist/dist/vis-network.min.css">
   <!-- KaTeX for fast math rendering (~28KB, synchronous) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -3252,10 +3254,6 @@
 <div class="pmc-wiz-footer">
   <button class="pmc-wiz-btn" onclick="pmcWizGo(2)" title="Back to Optimize">‹ Optimize</button>
   <span class="pmc-wiz-spacer"></span>
-  <a id="cpmFullLink" href="/projectcare/cpm/plot/" target="_blank" rel="noopener"
-     class="pmc-wiz-btn" style="text-decoration:none;" title="Open full CPM diagram with stochastic analysis">
-    Full CPM Diagram ↗
-  </a>
 </div>
 </div><!-- /wizPanel3 -->
 
@@ -7410,6 +7408,8 @@
         if (stochResult) {
           html += kpi(stochResult.iterations || 500, 'MC Iterations');
         }
+        var hasNegFloat = Object.values(baseResult.tasks).some(function(t){ return (t.totalFloat||0) < -0.0001; });
+        html += kpi(hasNegFloat ? '<span style="color:#DC2626;font-weight:700;">YES</span>' : '<span style="color:#059669;">No</span>', 'Neg Float');
         html += '</div>';
 
         // Critical path chips
@@ -7449,12 +7449,15 @@
           });
           var hasCI  = stochResult && stochResult.criticalityIndex && Object.keys(stochResult.criticalityIndex).length > 0;
           var hasNCI = stochResult && stochResult.nci  && Object.keys(stochResult.nci).length > 0;
-          var hasSSI = stochResult && stochResult.ssi  && Object.keys(stochResult.ssi).length > 0;
+          var _ssiMap = stochResult && (stochResult.scheduleSignificanceIndex || stochResult.ssi) || {};
+          var hasSSI = Object.keys(_ssiMap).length > 0;
 
           html += '<div style="margin-bottom:6px;"><strong style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Task Schedule</strong></div>';
           html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">';
           html += '<thead><tr style="border-bottom:2px solid #e5e7eb;">';
-          var cols = ['Task', 'Dur', 'ES', 'EF', 'LF', 'TF', 'FF', 'IF', 'IndF', 'TP'];
+          var maxTF = 0;
+          sortedBase.forEach(function(t) { if ((t.totalFloat||0) > maxTF) maxTF = t.totalFloat; });
+          var cols = ['Task', 'Dur', 'ES', 'EF', 'LS', 'LF', 'TF', 'FF', 'IF', 'IndF', 'TP'];
           if (hasComparison) { cols.push('&#916; EF'); cols.push('&#916; Float'); }
           cols.push('Status');
           if (hasCI)  cols.push('CI %');
@@ -7485,8 +7488,11 @@
             html += '<td style="padding:4px 6px;">' + fmt(t.duration) + '</td>';
             html += '<td style="padding:4px 6px;">' + fmt(t.earlyStart) + '</td>';
             html += '<td style="padding:4px 6px;">' + fmt(t.earlyFinish) + '</td>';
+            html += '<td style="padding:4px 6px;">' + fmt(t.lateStart) + '</td>';
             html += '<td style="padding:4px 6px;">' + fmt(t.lateFinish) + '</td>';
-            html += '<td style="padding:4px 6px;">' + fmt(t.totalFloat) + '</td>';
+            var tfBarW = (maxTF > 0 && t.totalFloat > 0) ? Math.round((t.totalFloat / maxTF) * 50) : 0;
+            var tfCell = fmt(t.totalFloat) + (tfBarW > 0 ? '<div style="width:' + tfBarW + 'px;height:3px;background:#3B82F6;border-radius:2px;margin-top:2px;opacity:0.6;"></div>' : '');
+            html += '<td style="padding:4px 6px;">' + tfCell + '</td>';
             html += '<td style="padding:4px 6px;">' + fmt(t.freeFloat) + '</td>';
             html += '<td style="padding:4px 6px;">' + fmt(t.interferingFloat) + '</td>';
             html += '<td style="padding:4px 6px;">' + fmt(t.independentFloat) + '</td>';
@@ -7514,7 +7520,7 @@
               html += '<td style="padding:4px 6px;color:#6B7280;font-size:10px;">' + (nciV != null ? Math.round(nciV*100) + '%' : '&#8212;') + '</td>';
             }
             if (hasSSI) {
-              var ssiV = stochResult.ssi[t.id];
+              var ssiV = _ssiMap[t.id];
               html += '<td style="padding:4px 6px;color:#6B7280;font-size:10px;">' + (ssiV != null ? ssiV.toFixed(3) : '&#8212;') + '</td>';
             }
             html += '</tr>';
@@ -7544,8 +7550,19 @@
         // NETWORK TAB
         // ════════════════════════════════════════════════════════════════════
         html += tabPanel('network');
-        html += '<div style="font-size:11px;color:#6B7280;margin-bottom:8px;">Critical path coloring from <strong>' + _esc(l2Label) + '</strong>. Red = critical, orange = near-critical, blue = free.</div>';
-        html += '<div id="cpmStepNetworkSvg" style="overflow-x:auto;"></div>';
+        html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">';
+        html += '<button onclick="if(window._cpmNetwork)window._cpmNetwork.fit({animation:{duration:400,easingFunction:\'easeInOutQuad\'}})" style="padding:5px 10px;border:1px solid #E5E7EB;border-radius:7px;font-size:11px;cursor:pointer;background:#fff;">&#8859; Fit</button>';
+        html += '<button id="cpmNetLockBtn" onclick="window._cpmNetToggleLock&&window._cpmNetToggleLock()" style="padding:5px 10px;border:1px solid #E5E7EB;border-radius:7px;font-size:11px;cursor:pointer;background:#fff;">&#128274; Pan Locked</button>';
+        html += '<span style="font-size:10px;color:#9CA3AF;" id="cpmNetHint">Pan locked · scroll to zoom · hover node for CPM values</span>';
+        html += '</div>';
+        html += '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#6B7280;margin-bottom:10px;align-items:center;">';
+        html += '<span><span style="display:inline-block;width:12px;height:12px;background:#FEE2E2;border:2px solid #DC2626;border-radius:3px;vertical-align:middle;margin-right:4px;"></span>Critical (TF=0)</span>';
+        html += '<span><span style="display:inline-block;width:12px;height:12px;background:#FEF9C3;border:2px solid #F59E0B;border-radius:3px;vertical-align:middle;margin-right:4px;"></span>Near-critical</span>';
+        html += '<span><span style="display:inline-block;width:12px;height:12px;background:#F0FDF4;border:2px solid #059669;border-radius:3px;vertical-align:middle;margin-right:4px;"></span>Has float</span>';
+        html += '<span><span style="display:inline-block;width:12px;height:12px;background:#EDE9FE;border:2px solid #6D28D9;border-radius:3px;vertical-align:middle;margin-right:4px;"></span>Tipping point</span>';
+        html += '<span style="font-size:10px;margin-left:auto;">Each box: <code style="font-size:10px;">ES&nbsp;&nbsp;EF / Name (dur) / LS&nbsp;TF&nbsp;LF</code></span>';
+        html += '</div>';
+        html += '<div id="cpmStepNetworkContainer" style="width:100%;height:560px;border:1px solid #E5E7EB;border-radius:10px;background:#FAFAFA;overflow:hidden;cursor:grab;"></div>';
         html += '</div>';
 
         // ════════════════════════════════════════════════════════════════════
@@ -7580,6 +7597,44 @@
             html += '</div>';
           }
           html += '</div>';
+
+          // SSI / CI / NCI risk bar rows
+          if (stochResult.criticalityIndex && Object.keys(stochResult.criticalityIndex).length > 0) {
+            var _ciMap  = stochResult.criticalityIndex;
+            var _nciMap = stochResult.nci || {};
+            var _ssiMap2 = stochResult.scheduleSignificanceIndex || stochResult.ssi || {};
+            var nameById2 = {};
+            tasks.forEach(function(t){ nameById2[t.id] = t.task || t.name || t.id; });
+            (stochResult.tornado||[]).forEach(function(e){ if (e.name) nameById2[e.id] = e.name; });
+            var hasNCI2 = Object.keys(_nciMap).length > 0;
+
+            var ciEntries = Object.keys(_ciMap).map(function(id) {
+              return { id: id, name: nameById2[id]||id, ci: _ciMap[id]||0, ssi: _ssiMap2[id]||0, nci: _nciMap[id]||0 };
+            }).sort(function(a,b){ return b.ci - a.ci; });
+
+            html += '<div style="margin-bottom:20px;">';
+            html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin-bottom:4px;">Schedule Risk &#8212; Which tasks drive your deadline?</div>';
+            html += '<div style="font-size:11px;color:#9CA3AF;margin-bottom:10px;">Criticality Index: % of simulations where the task was on the critical path. High = persistent risk driver.</div>';
+            ciEntries.forEach(function(e) {
+              var ciPct    = Math.round(e.ci * 100);
+              var barColor = e.ci >= 0.70 ? '#FCA5A5' : e.ci >= 0.40 ? '#FDE68A' : '#6EE7B7';
+              var riskLbl  = e.ci >= 0.70 ? 'High' : e.ci >= 0.40 ? 'Medium' : 'Low';
+              var riskBg   = e.ci >= 0.70 ? '#FEF2F2' : e.ci >= 0.40 ? '#FFFBEB' : '#F0FDF4';
+              var riskC    = e.ci >= 0.70 ? '#991B1B' : e.ci >= 0.40 ? '#854D0E' : '#166534';
+              html += '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #F3F4F6;">';
+              html += '<span style="font-size:12px;font-weight:600;min-width:110px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + _esc(e.name) + '">' + _esc(e.name) + '</span>';
+              html += '<div style="flex:1;height:8px;background:#F1F5F9;border-radius:4px;overflow:hidden;">';
+              html += '<div style="width:' + ciPct + '%;height:8px;background:' + barColor + ';border-radius:4px;"></div></div>';
+              html += '<span style="font-size:12px;font-weight:700;font-family:monospace;min-width:36px;text-align:right;">' + ciPct + '%</span>';
+              html += '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:' + riskBg + ';color:' + riskC + ';white-space:nowrap;">' + riskLbl + '</span>';
+              if (hasNCI2) {
+                html += '<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:999px;background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;white-space:nowrap;">NCI ' + Math.round(e.nci*100) + '%</span>';
+              }
+              html += '<span style="font-size:10px;color:#9CA3AF;min-width:60px;white-space:nowrap;">SSI ' + (e.ssi > 0 ? e.ssi.toFixed(3) : '—') + '</span>';
+              html += '</div>';
+            });
+            html += '</div>';
+          }
 
           // Tornado
           html += '<div style="margin-bottom:20px;">';
@@ -7759,6 +7814,25 @@
             html += '</div>';
           }
 
+          // Richness chips — active/inactive signals
+          html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 0;align-items:center;">';
+          html += '<span style="background:#EFF6FF;color:#1D4ED8;border:1px solid #BFDBFE;padding:3px 9px;border-radius:999px;font-size:10px;font-weight:700;">' + _esc(ca.method || 'gaussian-copula') + '</span>';
+          function _rchip(label, active) {
+            return '<span style="padding:3px 9px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid;' +
+              (active ? 'background:#F0FDF4;color:#166534;border-color:#86EFAC;">' + '&#10003; ' : 'background:#F3F4F6;color:#9CA3AF;border-color:#E5E7EB;text-decoration:line-through;opacity:.6;">') +
+              _esc(label) + '</span>';
+          }
+          html += _rchip('Risk signals',   !!ca.driverSignalsPresent);
+          html += _rchip('Graph proximity',!!ca.graphDataPresent);
+          html += _rchip('Critical path',  !!ca.graphDataPresent);
+          html += _rchip('Merge ancestry', !!ca.graphDataPresent);
+          html += _rchip('Resource',       !!ca.resourceSignalsPresent);
+          html += _rchip('Phase',          !!ca.phaseSignalsPresent);
+          if (ca.mSlider != null && ca.mSlider !== 1) {
+            html += '<span style="background:#EFF6FF;color:#1D4ED8;border:1px solid #BFDBFE;padding:3px 9px;border-radius:999px;font-size:10px;font-weight:700;">m&#770;=' + ca.mSlider.toFixed(3) + '</span>';
+          }
+          html += '</div>';
+
           if (ca.samplePairs && ca.samplePairs.length > 0) {
             html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin:12px 0 6px;">Sample Pair Correlations</div>';
             html += '<table style="font-size:11px;border-collapse:collapse;width:100%;">';
@@ -7775,13 +7849,63 @@
             html += '</tbody></table>';
           }
           html += '</div>';
+
+          // Correlation heatmap (NxN, shown when ≤12 tasks)
+          var rMatrix = ca.rMatrix;
+          if (rMatrix && tasks.length >= 2) {
+            html += '<div style="background:#F8FAFC;border:1px solid #E5E7EB;border-radius:8px;padding:14px;margin-bottom:14px;">';
+            html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin-bottom:4px;">Correlation Matrix R</div>';
+            html += '<div style="font-size:11px;color:#9CA3AF;margin-bottom:8px;">Pairwise task &#961; used in the Gaussian copula sampler. Red = strong positive; blue = near-zero.</div>';
+            if (tasks.length <= 14) {
+              var nT = tasks.length;
+              var cellPx = Math.max(26, Math.min(44, Math.floor(280 / nT)));
+              html += '<div style="overflow-x:auto;"><div style="display:grid;grid-template-columns:auto repeat(' + nT + ',' + cellPx + 'px);width:fit-content;gap:2px;">';
+              // Header row
+              html += '<div></div>';
+              tasks.forEach(function(t){ var nm = (t.task||t.id||'').slice(0,4); html += '<div style="width:' + cellPx + 'px;height:' + cellPx + 'px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#6B7280;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + _esc(t.task||t.id) + '">' + _esc(nm) + '</div>'; });
+              // Data rows
+              for (var ri2 = 0; ri2 < nT; ri2++) {
+                var rowLbl2 = (tasks[ri2].task||tasks[ri2].id||'').slice(0,8);
+                html += '<div style="display:flex;align-items:center;justify-content:flex-end;padding-right:4px;height:' + cellPx + 'px;font-size:9px;color:#6B7280;font-weight:600;white-space:nowrap;" title="' + _esc(tasks[ri2].task||tasks[ri2].id) + '">' + _esc(rowLbl2) + '</div>';
+                for (var ci3 = 0; ci3 < nT; ci3++) {
+                  var rho2 = rMatrix[ri2] ? (rMatrix[ri2][ci3] || 0) : 0;
+                  var rr2 = 255, gg2 = 255, bb2 = 255;
+                  if (rho2 > 0)      { rr2 = 255; gg2 = Math.round(255*(1-rho2)); bb2 = Math.round(255*(1-rho2)); }
+                  else if (rho2 < 0) { rr2 = Math.round(255*(1+rho2)); gg2 = Math.round(255*(1+rho2)); bb2 = 255; }
+                  var bgC2 = 'rgb(' + rr2 + ',' + gg2 + ',' + bb2 + ')';
+                  var fgC2 = (Math.abs(rho2) > 0.5) ? '#fff' : '#111';
+                  html += '<div style="width:' + cellPx + 'px;height:' + cellPx + 'px;display:flex;align-items:center;justify-content:center;border-radius:3px;background:' + bgC2 + ';color:' + fgC2 + ';font-size:9px;font-family:monospace;font-weight:600;" title="&#961;=' + rho2.toFixed(3) + '">' + (ri2 === ci3 ? '1' : rho2.toFixed(2)) + '</div>';
+                }
+              }
+              html += '</div></div>';
+            } else {
+              html += '<p style="font-size:12px;color:#9CA3AF;padding:8px 0;">' + nT + ' tasks — matrix too large to display inline. See sample pairs above.</p>';
+            }
+            html += '</div>';
+          }
+
+          // Correlation Impact comparison
+          html += '<div style="background:#F8FAFC;border:1px solid #E5E7EB;border-radius:8px;padding:14px;margin-bottom:14px;">';
+          html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;margin-bottom:8px;">Correlation Impact</div>';
+          if (ca.independentP90 != null && ca.correlatedP90 != null) {
+            var iP90 = ca.independentP90, cP90 = ca.correlatedP90;
+            var delta2 = cP90 - iP90;
+            var dC2 = delta2 > 0.5 ? '#D97706' : '#059669';
+            html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
+            html += '<div style="flex:1;min-width:110px;background:#fff;border-radius:7px;border:1px solid #E5E7EB;padding:8px 12px;"><div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;">Independent P90</div><div style="font-size:16px;font-weight:700;margin-top:2px;">' + iP90.toFixed(1) + 'd</div><div style="font-size:10px;color:#9CA3AF;">Tasks sampled independently</div></div>';
+            html += '<div style="flex:1;min-width:110px;background:#fff;border-radius:7px;border:1px solid #E5E7EB;padding:8px 12px;"><div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;">Correlated P90</div><div style="font-size:16px;font-weight:700;margin-top:2px;">' + cP90.toFixed(1) + 'd</div><div style="font-size:10px;color:#9CA3AF;">Gaussian copula sampling</div></div>';
+            html += '<div style="flex:1;min-width:110px;background:#fff;border-radius:7px;border:1px solid #E5E7EB;padding:8px 12px;"><div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;">Tail Inflation</div><div style="font-size:16px;font-weight:700;margin-top:2px;color:' + dC2 + ';">' + (delta2 > 0 ? '+' : '') + delta2.toFixed(1) + 'd</div><div style="font-size:10px;color:#9CA3AF;">P90 delta from task coupling</div></div>';
+            html += '</div>';
+            html += '<p style="font-size:11px;color:#9CA3AF;margin-top:8px;">' +
+              (delta2 > 1 ? 'Correlation meaningfully inflates the tail — tasks finishing late tend to slip together. The correlated P90 is the realistic planning target.' :
+               delta2 > 0.1 ? 'Modest correlation effect — coupling adds small tail inflation.' :
+               'Low correlation impact — tasks largely independent. Both estimates are similar.') + '</p>';
+          } else {
+            html += '<p style="font-size:12px;color:#9CA3AF;">Independent vs correlated comparison not yet available. Requires two-pass MC (future feature).</p>';
+          }
+          html += '</div>';
         }
         html += '</div>'; // end corr panel
-
-        // Full CPM link
-        html += '<div style="margin-top:14px;padding-top:10px;border-top:1px solid #E5E7EB;text-align:right;">';
-        html += '<a id="cpmFullLink" href="/cpm/plot/" target="_blank" style="font-size:11px;color:#6B7280;text-decoration:none;">Open full CPM page &#8599;</a>';
-        html += '</div>';
 
         el.innerHTML = html;
 
@@ -7792,6 +7916,30 @@
         window._cpmExtraCharts = [];
 
         // ── Tab activation with lazy chart creation ───────────────────────────
+        var _netRendered = false;
+        window._cpmNetPanLocked = true;
+        window._cpmNetToggleLock = function() {
+          window._cpmNetPanLocked = !window._cpmNetPanLocked;
+          var btn  = document.getElementById('cpmNetLockBtn');
+          var hint = document.getElementById('cpmNetHint');
+          if (window._cpmNetwork) {
+            window._cpmNetwork.setOptions({ interaction: { dragView: !window._cpmNetPanLocked, zoomView: true } });
+          }
+          if (btn)  btn.textContent = window._cpmNetPanLocked ? '\uD83D\uDD12 Pan Locked' : '\uD83D\uDD13 Pan Unlocked';
+          if (hint) hint.textContent = window._cpmNetPanLocked
+            ? 'Pan locked \u00B7 scroll to zoom \u00B7 hover node for CPM values'
+            : 'Pan unlocked \u00B7 drag to move \u00B7 scroll to zoom';
+        };
+
+        function _loadVisJs(cb) {
+          if (typeof vis !== 'undefined') { cb(); return; }
+          var s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/vis-network@9.1.9/dist/vis-network.min.js';
+          s.onload  = cb;
+          s.onerror = function() { console.warn('[CPM] vis-network failed to load'); };
+          document.head.appendChild(s);
+        }
+
         window._cpmActivateTab = function(tabId) {
           window._cpmActiveTab = tabId;
           el.querySelectorAll('.cpm-tab-btn').forEach(function(btn) {
@@ -7800,19 +7948,18 @@
           el.querySelectorAll('.cpm-tab-panel').forEach(function(panel) {
             panel.style.display = panel.dataset.tab === tabId ? '' : 'none';
           });
-          if (tabId === 'gantt')   { _renderCpmGantt(baseArr, baseResult.projectDuration, hasComparison ? optArr : null); }
-          if (tabId === 'network') { _renderCpmNetwork(tasks, networkResult); }
+          if (tabId === 'gantt') { _renderCpmGantt(baseArr, baseResult.projectDuration, hasComparison ? optArr : null); }
+          if (tabId === 'network') {
+            _loadVisJs(function() {
+              _renderCpmNetwork(tasks, networkResult);
+              _netRendered = true;
+            });
+          }
           if (tabId === 'risk' && stochResult) { _renderCpmRiskCharts(stochResult); }
         };
 
         // ── Activate initial tab ──────────────────────────────────────────────
         window._cpmActivateTab(activeTab);
-
-        // ── Always pre-render network SVG (fast, so safe to do upfront) ───────
-        if (activeTab !== 'network') _renderCpmNetwork(tasks, networkResult);
-
-        // ── Sync full CPM link ────────────────────────────────────────────────
-        if (typeof window._sacoUpdateCpmLink === 'function') window._sacoUpdateCpmLink();
 
         // ── Nav badge ─────────────────────────────────────────────────────────
         var navBadge = document.getElementById('wizCpmBadge');
@@ -8029,7 +8176,7 @@
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { display: hasOpt, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+              legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
               tooltip: {
                 callbacks: {
                   label: function(ctx) {
@@ -8061,133 +8208,141 @@
       }
       window._renderCpmGantt = _renderCpmGantt;
 
-      // ── CPM Network Diagram (pure SVG, no library) ────────────────────────
+      // ── CPM Network Diagram (vis.js AON — Activity on Node) ──────────────
       function _renderCpmNetwork(tasks, cpmResult) {
-        var container = document.getElementById('cpmStepNetworkSvg');
+        var container = document.getElementById('cpmStepNetworkContainer');
         if (!container || !cpmResult || !cpmResult.tasks) return;
 
-        // Helper: extract predecessor ID from string, number, or object
-        function predToId(p) {
-          if (p === null || p === undefined) return '';
-          if (typeof p === 'object') return String(p.id || p.task || '');
-          return String(p);
+        if (typeof vis === 'undefined') {
+          container.textContent = 'Network diagram unavailable — vis-network failed to load.';
+          return;
         }
 
-        var order = cpmResult.topologicalOrder || tasks.map(function(t) { return t.id; });
-        var nodeMap = {};
-        tasks.forEach(function(t) { nodeMap[t.id] = t; });
-
-        // Near-critical set from engine result
-        var nearCritSet = {};
-        if (Array.isArray(cpmResult.nearCriticalTasks)) {
-          cpmResult.nearCriticalTasks.forEach(function(id) { nearCritSet[id] = true; });
+        // Destroy previous instance
+        if (window._cpmNetwork) {
+          try { window._cpmNetwork.destroy(); } catch(ex) {}
+          window._cpmNetwork = null;
         }
 
-        // Assign topological rank using predecessors
-        var ranks = {};
-        order.forEach(function(id) {
-          var preds = (nodeMap[id] && nodeMap[id].predecessors) || [];
-          var rank  = 0;
-          preds.forEach(function(p) {
-            var pid = predToId(p);
-            rank = Math.max(rank, (ranks[pid] || 0) + 1);
-          });
-          ranks[id] = rank;
-        });
+        function _fmt(v, dp) { return (v != null && Number.isFinite(v)) ? v.toFixed(dp != null ? dp : 1) : '\u2014'; }
+        function _fmtD(v) { return _fmt(v, 1) + 'd'; }
+        function _esc2(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-        var maxRank = 0;
-        order.forEach(function(id) { maxRank = Math.max(maxRank, ranks[id] || 0); });
+        var taskMap = cpmResult.tasks;
+        var tps     = cpmResult.tippingPoints || {};
+        var projDur = cpmResult.projectDuration || 1;
 
-        // Group by rank
-        var rankGroups = {};
-        order.forEach(function(id) {
-          var r = ranks[id] || 0;
-          if (!rankGroups[r]) rankGroups[r] = [];
-          rankGroups[r].push(id);
-        });
+        var nodes = new vis.DataSet();
+        var edges = new vis.DataSet();
+        var edgeId = 0;
 
-        // Find the tallest column to set a consistent total height
-        var maxColSize = 1;
-        for (var rr = 0; rr <= maxRank; rr++) {
-          if (rankGroups[rr]) maxColSize = Math.max(maxColSize, rankGroups[rr].length);
-        }
+        tasks.forEach(function(task) {
+          var id  = task.id;
+          var td  = taskMap[id] || {};
+          var onCp   = td.onCriticalPath;
+          var tf     = td.totalFloat;
+          var nearCrit = tf != null && tf < 0.10 * projDur && !onCp;
+          var tp     = tps[id];
 
-        var nodeW = 114, nodeH = 40, xGap = 48, yGap = 14;
-        var totalH = maxColSize * (nodeH + yGap) + 20;
+          var bg, border;
+          if      (onCp)     { bg = '#FEE2E2'; border = '#DC2626'; }
+          else if (nearCrit) { bg = '#FEF9C3'; border = '#F59E0B'; }
+          else               { bg = '#F0FDF4'; border = '#059669'; }
+          if (tp && (tp.severity === 'critical' || tp.severity === 'CRITICAL')) { bg = '#EDE9FE'; border = '#6D28D9'; }
 
-        var positions = {};
-        for (var r = 0; r <= maxRank; r++) {
-          var group = rankGroups[r] || [];
-          var colH  = group.length * (nodeH + yGap) - yGap;
-          var startY = (totalH - colH) / 2;
-          var colX  = r * (nodeW + xGap) + 20;
-          group.forEach(function(id, yi) {
-            positions[id] = { x: colX, y: startY + yi * (nodeH + yGap) };
-          });
-        }
+          // AON box label: ES  EF / Name (dur) / LS  TF  LF
+          var es  = _fmt(td.earlyStart,  1);
+          var ef  = _fmt(td.earlyFinish, 1);
+          var ls  = _fmt(td.lateStart,   1);
+          var lf  = _fmt(td.lateFinish,  1);
+          var tff = _fmtD(tf);
+          var dur = _fmtD(td.duration);
+          var nm  = (task.task||task.name||id);
+          if (nm.length > 14) nm = nm.slice(0, 13) + '\u2026';
 
-        var svgW = (maxRank + 1) * (nodeW + xGap) + 40;
-        var svgH = totalH + 20;
+          var label = es + '          ' + ef + '\n' + nm + ' (' + dur + ')\n' + ls + '  TF:' + tff + '  ' + lf;
 
-        // Build SVG — defs first, then edges, then nodes
-        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgW + '" height="' + svgH + '" style="font-family:system-ui,sans-serif;">';
-        svg += '<defs>';
-        svg += '<marker id="arrr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#EF4444"/></marker>';
-        svg += '<marker id="arrn" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#D97706"/></marker>';
-        svg += '<marker id="arrg" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#94A3B8"/></marker>';
-        svg += '</defs>';
+          var tipEl = document.createElement('div');
+          tipEl.style.cssText = 'font-family:Consolas,monospace;font-size:12px;line-height:1.7;padding:6px 10px;';
+          tipEl.innerHTML = '<strong>' + _esc2(task.task||id) + '</strong><br>' +
+            'Duration: ' + dur + '<br>' +
+            'ES: ' + es + ' &nbsp; EF: ' + ef + '<br>' +
+            'LS: ' + ls + ' &nbsp; LF: ' + lf + '<br>' +
+            'Total Float: ' + tff +
+            (td.freeFloat != null ? '<br>Free Float: ' + _fmtD(td.freeFloat) : '') +
+            (tp ? '<br>Tipping point: ' + _fmtD(tp.tippingPoint || tf) + ' (' + (tp.severity||'') + ')' : '');
 
-        // Edges
-        tasks.forEach(function(t) {
-          if (!t.predecessors || !t.predecessors.length) return;
-          t.predecessors.forEach(function(pred) {
-            var fromId = predToId(pred);
-            var from   = positions[fromId];
-            var to     = positions[t.id];
-            if (!from || !to) return;
-            var x1 = from.x + nodeW, y1 = from.y + nodeH / 2;
-            var x2 = to.x,           y2 = to.y   + nodeH / 2;
-            var fromInfo = cpmResult.tasks[fromId];
-            var toInfo   = cpmResult.tasks[t.id];
-            var bothCrit = fromInfo && toInfo && fromInfo.onCriticalPath && toInfo.onCriticalPath;
-            var eitherNear = !bothCrit && (nearCritSet[fromId] || nearCritSet[t.id]);
-            var stroke = bothCrit ? '#EF4444' : eitherNear ? '#D97706' : '#94A3B8';
-            var sw     = bothCrit ? 2.5 : eitherNear ? 2 : 1.5;
-            var arrowId = bothCrit ? 'arrr' : eitherNear ? 'arrn' : 'arrg';
-            var mx = (x1 + x2) / 2;
-            svg += '<path d="M' + x1 + ',' + y1 + ' C' + mx + ',' + y1 + ' ' + mx + ',' + y2 + ' ' + x2 + ',' + y2 + '"';
-            svg += ' fill="none" stroke="' + stroke + '" stroke-width="' + sw + '" marker-end="url(#' + arrowId + ')"/>';
+          nodes.add({
+            id:          id,
+            label:       label,
+            title:       tipEl,
+            color:       { background: bg, border: border, highlight: { background: bg, border: border } },
+            font:        { size: 11, color: '#111827', face: 'Consolas,"SF Mono",monospace', multi: false },
+            shape:       'box',
+            borderWidth: onCp ? 3 : (nearCrit ? 2 : 1.5),
+            margin:      { top: 7, right: 10, bottom: 7, left: 10 }
           });
         });
 
-        // Nodes
-        order.forEach(function(id) {
-          var pos    = positions[id];
-          if (!pos) return;
-          var tInfo    = cpmResult.tasks[id];
-          var isCrit   = tInfo && tInfo.onCriticalPath;
-          var isNear   = !isCrit && nearCritSet[id];
-          var label    = (tInfo && tInfo.name) || id;
-          if (label.length > 15) label = label.slice(0, 14) + '…';
-          var fill   = isCrit ? '#FEF2F2' : isNear ? '#FFFBEB' : '#F8FAFC';
-          var border = isCrit ? '#EF4444' : isNear ? '#D97706' : '#CBD5E1';
-          var bw     = (isCrit || isNear) ? 2 : 1;
-          var textCol = isCrit ? '#B91C1C' : isNear ? '#92400E' : '#1E293B';
-          var fontW   = (isCrit || isNear) ? '700' : '400';
-          var dur     = tInfo && tInfo.duration != null ? tInfo.duration.toFixed(1) : '';
-          var floatVal = (tInfo && tInfo.totalFloat != null) ? ' f:' + tInfo.totalFloat.toFixed(1) : '';
+        tasks.forEach(function(task) {
+          var preds = task.predecessors || [];
+          preds.forEach(function(pred) {
+            var fromId = typeof pred === 'object' && pred !== null ? String(pred.id || pred.task || '') : String(pred);
+            var type   = (typeof pred === 'object' && pred.type) ? pred.type : 'FS';
+            var lag    = (typeof pred === 'object' && pred.lag)  ? pred.lag  : 0;
+            if (!fromId || !taskMap[fromId]) return;
+            var td    = taskMap[task.id] || {};
+            var fromD = taskMap[fromId]  || {};
+            var isCritEdge = td.onCriticalPath && fromD.onCriticalPath;
 
-          svg += '<rect x="' + pos.x + '" y="' + pos.y + '" width="' + nodeW + '" height="' + nodeH + '" rx="7"';
-          svg += ' fill="' + fill + '" stroke="' + border + '" stroke-width="' + bw + '"/>';
-          svg += '<text x="' + (pos.x + nodeW/2) + '" y="' + (pos.y + 15) + '"';
-          svg += ' text-anchor="middle" font-size="11" font-weight="' + fontW + '" fill="' + textCol + '">';
-          svg += label.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</text>';
-          svg += '<text x="' + (pos.x + nodeW/2) + '" y="' + (pos.y + 30) + '"';
-          svg += ' text-anchor="middle" font-size="9" fill="#6B7280">' + dur + 'd' + floatVal + '</text>';
+            // Forward pass arrow (L→R, solid)
+            edges.add({
+              id:    'fwd_' + edgeId,
+              from:  fromId,
+              to:    task.id,
+              label: type !== 'FS' || lag ? type + (lag ? ' +' + lag : '') : '',
+              font:  { size: 9, color: '#6B7280', align: 'top' },
+              color: { color: isCritEdge ? '#DC2626' : '#9CA3AF', highlight: '#3B82F6', inherit: false },
+              width: isCritEdge ? 2.5 : 1.2,
+              arrows: { to: { enabled: true, scaleFactor: 0.7 } },
+              smooth: { enabled: true, type: 'curvedCW', roundness: 0.35 },
+              dashes: false,
+              title: 'EF(\u2009' + fromId + '\u2009) \u2192 ES(\u2009' + task.id + '\u2009)'
+            });
+
+            // Backward pass arrow (R→L, dashed indigo)
+            edges.add({
+              id:    'bwd_' + edgeId,
+              from:  task.id,
+              to:    fromId,
+              font:  { size: 9, color: '#6366F1', align: 'bottom' },
+              color: { color: '#6366F1', highlight: '#6366F1', inherit: false },
+              width: 1,
+              arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+              smooth: { enabled: true, type: 'curvedCW', roundness: 0.35 },
+              dashes: [5, 4],
+              title: 'LS(' + task.id + ') \u2192 LF(' + fromId + ')'
+            });
+
+            edgeId++;
+          });
         });
 
-        svg += '</svg>';
-        container.innerHTML = svg;
+        var nCount   = tasks.length;
+        var nodeSep  = nCount > 15 ? 80  : 110;
+        var levelSep = nCount > 15 ? 200 : 240;
+
+        var options = {
+          layout:      { hierarchical: { direction: 'LR', sortMethod: 'directed', nodeSpacing: nodeSep, levelSeparation: levelSep } },
+          physics:     { enabled: false },
+          interaction: { hover: true, navigationButtons: false, keyboard: false, tooltipDelay: 100, zoomView: true, dragView: !window._cpmNetPanLocked },
+          edges:       { font: { size: 9, color: '#6B7280', align: 'middle' }, color: { inherit: false } },
+          nodes:       { widthConstraint: { minimum: 170, maximum: 230 } }
+        };
+
+        window._cpmNetwork = new vis.Network(container, { nodes: nodes, edges: edges }, options);
+        window._cpmNetwork.once('stabilized', function() { window._cpmNetwork.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } }); });
+        setTimeout(function() { if (window._cpmNetwork) window._cpmNetwork.fit({ animation: false }); }, 350);
       }
       window._renderCpmNetwork = _renderCpmNetwork;
 
@@ -8552,10 +8707,6 @@
           onTaskChange();
           var _pl = document.getElementById('pageLoader');
           if (_pl) _pl.style.display = 'none';
-          // Update CPM link with freshly loaded tasks
-          if (typeof window._sacoUpdateCpmLink === 'function') {
-            window._sacoUpdateCpmLink();
-          }
         }
 
         if (window._pmcBootstrap) {
@@ -10485,40 +10636,6 @@
     if (demoBtn) demoBtn.style.fontWeight = isDemo ? '800' : '';
     if (yourBtn) yourBtn.style.fontWeight = isDemo ? '' : '800';
 
-    // Update CPM link with current tasks
-    _sacoUpdateCpmLink();
-  }
-
-  function _sacoUpdateCpmLink() {
-    // sacoCpmLink removed from toolbar; keep function to update #cpmFullLink (Step 3 footer)
-    var cpmLink = document.getElementById('cpmFullLink');
-    if (!cpmLink) return;
-    if (_sacoActiveSource === 'demo:portfolio') {
-      cpmLink.href = '/projectcare/cpm/plot/';
-      return;
-    }
-    try {
-      var bootstrapTasks = window._pmcBootstrap && window._pmcBootstrap.tasks;
-      var sTasks = window.S && window.S.tasks;
-      var tasks = bootstrapTasks || sTasks;
-      if (!tasks || !tasks.length) { cpmLink.href = '/projectcare/cpm/plot/'; return; }
-      var payload = { tasks: tasks.map(function(t, i) {
-        var obj = {
-          task: t.task || t.task_name || t.name || ('Task ' + (i + 1)),
-          O:    t.optimistic  != null ? t.optimistic  : (t.O != null ? t.O : 1),
-          M:    t.mostLikely  != null ? t.mostLikely  : (t.M != null ? t.M : 2),
-          P:    t.pessimistic != null ? t.pessimistic : (t.P != null ? t.P : 3)
-        };
-        if (t.id)           obj.id           = t.id;
-        if (t.predecessors) obj.predecessors  = t.predecessors;
-        if (t.phase)        obj.phase         = t.phase;
-        if (t.resource)     obj.resource      = t.resource;
-        if (t.riskSignals)  obj.riskSignals   = t.riskSignals;
-        return obj;
-      })};
-      var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-      cpmLink.href = '/projectcare/cpm/plot/?data=' + b64;
-    } catch(e) { cpmLink.href = '/projectcare/cpm/plot/'; }
   }
 
   // Expose picker functions globally so toolbar button can reach them
@@ -10526,7 +10643,6 @@
   window.closeSacoDatasetPicker = closeSacoDatasetPicker;
   window.loadSacoDataset        = loadSacoDataset;
   window._sacoSetActiveSource   = _sacoSetActiveSource;
-  window._sacoUpdateCpmLink     = _sacoUpdateCpmLink;
 
   /* Show no-data overlay (input form) */
   function showNoDataMessage() {

@@ -349,6 +349,7 @@ function _cpmBuildCorrMatrix(tasks, taskIds, detCPMResult, sliderContext, orphan
       sliderMultiplierApplied: mSlider !== 1.0,
       mSlider:                 _r4(mSlider),
       rhoRange:                [rhoMin, rhoMax],
+      rMatrix:                 Rrepaired,
       driverSignalsPresent:    hasRiskDrivers,
       phaseSignalsPresent:     hasPhase,
       resourceSignalsPresent:  hasResource,
