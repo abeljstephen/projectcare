@@ -7962,13 +7962,15 @@
         }
         html += '</div>'; // end corr panel
 
-        el.innerHTML = html;
-
-        // ── Destroy old extra charts ──────────────────────────────────────────
+        // ── Destroy old extra charts BEFORE replacing DOM ────────────────────
+        // Must happen before el.innerHTML = html; otherwise Chart.js registry
+        // still marks the old canvas ID as in-use and throws on re-creation.
         if (window._cpmExtraCharts) {
           window._cpmExtraCharts.forEach(function(c) { try { c.destroy(); } catch(ex3) {} });
         }
         window._cpmExtraCharts = [];
+
+        el.innerHTML = html;
 
         // ── Tab activation with lazy chart creation ───────────────────────────
         var _netRendered = false;
@@ -8064,6 +8066,7 @@
 
         // S-curve ─────────────────────────────────────────────────────────────
         var scCanvas = document.getElementById('cpmScurveCanvas');
+        if (scCanvas) { var _scEx = Chart.getChart(scCanvas); if (_scEx) _scEx.destroy(); }
         if (scCanvas && sr.sCurve && sr.sCurve.length > 0) {
           var markers = [];
           if (pd.p50 != null) markers.push({ x: pd.p50, label: 'P50', color: '#3B82F6' });
@@ -8122,6 +8125,7 @@
 
         // Tornado ─────────────────────────────────────────────────────────────
         var torCanvas = document.getElementById('cpmTornadoCanvas');
+        if (torCanvas) { var _torEx = Chart.getChart(torCanvas); if (_torEx) _torEx.destroy(); }
         if (torCanvas && sr.tornado && sr.tornado.length > 0) {
           var topN = sr.tornado.slice(0, 10);
           var torChart = new Chart(torCanvas, {
