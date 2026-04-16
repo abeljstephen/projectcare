@@ -356,6 +356,10 @@ function processTask(task) {
         });
         if (benchRes && !benchRes.error) {
           adjustedBlock.manualBenchmarkedProb = coercePercent01(benchRes.probability?.value);
+          adjustedBlock.manualBenchmarkedReshapedPoints = {
+            pdfPoints: clipPoints(benchRes.reshapedPoints?.pdfPoints || pdf),
+            cdfPoints: clipPoints(benchRes.reshapedPoints?.cdfPoints || cdf)
+          };
         }
       }
     } catch (_) {}
@@ -747,6 +751,8 @@ function processTask(task) {
              response.baseline.monteCarloSmoothed.cdfPoints
     };
     response.optimizedReshapedPoints = response.optimize?.reshapedPoints || null;
+    response.manualBenchmarkedReshapedPoints =
+      response.adjusted?.manualBenchmarkedReshapedPoints || null;
     response.explain = {
       adjusted: response.adjusted?.explain || null,
       optimized: response.optimize?.explain || null
