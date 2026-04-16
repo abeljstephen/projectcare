@@ -2269,7 +2269,7 @@
       </div>
       <div class="nd-err" id="nd_err"></div>
       <button class="nd-btn" id="nd_run" onclick="pmcRunFromForm()" style="width:100%; justify-content:center;">Run Estimate →</button>
-      <div style="font-size:10px;color:#9CA3AF;text-align:center;">Want full multi-task CPM analysis? <a href="../../cpm/plot/" style="color:#3B82F6;">Open Critical Path →</a></div>
+      <div style="font-size:10px;color:#9CA3AF;text-align:center;">After running your estimate, go to Step 2 then Step 3 for full Critical Path analysis.</div>
       <div id="ndMathToast"></div>
     </div>
   </div>
@@ -10816,6 +10816,67 @@
       window.loadTasks();
     } else {
       location.reload();
+    }
+
+    // ── Auto-compute optimization percentiles for demo datasets ──────────────
+    // Runs asynchronously after the demo loads so CPM scenario pills populate
+    // automatically (Opt·Bench, Opt·Not Bench) without the user needing Step 2.
+    var isDemo = src && src.indexOf('demo:') === 0;
+    if (isDemo && typeof pmcEstimatorAPI === 'function') {
+      var _autoOptTasks = tasks.slice();
+      var _autoOptIdx   = 0;
+      function _runNextAutoOpt() {
+        if (_autoOptIdx >= _autoOptTasks.length) {
+          // All tasks done — if CPM step is visible, re-render it
+          if (typeof window._renderCpmStep === 'function') {
+            try { window._renderCpmStep(); } catch(e) {}
+          }
+          return;
+        }
+        var t   = _autoOptTasks[_autoOptIdx++];
+        var O   = Number(t.optimistic  || t.best_case   || 0);
+        var M   = Number(t.mostLikely  || t.most_likely || 0);
+        var P   = Number(t.pessimistic || t.worst_case  || 0);
+        var tid = t.id || t.task_name || t.task || ('task_' + (_autoOptIdx - 1));
+        if (O > 0 && M > 0 && P > 0 && O <= M && M <= P) {
+          var target = (O + 4*M + P) / 6;
+          try {
+            // Fixed (unconstrained / Opt·Not Bench)
+            var fRes = pmcEstimatorAPI([{ task: tid, optimistic: O, mostLikely: M,
+              pessimistic: P, targetValue: target, optimize: true,
+              adaptive: false, probeLevel: 1 }]);
+            var fItem  = fRes && fRes.results && fRes.results[0];
+            var fCdf   = fItem && fItem.optimizedReshapedPoints &&
+                         fItem.optimizedReshapedPoints.cdfPoints;
+            // Adaptive (benchmarked / Opt·Bench)
+            var aRes = pmcEstimatorAPI([{ task: tid, optimistic: O, mostLikely: M,
+              pessimistic: P, targetValue: target, optimize: true,
+              adaptive: true, probeLevel: 3 }]);
+            var aItem  = aRes && aRes.results && aRes.results[0];
+            var aCdf   = aItem && (aItem.adaptiveReshapedPoints || aItem.optimizedReshapedPoints);
+            aCdf = aCdf && aCdf.cdfPoints;
+            var _ix = window.interpX;
+            if (_ix && fCdf && fCdf.length) {
+              var fp = { p10:_ix(fCdf,.10), p50:_ix(fCdf,.50), p80:_ix(fCdf,.80), p90:_ix(fCdf,.90) };
+              if (window.TM && window.TM.tasks) {
+                var tmT = window.TM.tasks.find(function(x){
+                  return (x.id||x.task_name||x.task) === tid; });
+                if (tmT) tmT.optimizedPercentiles = fp;
+              }
+            }
+            if (_ix && aCdf && aCdf.length) {
+              var ap = { p10:_ix(aCdf,.10), p50:_ix(aCdf,.50), p80:_ix(aCdf,.80), p90:_ix(aCdf,.90) };
+              if (window.TM && window.TM.tasks) {
+                var tmT2 = window.TM.tasks.find(function(x){
+                  return (x.id||x.task_name||x.task) === tid; });
+                if (tmT2) tmT2.adaptivePercentiles = ap;
+              }
+            }
+          } catch(e) { /* silent — no optimization available for this task */ }
+        }
+        setTimeout(_runNextAutoOpt, 0); // yield between tasks — keeps UI responsive
+      }
+      setTimeout(_runNextAutoOpt, 300); // start after initial render completes
     }
   }
 
