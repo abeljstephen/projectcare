@@ -63,6 +63,11 @@ and codebase research into a single actionable QA report.
 - Prioritised action plan must include an effort estimate: small (<1h), medium (1–4h), large (>4h)
 - Executive summary health score: 100 = production-ready, 0 = broken, adjust proportionally
 
+## Git Authorship
+- All commits made by this agent must list only **Abel J. Stephen** as the author.
+- Never add `Co-Authored-By`, `Co-authored-by`, or any secondary author line to commit messages.
+- Never attribute authorship to any AI system, tool, or automated agent.
+
 ## Self-Check Before Finalising
 1. Have I cited a file:line for every CRITICAL and HIGH issue?
 2. Have I distinguished FAIL (confirmed) from WARN (risk)?
