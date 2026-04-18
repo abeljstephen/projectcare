@@ -1817,6 +1817,37 @@
     .df-t-stored   { background: #ECFDF5; border: 1.5px solid #6EE7B7; }
     .df-t-cpm      { background: #FEF2F2; border: 1.5px solid #FCA5A5; }
     .df-t-out      { background: #F0F9FF; border: 1.5px solid #7DD3FC; }
+    /* ── Data Flow popup modal ─────────────────────────────── */
+    #df-popup-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.48);
+      z-index: 9999; display: flex; align-items: center; justify-content: center;
+    }
+    .df-popup-box {
+      background: #fff; border-radius: 12px; max-width: 500px; width: 92vw;
+      max-height: 80vh; overflow-y: auto; position: relative;
+      box-shadow: 0 20px 60px rgba(0,0,0,.28); font-size: 11px; line-height: 1.5;
+    }
+    .df-popup-hd    { padding: 14px 44px 10px 16px; border-bottom: 1px solid #E5E7EB; }
+    .df-popup-badge { font-size: 8px; font-weight: 800; letter-spacing: .06em;
+                      text-transform: uppercase; color: #9CA3AF; margin-bottom: 3px; }
+    .df-popup-title { font-size: 13px; font-weight: 700; color: #111827; }
+    .df-popup-close { position: absolute; top: 10px; right: 12px; background: none;
+                      border: none; font-size: 20px; color: #9CA3AF; cursor: pointer;
+                      line-height: 1; padding: 2px 6px; border-radius: 4px; }
+    .df-popup-close:hover { background: #F3F4F6; color: #374151; }
+    .df-popup-sec   { padding: 10px 16px; border-bottom: 1px solid #F3F4F6; }
+    .df-popup-sec:last-child { border-bottom: none; padding-bottom: 16px; }
+    .df-popup-sh    { font-size: 8.5px; font-weight: 700; text-transform: uppercase;
+                      letter-spacing: .07em; color: #9CA3AF; margin-bottom: 6px; }
+    .df-popup-val   { color: #374151; margin: 2px 0; }
+    .df-popup-formula { font-family: ui-monospace,monospace; font-size: 10px;
+                        background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 5px;
+                        padding: 7px 10px; margin: 3px 0; white-space: pre; color: #1E40AF; }
+    .df-popup-eq    { font-family: ui-monospace,monospace; font-size: 10px;
+                      background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 5px;
+                      padding: 7px 10px; margin: 3px 0; white-space: pre; color: #065F46; }
+    .df-node        { cursor: pointer; }
+    .df-node:hover  { filter: brightness(0.96); }
 
     /* Hide floating series toggles in step 2 (cards own them) */
     .stp2-series-hidden { display: none !important; }
@@ -10012,6 +10043,68 @@
       }
 
       // ─────────────────────────────────────────────────────────────────────
+      // DATA FLOW NODE POPUP HANDLER
+      // ─────────────────────────────────────────────────────────────────────
+      window._dfShowPopup = function(nodeId) {
+        var nd = window._dfNodes && window._dfNodes[nodeId];
+        if (!nd) return;
+        var old = document.getElementById('df-popup-overlay');
+        if (old) old.remove();
+
+        function esc(v) {
+          return String(v == null ? '' : v)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+        function secLines(arr, cls) {
+          if (!arr || !arr.length) return '';
+          var out = '';
+          arr.forEach(function(l) {
+            if (l === null || l === '')
+              out += '<hr style="border:none;border-top:1px solid rgba(0,0,0,.07);margin:4px 0;">';
+            else
+              out += '<div class="' + cls + '">' + esc(l) + '</div>';
+          });
+          return out;
+        }
+
+        var h = '<div class="df-popup-box">';
+        h += '<div class="df-popup-hd">';
+        h += '<div class="df-popup-badge">' + esc(nd.badge) + '</div>';
+        h += '<div class="df-popup-title">' + esc(nd.label.replace(/\n/g,' — ')) + '</div>';
+        h += '<button class="df-popup-close" onclick="document.getElementById(\'df-popup-overlay\').remove()">&#215;</button>';
+        h += '</div>';
+
+        if (nd.lines && nd.lines.filter(function(l){return l!==null&&l!=='';}).length) {
+          h += '<div class="df-popup-sec"><div class="df-popup-sh">Current Values</div>';
+          nd.lines.forEach(function(l) {
+            if (l === null) h += '<hr style="border:none;border-top:1px solid #F3F4F6;margin:4px 0;">';
+            else if (!l || l === '—') h += '<div class="df-popup-val" style="color:#9CA3AF;font-style:italic;">—</div>';
+            else if (l.charAt(0) === '!') h += '<div class="df-popup-val" style="color:#9CA3AF;">' + esc(l.slice(1).trim()) + '</div>';
+            else h += '<div class="df-popup-val">' + esc(l) + '</div>';
+          });
+          h += '</div>';
+        }
+        var pop = nd.popup || {};
+        if (pop.formula && pop.formula.length) {
+          h += '<div class="df-popup-sec"><div class="df-popup-sh">Formula — Symbolic</div>';
+          h += secLines(pop.formula, 'df-popup-formula');
+          h += '</div>';
+        }
+        if (pop.equation && pop.equation.length) {
+          h += '<div class="df-popup-sec"><div class="df-popup-sh">Computed — Values Substituted</div>';
+          h += secLines(pop.equation, 'df-popup-eq');
+          h += '</div>';
+        }
+        h += '</div>';
+
+        var ov = document.createElement('div');
+        ov.id = 'df-popup-overlay';
+        ov.innerHTML = h;
+        ov.addEventListener('click', function(ev) { if (ev.target === ov) ov.remove(); });
+        document.body.appendChild(ov);
+      };
+
+      // ─────────────────────────────────────────────────────────────────────
       // DATA FLOW DIAGRAM RENDERER
       // ─────────────────────────────────────────────────────────────────────
       window._renderDataFlowDiagram = function() {
@@ -10313,6 +10406,561 @@
                    'Risk · Health · Correlation'] }
         ];
 
+        // ── precomputed formula values for popup equations ───────────────────
+        var _pO  = Number.isFinite(s.O) ? s.O : null;
+        var _pM  = Number.isFinite(s.M) ? s.M : null;
+        var _pP  = Number.isFinite(s.P) ? s.P : null;
+        var _pR  = (_pO!=null && _pP!=null) ? _pP - _pO : null;
+        var _pMu = (_pO!=null && _pM!=null && _pP!=null) ? (_pO+4*_pM+_pP)/6 : null;
+        var _pAl = (_pR>0 && _pM!=null) ? 1+4*(_pM-_pO)/_pR : null;
+        var _pBe = (_pR>0 && _pM!=null) ? 1+4*(_pP-_pM)/_pR : null;
+        var _pHt = _pR>0 ? 2/_pR : null;
+        var _psv = (typeof window.sliderValues==='function') ? window.sliderValues() : {};
+        var _pBF = Number(_psv.budgetFlexibility||0)/100;
+        var _pSC = Number(_psv.scopeCertainty||0)/100;
+        var _pSF = Number(_psv.scheduleFlexibility||0)/100;
+        var _pRW = Number(_psv.reworkPercentage||0)/50;
+        var _pUC = Number(_psv.userConfidence||0)/100;
+        var _pMs = Math.exp(0.35*_pRW - 0.20*_pSC - 0.10*_pSF - 0.05*_pBF - 0.10*_pUC);
+        var _pSK = ['budgetFlexibility','scheduleFlexibility','scopeCertainty',
+                    'scopeReductionAllowance','reworkPercentage','riskTolerance','userConfidence'];
+        var _pWt = [0.20,0.20,0.18,0.15,0.10,0.09,0.08];
+        var _pS1 = _pSK.map(function(k,i){
+          var v = Number(_psv[k]||0)/100;
+          if (i===4) v = Math.max(0,Math.min(1,1-v));
+          return v;
+        });
+        var _pLin = _pWt.reduce(function(a,w,i){return a+w*_pS1[i];},0);
+        var _pPor = _pS1.reduce(function(p,si){return 1-(1-p)*(1-0.9*si);},0);
+
+        // ── popup formula + equation data, keyed by node id ──────────────────
+        var POPUP = {
+          // ── Col 0: user inputs ──────────────────────────────────────────────
+          omp: {
+            formula:[
+              '\u03bc_PERT = (O + 4M + P) / 6',
+              'range  = P \u2212 O',
+              'cv     = range / \u03bc_PERT   (spread relative to mean)'
+            ],
+            equation:[
+              '\u03bc_PERT = (' + fmt(_pO,1) + ' + 4\u00d7' + fmt(_pM,1) + ' + ' + fmt(_pP,1) + ') / 6',
+              '       = ' + fmt(_pMu,2) + ' d',
+              'range  = ' + fmt(_pP,1) + ' \u2212 ' + fmt(_pO,1) + ' = ' + fmt(_pR,2) + ' d',
+              'cv     = ' + fmt(_pR,2) + ' / ' + fmt(_pMu,2) + ' = ' + fmt((_pR&&_pMu)?_pR/_pMu:null,3)
+            ]
+          },
+          tmode: {
+            formula:[
+              'Probability mode:',
+              '  \u03c4 = F\u207b\u00b9_baseline(p_target)  \u2014 inverse CDF lookup',
+              '  \u03c4 auto-shifts to keep P(X\u2264\u03c4) = p_target',
+              'Value mode:',
+              '  \u03c4 = constant entered by user',
+              '  probability is recalculated from the fixed \u03c4'
+            ],
+            equation:[
+              'Active mode: ' + (s.targetMode==='probability' ? 'Probability' : 'Value'),
+              s.targetMode==='probability'
+                ? '\u03c4 = interpX(baseCDF, ' + pct(s.targetProb) + ') = ' + fmt(s.target,2) + ' d'
+                : '\u03c4 = ' + fmt(s.target,2) + ' d  (direct value entry)'
+            ]
+          },
+          target: {
+            formula:[
+              '\u03c4 is the upper bound for all P(X\u2264\u03c4) queries',
+              'Forward lookup: P = interpY(CDF, \u03c4)',
+              'Inverse lookup: \u03c4 = interpX(CDF, p)',
+              '(linear interpolation between CDF grid points)'
+            ],
+            equation:[
+              '\u03c4 = ' + fmt(s.target,2) + ' d',
+              s.targetMode==='probability'
+                ? 'Derived: interpX(baseCDF, ' + pct(s.targetProb) + ') \u2192 ' + fmt(s.target,2) + ' d'
+                : 'Set directly by user (value mode)'
+            ]
+          },
+          sliders: {
+            formula:[
+              'S\u2080\u2081 = raw_slider/100;  S[RWK] = 1 \u2212 S[RWK]  (invert)',
+              'lin   = \u03a3 w\u1d62\u00b7S\u1d62   W=[.20,.20,.18,.15,.10,.09,.08]',
+              'por   = 1 \u2212 \u03a0(1 \u2212 0.9\u00b7S\u1d62)   (diminishing returns)',
+              'z     = (S\u2080\u2081 \u2212 mean) / std',
+              'zc    = BASE_R \u00b7 z   (7\u00d77 PSD correlation matrix)',
+              'U     = clamp\u2080\u2081(0.5 + 0.2\u00b7tanh(zc))',
+              'coup  = mean(U);  t = clamp(0.3 + 0.4\u00b7coup)',
+              'm\u2080    = (1\u2212t)\u00b7lin + t\u00b7por   (mean shift)',
+              'm\u2081    = (0.8\u22120.5\u00b7lin)\u00b7(1+cv/2)   (variance proxy)',
+              'm_slider = exp(0.35\u00b7RWK\u22120.20\u00b7SC\u22120.10\u00b7SF\u22120.05\u00b7BF\u22120.10\u00b7UC)'
+            ],
+            equation:[
+              'lin  = ' + fmt(_pLin,4),
+              'por  = ' + fmt(_pPor,4),
+              'm_slider = exp(0.35\u00d7'+fmt(_pRW,2)+'\u22120.20\u00d7'+fmt(_pSC,2)+'\u22120.10\u00d7'+fmt(_pSF,2)+'\u22120.05\u00d7'+fmt(_pBF,2)+'\u22120.10\u00d7'+fmt(_pUC,2)+')',
+              '         = ' + fmt(_pMs,4)
+            ]
+          },
+          rcfinp: {
+            formula: rcf ? [
+              'Prior:  \u03bc_overrun ~ Student-t(\u03bd=4, \u03bc=0, \u03c3=0.30)',
+              'logLik: \u2212N(\u03bc\u2212\u03bc\u0304)\u00b2/(2\u03c3\u00b2_obs)',
+              'log p(\u03bc|data) = \u2212(\u03bd+1)/2\u00b7log(1+\u03bc\u00b2/(\u03bd\u00b7\u03c3\u00b2)) + logLik',
+              'MH proposal: \u03bc* = \u03bc_curr + N(0, 0.15\u00b2)',
+              'Chain: 5500 iter, 500 burn-in, thin=5 \u2192 1000 effective',
+              'Sample: adjusted = base \u00d7 (1 + \u03bc_k + \u03c3_obs\u00b7N(0,1))'
+            ] : [
+              'RCF not active \u2014 standard Beta MC used',
+              'To enable: enter N + mean overrun% + std overrun%',
+              'Activates Metropolis-Hastings MCMC baseline'
+            ],
+            equation: rcf ? [
+              'N     = ' + rcf.n,
+              '\u03bc\u0304     = ' + fmt(rcf.meanOverrunFrac*100,1) + '%',
+              '\u03c3_obs = ' + (rcf.stdOverrunFrac ? fmt(rcf.stdOverrunFrac*100,1)+'%' : 'auto (50% CV)'),
+              'step  = 0.5 \u00d7 \u03c3_prior = 0.15   (targets ~35% accept)',
+              'cred  = ' + fmt(Math.min(1,rcf.n/10),2) + '  (n/10 capped at 1.0)'
+            ] : ['RCF not active \u2014 enter team history to unlock MCMC']
+          },
+          preds: {
+            formula:[
+              'hasDeps = tasks.some(t => t.predecessors?.length > 0)',
+              'FS (Finish\u2192Start): succ starts after pred finishes + lag',
+              'SS (Start\u2192Start):  succ starts when pred starts + lag',
+              'FF (Finish\u2192Finish): succ finishes when pred finishes + lag',
+              'SF (Start\u2192Finish):  succ finishes when pred starts + lag',
+              'Lag can be negative (lead time)'
+            ],
+            equation:[
+              'Tasks in TM: ' + cpmTaskCount,
+              'hasDeps: ' + (cpmHasDeps ? 'true \u2014 full CPM + stochastic enabled' : 'false \u2014 duration-only mode')
+            ]
+          },
+          // ── Col 1: engine calls ─────────────────────────────────────────────
+          fetchdata: {
+            formula:[
+              'Calls generateTrianglePoints(O,M,P)',
+              'Calls generateBetaPoints(O,M,P) with PERT \u03bb=4',
+              'Without RCF \u2192 generateMonteCarloSmoothedPoints:',
+              '  n=2000 Beta(\u03b1,\u03b2) samples on [O,P]',
+              '  KDE: f(x) = (1/n)\u03a3(1/h\u221a2\u03c0)\u00b7exp(\u2212(x\u2212x\u1d62)\u00b2/2h\u00b2)',
+              '  h = (P\u2212O) / 63.3  (rule-of-thumb bandwidth)',
+              'With RCF \u2192 generateMCMCSmoothedPoints (Bayesian path)',
+              'All CDFs: cumulative trapezoid, tail forced = 1.0'
+            ],
+            equation:[
+              'Status: ' + (s.fetching ? 'Computing\u2026' : (s.baseCdf&&s.baseCdf.length ? 'Done \u2713' : 'Not run')),
+              'Path: ' + (rcf ? 'MCMC (RCF active)' : 'standard MC'),
+              'h = ' + fmt(_pR,2) + ' / 63.3 = ' + fmt(_pR?_pR/63.3:null,4)
+            ]
+          },
+          vmanual: {
+            formula:[
+              'computeAdjustedMoments(sliders) \u2192 [m\u2080, m\u2081]',
+              'betaRefit(O,M,P,[m\u2080,m\u2081]) \u2192 shifted \u03b1\u2019, \u03b2\u2019',
+              'adjCDF from new BetaPERT(\u03b1\u2019, \u03b2\u2019)',
+              'condUnbench = adjCDF directly (no benchmark ceiling)',
+              'condBench   = adjCDF + PMBOK/CII benchmark ceiling',
+              'score = P(X\u2264\u03c4|adjCDF) \u00d7 exp(\u2212KL(Tri\u2016adjCDF))'
+            ],
+            equation:[
+              'Active: ' + (ov.manualOn ? 'yes' : 'no (enable in Step 2)'),
+              'adjCDF: ' + (s.adjCdf&&s.adjCdf.length ? cdfSummary(s.adjCdf)||'available' : 'not computed'),
+              'cond unbench P(\u2264\u03c4): ' + (s.adjustedProb!=null ? pct(s.adjustedProb) : '\u2014'),
+              'cond bench P(\u2264\u03c4):   ' + (s.manualBenchmarkedProb!=null ? pct(s.manualBenchmarkedProb) : '\u2014')
+            ]
+          },
+          vfixed: {
+            formula:[
+              'Latin Hypercube Sampling over 7-dim slider space:',
+              '  sample_j = (j + U[0,1]) / n  per dimension j',
+              '  Fisher-Yates shuffle per dimension independently',
+              'score(s) = P(X\u2264\u03c4|reshaped) \u00d7 exp(\u2212KL(Tri\u2016reshaped))',
+              'KL = \u222b p(x)\u00b7log(p(x)/q(x)) dx  (EPS=1e-12 guard)',
+              'Return CDF from highest-scoring slider set'
+            ],
+            equation:[
+              'Active: ' + (ov.fixedOn ? 'yes' : 'no'),
+              'optCdfFixed: ' + (s.optCdfFixed&&s.optCdfFixed.length ? cdfSummary(s.optCdfFixed)||'available' : 'not computed'),
+              'P(\u2264\u03c4): ' + (s.optimizedProb!=null ? pct(s.optimizedProb) : '\u2014')
+            ]
+          },
+          vadaptive: {
+            formula:[
+              'Same LHS + score as fixed variant',
+              'probeLevel (1\u20137) scales search depth & breadth',
+              'PMBOK/CII benchmark ceiling applied to output CDF',
+              'Returns optCdfAdaptive \u2014 benchmarked upper bound'
+            ],
+            equation:[
+              'Active: ' + (ov.adaptiveOn ? 'yes' : 'no'),
+              'probeLevel: ' + (ov.probeLevel||3),
+              'optCdfAdaptive: ' + (s.optCdfAdaptive&&s.optCdfAdaptive.length ? cdfSummary(s.optCdfAdaptive)||'available' : 'not computed'),
+              'P(\u2264\u03c4): ' + (s.adaptiveProb!=null ? pct(s.adaptiveProb) : '\u2014')
+            ]
+          },
+          // ── Col 2: computed distributions ───────────────────────────────────
+          ctri: {
+            formula:[
+              'f(x) = 2(x\u2212O) / ((P\u2212O)(M\u2212O))   for O \u2264 x \u2264 M',
+              'f(x) = 2(P\u2212x) / ((P\u2212O)(P\u2212M))   for M < x \u2264 P',
+              'peak h = 2 / (P\u2212O)',
+              'CDF(x) = \u222b_O^x f(t) dt   (cumulative trapezoid, 200 pts)',
+              'renormalized: \u222bf dx = 1 exactly'
+            ],
+            equation: _pO!=null ? [
+              'h = 2 / ' + fmt(_pR,2) + ' = ' + fmt(_pHt,4),
+              'f(' + fmt(_pO,1) + ') = 0   (left edge)',
+              'f(' + fmt(_pM,1) + ') = ' + fmt(_pHt,4) + '   (peak at M)',
+              'f(' + fmt(_pP,1) + ') = 0   (right edge)',
+              'CDF: ' + (cdfSummary(s.triangleCdf)||'\u2014')
+            ] : ['O/M/P not yet entered']
+          },
+          cbet: {
+            formula:[
+              '\u03b1 = 1 + 4(M\u2212O)/(P\u2212O)   (PERT \u03bb=4 canonical)',
+              '\u03b2 = 1 + 4(P\u2212M)/(P\u2212O)',
+              'f(u) = u^(\u03b1\u22121)(1\u2212u)^(\u03b2\u22121) / B(\u03b1,\u03b2)   u=(x\u2212O)/(P\u2212O)',
+              'f(x) = f(u) / (P\u2212O)   (scaled to domain [O,P])',
+              'B(\u03b1,\u03b2) = exp(log\u0393(\u03b1)+log\u0393(\u03b2)\u2212log\u0393(\u03b1+\u03b2))   via Lanczos',
+              'CDF: cumulative trapezoid, clamped [0,1], tail=1.0'
+            ],
+            equation: _pO!=null ? [
+              '\u03b1 = 1 + 4\u00d7(' + fmt(_pM,1) + '\u2212' + fmt(_pO,1) + ')/(' + fmt(_pP,1) + '\u2212' + fmt(_pO,1) + ')',
+              '  = ' + fmt(_pAl,4),
+              '\u03b2 = 1 + 4\u00d7(' + fmt(_pP,1) + '\u2212' + fmt(_pM,1) + ')/(' + fmt(_pP,1) + '\u2212' + fmt(_pO,1) + ')',
+              '  = ' + fmt(_pBe,4),
+              'CDF: ' + (cdfSummary(s.betaPertCdf)||'\u2014')
+            ] : ['O/M/P not yet entered']
+          },
+          cbase: {
+            formula: rcf ? [
+              'MCMC path (RCF active):',
+              'log p(\u03bc|data) = \u2212(\u03bd+1)/2\u00b7log(1+\u03bc\u00b2/(\u03bd\u00b7\u03c3\u00b2)) \u2212 N(\u03bc\u2212\u03bc\u0304)\u00b2/(2\u03c3\u00b2_obs)',
+              'Sample: adjusted_i = base_i \u00d7 (1 + \u03bc_k + \u03c3_obs\u00b7N(0,1))',
+              'Extended grid: P\u00d7(1+max(0, \u03bc_post+3\u03c3_post))',
+              'KDE on extended range with same h=range/63.3 rule'
+            ] : [
+              'Standard MC + Gaussian KDE:',
+              'n=2000 Beta(\u03b1,\u03b2) samples on [O,P]',
+              'f(x) = (1/n)\u03a3(1/h\u221a2\u03c0)\u00b7exp(\u2212(x\u2212x\u1d62)\u00b2/2h\u00b2)',
+              'h = (P\u2212O) / 63.3   (rule-of-thumb bandwidth)',
+              'CDF: cumulative trapezoid; tail forced = 1.0'
+            ],
+            equation: _pO!=null ? [
+              rcf
+                ? ('N='+rcf.n+', \u03bc\u0304='+fmt(rcf.meanOverrunFrac*100,1)+'%, h=extRange/63.3')
+                : ('h = '+fmt(_pR,2)+' / 63.3 = '+fmt(_pR?_pR/63.3:null,4)),
+              'CDF: ' + (cdfSummary(s.baseCdf)||'not yet computed')
+            ] : ['O/M/P not yet entered']
+          },
+          cadj: {
+            formula:[
+              'adjCDF = betaRefit(O,M,P, [m\u2080, m\u2081])',
+              'm\u2080 shifts mean: new_mean \u2248 \u03bc_PERT \u00d7 (1+m\u2080)',
+              'm\u2081 adjusts spread (higher m\u2081 \u2192 wider distribution)',
+              'condUnbench = adjCDF directly (no ceiling)',
+              'condBench   = adjCDF + PMBOK/CII benchmark ceiling'
+            ],
+            equation:[
+              'adjCDF: ' + (s.adjCdf&&s.adjCdf.length ? cdfSummary(s.adjCdf)||'available' : 'not computed'),
+              'cond unbench P(\u2264\u03c4): ' + (s.adjustedProb!=null ? pct(s.adjustedProb) : '\u2014'),
+              'cond bench P(\u2264\u03c4):   ' + (s.manualBenchmarkedProb!=null ? pct(s.manualBenchmarkedProb) : '\u2014')
+            ]
+          },
+          cfix: {
+            formula:[
+              'optCdfFixed = CDF from highest-scoring LHS candidate',
+              'score = P(X\u2264\u03c4|reshaped) \u00d7 exp(\u2212KL(Triangle\u2016reshaped))',
+              'KL: \u222b p(x)\u00b7log(p(x)/q(x)) dx   (EPS=1e-12 clamp)',
+              'Not benchmarked \u2014 no PMBOK ceiling applied'
+            ],
+            equation:[
+              'optCdfFixed: ' + (s.optCdfFixed&&s.optCdfFixed.length ? cdfSummary(s.optCdfFixed)||'available' : 'not computed'),
+              'P(\u2264\u03c4): ' + (s.optimizedProb!=null ? pct(s.optimizedProb) : '\u2014')
+            ]
+          },
+          cadap: {
+            formula:[
+              'Same LHS+score optimization as fixed variant',
+              'Adaptive probeLevel controls search resolution',
+              'Benchmark ceiling (PMBOK/CII) applied post-optimization',
+              'Returns optCdfAdaptive \u2014 benchmarked output'
+            ],
+            equation:[
+              'optCdfAdaptive: ' + (s.optCdfAdaptive&&s.optCdfAdaptive.length ? cdfSummary(s.optCdfAdaptive)||'available' : 'not computed'),
+              'P(\u2264\u03c4): ' + (s.adaptiveProb!=null ? pct(s.adaptiveProb) : '\u2014')
+            ]
+          },
+          // ── Col 3: probability outputs ───────────────────────────────────────
+          pbase: {
+            formula:[
+              'P(X\u2264\u03c4) = CDF_baseline(\u03c4)',
+              '       = interpY(baseCDF, \u03c4)   (linear interpolation)'
+            ],
+            equation:[
+              'P(X \u2264 ' + fmt(s.target,2) + ' d)',
+              '= interpY(baseCDF, ' + fmt(s.target,2) + ')',
+              '= ' + (s.baselineProb!=null ? pct(s.baselineProb) : '\u2014')
+            ]
+          },
+          padj: {
+            formula:[
+              'condUnbench: P(X\u2264\u03c4) = interpY(adjCDF, \u03c4)',
+              'condBench:   P(X\u2264\u03c4) = interpY(benchCDF, \u03c4)'
+            ],
+            equation:[
+              'P(X \u2264 ' + fmt(s.target,2) + ' d) [cond unbench] = ' + (s.adjustedProb!=null ? pct(s.adjustedProb) : '\u2014'),
+              'P(X \u2264 ' + fmt(s.target,2) + ' d) [cond bench]   = ' + (s.manualBenchmarkedProb!=null ? pct(s.manualBenchmarkedProb) : '\u2014')
+            ]
+          },
+          pfix: {
+            formula:[
+              'P(X\u2264\u03c4) = interpY(optCdfFixed, \u03c4)   (linear interp)',
+              'Opt\u00b7Not Bench scenario \u2014 no benchmark ceiling'
+            ],
+            equation:[
+              'P(X \u2264 ' + fmt(s.target,2) + ' d)',
+              '= interpY(optCdfFixed, ' + fmt(s.target,2) + ')',
+              '= ' + (s.optimizedProb!=null ? pct(s.optimizedProb) : '\u2014')
+            ]
+          },
+          padap: {
+            formula:[
+              'P(X\u2264\u03c4) = interpY(optCdfAdaptive, \u03c4)   (linear interp)',
+              'Opt\u00b7Bench scenario \u2014 benchmark ceiling applied'
+            ],
+            equation:[
+              'P(X \u2264 ' + fmt(s.target,2) + ' d)',
+              '= interpY(optCdfAdaptive, ' + fmt(s.target,2) + ')',
+              '= ' + (s.adaptiveProb!=null ? pct(s.adaptiveProb) : '\u2014')
+            ]
+          },
+          // ── Col 4: stored per-task percentiles ───────────────────────────────
+          scu: {
+            formula:[
+              'condUnbenchPercentiles.p50 = interpX(adjCDF, 0.50)',
+              'interpX = inverse CDF lookup (bisect + linear interp)',
+              'Also stored: p10, p80, p90 for each task',
+              'Fed into CPM as task duration for Cond\u00b7Not Bench scenario'
+            ],
+            equation:[ 'condUnbench p50 per task: ' + (tasksP50('condUnbenchPercentiles')||'\u2014') ]
+          },
+          scb: {
+            formula:[
+              'condBenchPercentiles.p50 = interpX(benchCDF, 0.50)',
+              'Fed into CPM as task duration for Cond\u00b7Bench scenario'
+            ],
+            equation:[ 'condBench p50 per task: ' + (tasksP50('condBenchPercentiles')||'\u2014') ]
+          },
+          sop: {
+            formula:[
+              'optimizedPercentiles.p50 = interpX(optCdfFixed, 0.50)',
+              'Fed into CPM as task duration for Opt\u00b7Not Bench scenario'
+            ],
+            equation:[ 'optimized p50 per task: ' + (tasksP50('optimizedPercentiles')||'\u2014') ]
+          },
+          sap: {
+            formula:[
+              'adaptivePercentiles.p50 = interpX(optCdfAdaptive, 0.50)',
+              'Fed into CPM as task duration for Opt\u00b7Bench scenario'
+            ],
+            equation:[ 'adaptive p50 per task: ' + (tasksP50('adaptivePercentiles')||'\u2014') ]
+          },
+          // ── Col 5: CPM scenario duration inputs ──────────────────────────────
+          cpm0: {
+            formula:[
+              'Estimate scenario \u2014 always available',
+              'dur = (O + 4M + P) / 6   (PERT mean for each task)',
+              'No optimization applied \u2014 baseline estimate'
+            ],
+            equation: _pO!=null ? [
+              'dur = (' + fmt(_pO,1) + ' + 4\u00d7' + fmt(_pM,1) + ' + ' + fmt(_pP,1) + ') / 6',
+              '    = ' + fmt(_pMu,2) + ' d',
+              cpmTaskCount > 1 ? '(group mode: one PERT mean per task in TM)' : '(single task mode)'
+            ] : ['O/M/P not yet entered']
+          },
+          cpm1: {
+            formula:[
+              'Opt\u00b7Bench scenario input',
+              'dur = adaptivePercentiles.p50 per task',
+              '    = interpX(optCdfAdaptive, 0.50)'
+            ],
+            equation:[ 'p50 per task: ' + (tasksP50('adaptivePercentiles')||'\u2014 (run adaptive variant first)') ]
+          },
+          cpm2: {
+            formula:[
+              'Opt\u00b7Not Bench scenario input',
+              'dur = optimizedPercentiles.p50 per task',
+              '    = interpX(optCdfFixed, 0.50)'
+            ],
+            equation:[ 'p50 per task: ' + (tasksP50('optimizedPercentiles')||'\u2014 (run fixed variant first)') ]
+          },
+          cpm3: {
+            formula:[
+              'Cond\u00b7Not Bench scenario input',
+              'dur = condUnbenchPercentiles.p50 per task',
+              '    = interpX(adjCDF, 0.50)',
+              'Requires manual variant run in single-task mode'
+            ],
+            equation:[ 'p50 per task: ' + (tasksP50('condUnbenchPercentiles')||'\u2014 (run manual variant first)') ]
+          },
+          cpm4: {
+            formula:[
+              'Cond\u00b7Bench scenario input',
+              'dur = condBenchPercentiles.p50 per task',
+              '    = interpX(benchCDF, 0.50)',
+              'Requires manual variant run in single-task mode'
+            ],
+            equation:[ 'p50 per task: ' + (tasksP50('condBenchPercentiles')||'\u2014 (run manual variant first)') ]
+          },
+          // ── Col 6: graph validation gates ────────────────────────────────────
+          gbuild: {
+            formula:[
+              'For each task i: register node(id, name, index)',
+              'For each pred in task.predecessors:',
+              '  FS: edge(pred\u2192task, lag)',
+              '  SS/FF/SF: same structure, different lag semantics',
+              'adjacency[from].push({to, type, lag})',
+              'reverseAdj[to].push({from, type, lag})',
+              'sources = {v | in-degree(v) = 0}',
+              'sinks   = {v | out-degree(v) = 0}'
+            ],
+            equation:[
+              'Nodes: ' + cpmTaskCount,
+              'Edges from predecessor lists',
+              'hasDeps: ' + (cpmHasDeps ? 'true' : 'false')
+            ]
+          },
+          gvalid: {
+            formula:[
+              'SELF_REFERENCE:       fromId === toId',
+              'MISSING_PREDECESSOR:  fromId \u2209 taskIds{}',
+              'DUPLICATE_PREDECESSOR: same (fromId|type) seen twice',
+              'Returns { valid: bool, errors: [{taskId, code, message}] }'
+            ],
+            equation: validLines
+          },
+          gcycles: {
+            formula:[
+              "Tarjan's SCC \u2014 O(V+E)",
+              'DFS with index[], lowlink[], onStack[]',
+              'Unvisited w: lowlink[v] = min(lowlink[v], lowlink[w])',
+              'w on stack:  lowlink[v] = min(lowlink[v], index[w])',
+              'SCC root: lowlink[v] === index[v] \u2192 pop stack',
+              'Cycle: |SCC| > 1   (singletons are acyclic nodes)'
+            ],
+            equation: cycleLines
+          },
+          gorphan: {
+            formula:[
+              'Undirected BFS over adj \u222a reverseAdj simultaneously',
+              'Flood fill from each unvisited start node',
+              'Returns all components except the largest (main graph)',
+              'Only reported when graph has \u22651 edge',
+              '(zero-edge graph = star topology, not true orphan state)'
+            ],
+            equation: orphanLines
+          },
+          ghasdeps: {
+            formula:[
+              'hasDeps = tasks.some(t => t.predecessors?.length > 0)',
+              'false \u2192 Stochastic CPM disabled entirely',
+              'true  \u2192 full pipeline: corr matrix + Cholesky + MC loop',
+              'Deterministic CPM runs regardless of hasDeps'
+            ],
+            equation: depsLines
+          },
+          // ── Col 7: topological sort + deterministic CPM ──────────────────────
+          gtopo: {
+            formula:[
+              "Kahn's topological sort \u2014 O(V+E)",
+              'inDegree[u]++ for each directed edge (v\u2192u)',
+              'queue \u2190 {v | inDegree[v] = 0}',
+              'loop: pop v \u2192 append to order',
+              '      for each succ s: inDegree[s]--',
+              '        if inDegree[s]=0 \u2192 enqueue s',
+              'success \u27ba |order| = |nodes|   (else cycle)'
+            ],
+            equation: topoLines
+          },
+          gcpmdet: {
+            formula:[
+              'Duration: invertCdf(optCDF, p80) \u2192 PERT mean fallback',
+              'Forward pass (topological order):',
+              '  FS: ES = max(EF_pred + lag);  EF = ES + dur',
+              '  SS: ES = max(ES_pred + lag)',
+              '  FF: ES = max(EF_pred + lag \u2212 dur)',
+              '  SF: ES = max(ES_pred + lag \u2212 dur)',
+              'Backward pass (reverse order):',
+              '  FS: LF = min(LS_succ \u2212 lag);  LS = LF \u2212 dur',
+              'Total Float TF = LF \u2212 EF',
+              'Free Float  FF = min(ES_succ \u2212 EF \u2212 lag)',
+              'Critical: |TF| < 0.0001',
+              'Tipping: CRITICAL(TF\u22640) HIGH(<10%D) MEDIUM(<25%D)'
+            ],
+            equation: cpmRun && cc.baseProjectDuration ? [
+              'Project duration  = ' + fmt(cc.baseProjectDuration,1) + ' d',
+              'Critical tasks    = ' + cc.baseCriticalCount,
+              'HIGH threshold    = 10% \u00d7 ' + fmt(cc.baseProjectDuration,1) + ' = ' + fmt(cc.baseProjectDuration*0.10,1) + ' d',
+              'MEDIUM threshold  = 25% \u00d7 ' + fmt(cc.baseProjectDuration,1) + ' = ' + fmt(cc.baseProjectDuration*0.25,1) + ' d'
+            ] : ['visit Step 3 to run CPM \u2014 values will appear here']
+          },
+          // ── Col 8: stochastic CPM ────────────────────────────────────────────
+          gcpmsto: {
+            formula:[
+              '\u03c1_ij = \u03c1_min + (\u03c1_max\u2212\u03c1_min) \u00b7 s \u00b7 m_slider',
+              '  s: 6 signals \u2014 risk/graph/critical/merge/resource/phase',
+              '  m_slider = exp(0.35RWK\u22120.20SC\u22120.10SF\u22120.05BF\u22120.10UC)',
+              'PSD repair: Higham alternating projections (100 iter)',
+              'Cholesky: R=LL\u1d40  (\u03b5=1e-9 diagonal safety)',
+              'Sample: z~N(0,I)^n,  z_c=L\u00b7z,  u=\u03a6(z_c)',
+              '  d_i = F\u207b\u00b9_task_i(u_i) via invertCdf (PERT fallback)',
+              'Per iter: forward pass \u2192 projDur \u2192 floats \u2192 critical path',
+              'SSI_i = CI_i \u00d7 (\u03c3_task_i / \u03c3_project)',
+              '  \u03c3_task = (P\u2212O)/6;  CI = fraction of runs on critical path'
+            ],
+            equation: stoch && stochPD ? [
+              'N = ' + (stoch.iterations||5000) + ' iterations',
+              'p50 = ' + fmt(stochPD.p50,1) + ' d',
+              'p80 = ' + fmt(stochPD.p80,1) + ' d',
+              'p90 = ' + fmt(stochPD.p90,1) + ' d',
+              '\u03c3_project = ' + fmt(stochPD.sigma,2) + ' d',
+              'm_slider = ' + fmt(_pMs,4) + '  (\u03c1 range: [0.05, 0.85])'
+            ] : [
+              cpmHasDeps
+                ? 'visit Step 3 to run \u2014 values will appear here'
+                : 'disabled: hasDeps = false (no predecessors defined)'
+            ]
+          },
+          // ── Col 9: final outputs ─────────────────────────────────────────────
+          gfinal: {
+            formula:[
+              'Reads computed CDFs + window._lastCpmCache',
+              'Card duration: stoch.projectDuration.p50 (or det)',
+              'Card probability: interpY(variantCDF, \u03c4)',
+              'All scenario cards + 6 tabs read from computed state'
+            ],
+            equation:[
+              'Estimate:      dur = PERT mean (' + fmt(_pMu,1) + ' d)',
+              'Opt\u00b7Bench:     dur from stoch p50 (adaptive CDF)',
+              'Opt\u00b7Not Bench: dur from stoch p50 (fixed CDF)',
+              'Cond\u00b7Not Bench: dur from stoch p50 (condUnbench CDF)',
+              'Cond\u00b7Bench:    dur from stoch p50 (condBench CDF)'
+            ]
+          }
+        };
+
+        // Attach popup to each node; store in global for handler
+        nodes.forEach(function(n){ n.popup = POPUP[n.id] || {}; });
+        window._dfNodes = {};
+        nodes.forEach(function(n){
+          window._dfNodes[n.id] = {
+            label: n.label,
+            badge: (TYPE[n.type]||TYPE.input).badge,
+            lines: n.lines,
+            popup: n.popup
+          };
+        });
+
         // ── edges ─────────────────────────────────────────────────────────────
         var edges = [
           // Steps 1-2 inputs → engine
@@ -10401,7 +11049,7 @@
 
         nodes.forEach(function(n){
           var t=TYPE[n.type]||TYPE.input;
-          html+='<div class="df-node '+t.cls+'" style="left:'+n.x+'px;top:'+n.y+'px;width:'+NW+'px;">';
+          html+='<div class="df-node '+t.cls+'" style="left:'+n.x+'px;top:'+n.y+'px;width:'+NW+'px;" onclick="window._dfShowPopup(\''+n.id+'\')" title="Click for formula details">';
           html+='<div class="df-node-badge">'+t.badge+'</div>';
           html+='<div class="df-node-label">'+n.label.replace(/\n/g,'<br>')+'</div>';
           n.lines.forEach(function(line){
