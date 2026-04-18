@@ -7229,9 +7229,30 @@
           if (errResult && errResult.code === 'CYCLES_DETECTED' && errResult.cycleDescriptions) {
             eMsg += '<br>' + errResult.cycleDescriptions.map(_esc).join('<br>');
           }
+          // Cache error state for Data Flow diagram
+          window._lastCpmCache = {
+            hasDeps: hasDeps, taskCount: tasks.length,
+            error: errResult && errResult.message ? errResult.message : 'Unknown error',
+            cycles: (errResult && errResult.cycleDescriptions) ? errResult.cycleDescriptions : null,
+            validationErrors: [], orphanGroups: [], topSuccess: false,
+            baseProjectDuration: null, baseCriticalCount: 0,
+            stochResult: null, scenarioResults: []
+          };
           el.innerHTML = '<div class="cpm-error-box"><strong>CPM Error</strong><br>' + eMsg + '</div>';
           return;
         }
+
+        // Cache success state for Data Flow diagram
+        window._lastCpmCache = {
+          hasDeps: hasDeps, taskCount: tasks.length, error: null, cycles: null,
+          validationErrors: baseResult.validationErrors || [],
+          orphanGroups:     baseResult.orphanGroups || [],
+          topologicalOrder: baseResult.topologicalOrder || [],
+          topSuccess: !!(baseResult.topologicalOrder && baseResult.topologicalOrder.length === tasks.length),
+          baseProjectDuration: baseResult.projectDuration,
+          baseCriticalCount:   (baseResult.criticalPath || []).length,
+          stochResult: null, scenarioResults: []
+        };
 
         // ── Per-scenario CPMs (deterministic) ────────────────────────────────
         var scenarioResults = availScenarios.map(function(sc) {
@@ -7270,6 +7291,12 @@
         var healthScore = null;
         if (hasDeps && typeof cpmScheduleHealthScore === 'function') {
           try { healthScore = cpmScheduleHealthScore(stochBasis, stochResult); } catch(e4) {}
+        }
+
+        // Finalise CPM cache for Data Flow diagram
+        if (window._lastCpmCache) {
+          window._lastCpmCache.stochResult    = stochResult;
+          window._lastCpmCache.scenarioResults = scenarioResults;
         }
 
         // ── Task arrays ───────────────────────────────────────────────────────
@@ -9990,10 +10017,11 @@
       window._renderDataFlowDiagram = function() {
         var el = document.getElementById('dataflowInner');
         if (!el) return;
-        var s  = WS() || {};
-        var ov = s.overlay || {};
-        var tm = window.TM;
+        var s   = WS() || {};
+        var ov  = s.overlay || {};
+        var tm  = window.TM;
         var rcf = (typeof window.getHistPrior === 'function') ? window.getHistPrior() : null;
+        var cc  = window._lastCpmCache || null;  // CPM run cache from _renderCpmStep
 
         // ── helpers ──────────────────────────────────────────────────────────
         function fmt(v, dec) {
@@ -10003,297 +10031,401 @@
         function pct(v) { return v == null ? '—' : (Number(v)*100).toFixed(1)+'%'; }
         function cdfSummary(cdf) {
           if (!cdf || !cdf.length) return null;
-          var p10 = (typeof window.interpX === 'function') ? window.interpX(cdf, 0.10) : null;
-          var p50 = (typeof window.interpX === 'function') ? window.interpX(cdf, 0.50) : null;
-          var p90 = (typeof window.interpX === 'function') ? window.interpX(cdf, 0.90) : null;
-          return 'p10 '+fmt(p10,1)+'  p50 '+fmt(p50,1)+'  p90 '+fmt(p90,1);
+          var ix = window.interpX;
+          if (typeof ix !== 'function') return cdf.length+' pts';
+          return 'p10 '+fmt(ix(cdf,.10),1)+'  p50 '+fmt(ix(cdf,.50),1)+'  p90 '+fmt(ix(cdf,.90),1);
         }
         function sliderSummary() {
-          if (typeof window.sliderValues !== 'function') return null;
+          if (typeof window.sliderValues !== 'function') return 'all 0 (defaults)';
           var sv = window.sliderValues();
+          var lbls = { budgetFlexibility:'Bud', scheduleFlexibility:'Sch', scopeCertainty:'Scp',
+                       scopeReductionAllowance:'Red', reworkPercentage:'Rwk',
+                       riskTolerance:'Rsk', userConfidence:'Cnf' };
           var parts = [];
-          var labels = { budgetFlexibility:'Bud', scheduleFlexibility:'Sch', scopeCertainty:'Scp',
-                         scopeReductionAllowance:'Red', reworkPercentage:'Rwk',
-                         riskTolerance:'Rsk', userConfidence:'Cnf' };
-          Object.keys(labels).forEach(function(k) {
-            var v = sv[k]; if (v != null && v !== 0) parts.push(labels[k]+':'+v);
-          });
+          Object.keys(lbls).forEach(function(k){ var v=sv[k]; if(v) parts.push(lbls[k]+':'+v); });
           return parts.length ? parts.join('  ') : 'all 0 (defaults)';
         }
         function tasksP50(key) {
           if (!tm || !tm.tasks || !tm.tasks.length) return null;
-          var vals = tm.tasks.map(function(t) {
-            return t[key] && Number.isFinite(t[key].p50) ? fmt(t[key].p50,1)+'d' : null;
+          var vals = tm.tasks.map(function(t){
+            return (t[key] && Number.isFinite(t[key].p50)) ? fmt(t[key].p50,1)+'d' : null;
           }).filter(Boolean);
           if (!vals.length) return null;
-          return vals.slice(0,4).join('  ') + (vals.length > 4 ? ' …+' + (vals.length-4) : '');
+          return vals.slice(0,3).join('  ')+(vals.length>3?' +'+( vals.length-3):'');
+        }
+        function hasAnyDeps() {
+          if (!tm || !tm.tasks) return false;
+          return tm.tasks.some(function(t){ return t.predecessors && t.predecessors.length; });
         }
 
         // ── colour palette ───────────────────────────────────────────────────
         var TYPE = {
-          input:    { cls:'df-t-input',    badge:'INPUT'     },
-          rcf:      { cls:'df-t-rcf',      badge:'HISTORY'   },
-          engine:   { cls:'df-t-engine',   badge:'ENGINE'    },
-          computed: { cls:'df-t-computed', badge:'COMPUTED'  },
-          prob:     { cls:'df-t-prob',     badge:'PROB OUT'  },
+          input:    { cls:'df-t-input',    badge:'INPUT'      },
+          rcf:      { cls:'df-t-rcf',      badge:'HISTORY'    },
+          engine:   { cls:'df-t-engine',   badge:'ENGINE'     },
+          computed: { cls:'df-t-computed', badge:'COMPUTED'   },
+          prob:     { cls:'df-t-prob',     badge:'PROB OUT'   },
           stored:   { cls:'df-t-stored',   badge:'STORED/TASK'},
-          cpm:      { cls:'df-t-cpm',      badge:'CPM OUT'   },
-          out:      { cls:'df-t-out',      badge:'FINAL OUT' }
+          gate:     { cls:'df-t-prob',     badge:'GATE/CHECK' },
+          cpm:      { cls:'df-t-cpm',      badge:'CPM STAGE'  },
+          out:      { cls:'df-t-out',      badge:'FINAL OUT'  }
         };
 
-        var NW = 148, COLG = 178, ROWG = 82;
+        var NW = 148, COLG = 172, ROWG = 82;
         function x(col) { return 12 + col * COLG; }
         function y(row) { return 12 + row * ROWG; }
 
+        // ── CPM gate / check values ───────────────────────────────────────────
+        var cpmHasDeps   = cc ? cc.hasDeps   : hasAnyDeps();
+        var cpmTaskCount = cc ? cc.taskCount : (tm && tm.tasks ? tm.tasks.length : 0);
+        var cpmRun = !!cc;
+
+        var validLines = cpmRun
+          ? (cc.error && cc.cycles ? ['⚠ BLOCKED by cycles — see below']
+          : cc.validationErrors && cc.validationErrors.length
+            ? ['⚠ '+cc.validationErrors.length+' error(s)'].concat(
+                cc.validationErrors.slice(0,2).map(function(e){ return e.code+': '+e.taskId; }))
+            : ['✓ Valid — 0 errors'])
+          : ['not run yet — visit Step 3'];
+
+        var cycleLines = cpmRun
+          ? (cc.cycles && cc.cycles.length
+              ? ['⚠ '+cc.cycles.length+' cycle(s) detected', '→ CPM ABORTED'].concat(
+                  cc.cycles.slice(0,2).map(function(c){ return typeof c==='string'?c.substring(0,28):c; }))
+              : cc.error ? ['⚠ Run aborted: '+cc.error.substring(0,35)]
+              : ['✓ No cycles — DAG valid'])
+          : ['not run yet'];
+
+        var orphanLines = cpmRun
+          ? (cc.orphanGroups && cc.orphanGroups.length
+              ? ['⚠ '+cc.orphanGroups.length+' disconnected group(s)'].concat(
+                  cc.orphanGroups.slice(0,2).map(function(g){ return g.length+' task(s) isolated'; }))
+              : ['✓ All tasks connected'])
+          : ['not run yet'];
+
+        var topoLines = cpmRun
+          ? (cc.topSuccess
+              ? ['✓ Sorted: '+cc.topologicalOrder.length+' tasks', 'Kahn\'s algorithm passed']
+              : ['⚠ Sort failed — cycle prevents order', '→ deterministic CPM aborted'])
+          : ['not run yet'];
+
+        var depsLines = cpmRun
+          ? (cpmHasDeps
+              ? ['✓ Predecessors defined', 'Full CPM + stochastic enabled']
+              : ['⚠ No predecessors found', 'Duration-only mode', 'Stochastic CPM disabled'])
+          : (cpmHasDeps
+              ? ['Predecessors found in TM', 'Full CPM will run in Step 3']
+              : ['No predecessors defined', 'Step 3 shows durations only']);
+
+        var stoch = cc && cc.stochResult;
+        var stochPD = stoch && stoch.projectDuration;
+        var detLines = cpmRun && cc.baseProjectDuration
+          ? ['✓ Complete',
+             'Project dur: '+fmt(cc.baseProjectDuration,1)+'d',
+             'Critical: '+cc.baseCriticalCount+' task(s)',
+             null,
+             'Per task: ES · EF · LS · LF',
+             'TF (total float) · FF (free float)']
+          : cpmRun && cc.error ? ['⚠ Blocked — '+( cc.cycles ? 'cycles detected' : 'validation error')]
+          : ['visit Step 3 to run'];
+
+        var stochLines = !cpmHasDeps
+          ? ['! Requires predecessors', 'disabled in no-deps mode']
+          : cpmRun && stoch
+            ? ['✓ 500 MC iterations',
+               'p50: '+fmt(stochPD && stochPD.p50,1)+'d',
+               'p80: '+fmt(stochPD && stochPD.p80,1)+'d',
+               'p90: '+fmt(stochPD && stochPD.p90,1)+'d',
+               null,
+               'S-curve · SSI · CI · NCI']
+            : cpmRun && cc.error ? ['! Blocked by graph errors']
+            : ['visit Step 3 to run'];
+
         // ── node definitions ─────────────────────────────────────────────────
-        // lines: array of strings. null line = separator. '!' prefix = greyed-out
         var nodes = [
-          // ── Column 0: user inputs ────────────────────────────────────────
-          { id:'omp',    type:'input', x:x(0), y:y(0), label:'O / M / P',
-            lines: [fmt(s.O,1)+' / '+fmt(s.M,1)+' / '+fmt(s.P,1)+' d',
-                    'PERT mean: '+fmt(s.O && s.M && s.P ? (s.O+4*s.M+s.P)/6 : null, 1)+'d'] },
+          // ─── Col 0: user inputs ───────────────────────────────────────────
+          { id:'omp',     type:'input', x:x(0), y:y(0),
+            label:'O / M / P',
+            lines:[fmt(s.O,1)+' / '+fmt(s.M,1)+' / '+fmt(s.P,1)+' d',
+                   'PERT mean: '+fmt(s.O&&s.M&&s.P?(s.O+4*s.M+s.P)/6:null,1)+'d'] },
 
-          { id:'tmode',  type:'input', x:x(0), y:y(1), label:'Target Mode',
-            lines: [s.targetMode === 'probability' ? 'Probability mode'
-                                                    : 'Value mode',
-                    s.targetMode === 'probability' ? 'P entered: '+pct(s.targetProb)
-                                                    : 'Value entered directly'] },
+          { id:'tmode',   type:'input', x:x(0), y:y(1.2),
+            label:'Target Mode',
+            lines:[s.targetMode==='probability'?'Probability mode':'Value mode',
+                   s.targetMode==='probability'?'P = '+pct(s.targetProb):'value entered directly'] },
 
-          { id:'target', type:'input', x:x(0), y:y(2), label:'Target Value (τ)',
-            lines: [s.target != null ? fmt(s.target,1)+' d' : '—',
-                    s.targetMode === 'probability'
-                      ? '← derived via interpX(baseCDF, '+pct(s.targetProb)+')'
-                      : '← set directly by slider'] },
+          { id:'target',  type:'input', x:x(0), y:y(2.4),
+            label:'Target Value (τ)',
+            lines:[s.target!=null?fmt(s.target,1)+' d':'—',
+                   s.targetMode==='probability'
+                     ?'← interpX(baseCDF, '+pct(s.targetProb)+')'
+                     :'← set directly by slider'] },
 
-          { id:'sliders',type:'input', x:x(0), y:y(3.5), label:'7 Mgmt Sliders',
-            lines: [sliderSummary(),
-                    'benchStrict: '+(ov.manualBenchStrictness||3)+
-                    '  probe: '+(ov.probeLevel||3)] },
+          { id:'sliders', type:'input', x:x(0), y:y(3.8),
+            label:'7 Mgmt Sliders',
+            lines:[sliderSummary(),
+                   'benchStrict: '+(ov.manualBenchStrictness||3)+'  probe: '+(ov.probeLevel||3)] },
 
-          { id:'rcfinp', type:'rcf',   x:x(0), y:y(5), label:'Team History (RCF)',
-            lines: rcf
-              ? ['N='+rcf.n+'  avg overrun '+fmt(rcf.meanOverrunFrac*100,1)+'%',
-                 rcf.stdOverrunFrac ? 'std '+fmt(rcf.stdOverrunFrac*100,1)+'%' : 'std: auto',
-                 'Credibility: '+(rcf.n<3?'low':rcf.n<7?'moderate':'good')]
-              : ['Not active', '! No RCF adjustment'] },
+          { id:'rcfinp',  type:'rcf',   x:x(0), y:y(5.2),
+            label:'Team History (RCF)',
+            lines:rcf
+              ?['N='+rcf.n+'  overrun '+fmt(rcf.meanOverrunFrac*100,1)+'%',
+                rcf.stdOverrunFrac?'std '+fmt(rcf.stdOverrunFrac*100,1)+'%':'std: auto',
+                'Credibility: '+(rcf.n<3?'low':rcf.n<7?'moderate':'good')]
+              :['Not active','! no RCF applied'] },
 
-          // ── Column 1: engine calls ────────────────────────────────────────
-          { id:'fetchdata', type:'engine', x:x(1), y:y(0), label:'fetchData()',
-            lines: [s.fetching ? 'Computing…' : (s.baseCdf && s.baseCdf.length ? 'Done ✓' : 'Not run'),
-                    'mode: '+(s.targetMode||'value'),
-                    'RCF: '+(rcf ? 'applied' : 'none')] },
+          { id:'preds',   type:'input', x:x(0), y:y(6.8),
+            label:'Predecessors\n+ task metadata',
+            lines:[cpmTaskCount+' task(s) in TM',
+                   cpmHasDeps?'✓ deps defined':'⚠ no deps defined',
+                   'phase · resource · riskSignals'] },
 
-          { id:'vmanual',   type:'engine', x:x(1), y:y(3), label:'requestVariant\n(manual)',
-            lines: [ov.manualOn ? (s.adjPdf && s.adjPdf.length ? 'Done ✓':'Computing…') : '! Not active',
-                    'sliders → Your Conditions',
-                    'benchStrict: '+(ov.manualBenchStrictness||3)] },
+          // ─── Col 1: engine calls ──────────────────────────────────────────
+          { id:'fetchdata', type:'engine', x:x(1), y:y(0),
+            label:'fetchData()',
+            lines:[s.fetching?'Computing…':(s.baseCdf&&s.baseCdf.length?'Done ✓':'Not run'),
+                   'priorHistory: '+(rcf?'RCF applied':'none')] },
 
-          { id:'vfixed',    type:'engine', x:x(1), y:y(4.5), label:'requestVariant\n(fixed)',
-            lines: [ov.fixedOn ? (s.optPdfFixed && s.optPdfFixed.length ? 'Done ✓':'Computing…') : '! Not active',
-                    'Opt · Not Bench',
-                    'optimize:true  mode:fixed'] },
+          { id:'vmanual',   type:'engine', x:x(1), y:y(3.3),
+            label:'requestVariant\n(manual)',
+            lines:[ov.manualOn?(s.adjPdf&&s.adjPdf.length?'Done ✓':'Computing…'):'! Not active',
+                   'Your Conditions  benchStrict:'+(ov.manualBenchStrictness||3)] },
 
-          { id:'vadaptive', type:'engine', x:x(1), y:y(5.8), label:'requestVariant\n(adaptive)',
-            lines: [ov.adaptiveOn ? (s.optPdfAdaptive && s.optPdfAdaptive.length ? 'Done ✓':'Computing…') : '! Not active',
-                    'Opt · Bench',
-                    'probeLevel: '+(ov.probeLevel||3)] },
+          { id:'vfixed',    type:'engine', x:x(1), y:y(4.8),
+            label:'requestVariant\n(fixed)',
+            lines:[ov.fixedOn?(s.optPdfFixed&&s.optPdfFixed.length?'Done ✓':'Computing…'):'! Not active',
+                   'Opt·Not Bench  optimize:true'] },
 
-          // ── Column 2: computed distributions ─────────────────────────────
-          { id:'ctri',  type:'computed', x:x(2), y:y(0), label:'Triangle PDF/CDF',
-            lines: [cdfSummary(s.triangleCdf) || '—'] },
+          { id:'vadaptive', type:'engine', x:x(1), y:y(6.1),
+            label:'requestVariant\n(adaptive)',
+            lines:[ov.adaptiveOn?(s.optPdfAdaptive&&s.optPdfAdaptive.length?'Done ✓':'Computing…'):'! Not active',
+                   'Opt·Bench  probeLevel:'+(ov.probeLevel||3)] },
 
-          { id:'cbet',  type:'computed', x:x(2), y:y(1), label:'BetaPERT PDF/CDF',
-            lines: [cdfSummary(s.betaPertCdf) || '—'] },
+          // ─── Col 2: computed distributions ───────────────────────────────
+          { id:'ctri',  type:'computed', x:x(2), y:y(0),   label:'Triangle PDF/CDF',     lines:[cdfSummary(s.triangleCdf)||'—'] },
+          { id:'cbet',  type:'computed', x:x(2), y:y(1.1), label:'BetaPERT PDF/CDF',     lines:[cdfSummary(s.betaPertCdf)||'—'] },
+          { id:'cbase', type:'computed', x:x(2), y:y(2.2), label:'Baseline PDF/CDF\n(RCF-adj)',
+            lines:[cdfSummary(s.baseCdf)||'—',
+                   s.baseCdf&&s.baseCdf.length?'feeds prob-mode τ derivation':''] },
+          { id:'cadj',  type:'computed', x:x(2), y:y(3.3), label:'Adj PDF/CDF\n(Your Conditions)',
+            lines:[cdfSummary(s.adjCdf)||(ov.manualOn?'Computing…':'! enable manual')] },
+          { id:'cfix',  type:'computed', x:x(2), y:y(4.8), label:'OptFixed PDF/CDF\n(Not Bench)',
+            lines:[cdfSummary(s.optCdfFixed)||(ov.fixedOn?'Computing…':'! enable fixed')] },
+          { id:'cadap', type:'computed', x:x(2), y:y(6.1), label:'OptAdaptive PDF/CDF\n(Bench)',
+            lines:[cdfSummary(s.optCdfAdaptive)||(ov.adaptiveOn?'Computing…':'! enable adaptive')] },
 
-          { id:'cbase', type:'computed', x:x(2), y:y(2), label:'Baseline PDF/CDF\n(RCF-adjusted)',
-            lines: [cdfSummary(s.baseCdf) || '—',
-                    s.baseCdf && s.baseCdf.length ? 'Used for prob-mode τ derivation' : ''] },
+          // ─── Col 3: probability outputs ───────────────────────────────────
+          { id:'pbase', type:'prob', x:x(3), y:y(0),
+            label:'Baseline P(≤τ)',
+            lines:[s.baselineProb!=null?pct(s.baselineProb):'—','τ='+fmt(s.target,1)+'d'] },
 
-          { id:'cadj',  type:'computed', x:x(2), y:y(3), label:'Adj PDF/CDF\n(Your Conditions)',
-            lines: [cdfSummary(s.adjCdf) || (ov.manualOn ? 'Computing…':'! Need manual ON')] },
+          { id:'padj',  type:'prob', x:x(3), y:y(3.3),
+            label:'Your Conditions P(≤τ)',
+            lines:[s.adjustedProb!=null?pct(s.adjustedProb):'—',
+                   s.manualBenchmarkedProb!=null?'bench ceiling: '+pct(s.manualBenchmarkedProb):''] },
 
-          { id:'cfix',  type:'computed', x:x(2), y:y(4.5), label:'OptFixed PDF/CDF\n(Not Bench)',
-            lines: [cdfSummary(s.optCdfFixed) || (ov.fixedOn ? 'Computing…':'! Need fixed ON')] },
+          { id:'pfix',  type:'prob', x:x(3), y:y(4.8),
+            label:'Opt·Not Bench P(≤τ)',
+            lines:[s.optimizedProb!=null?pct(s.optimizedProb):'—'] },
 
-          { id:'cadap', type:'computed', x:x(2), y:y(5.8), label:'OptAdaptive PDF/CDF\n(Bench)',
-            lines: [cdfSummary(s.optCdfAdaptive) || (ov.adaptiveOn ? 'Computing…':'! Need adaptive ON')] },
+          { id:'padap', type:'prob', x:x(3), y:y(6.1),
+            label:'Opt·Bench P(≤τ)',
+            lines:[s.adaptiveProb!=null?pct(s.adaptiveProb):'—'] },
 
-          // ── Column 3: probability outputs ────────────────────────────────
-          { id:'pbase', type:'prob', x:x(3), y:y(0), label:'Baseline P(≤τ)',
-            lines: [s.baselineProb != null ? pct(s.baselineProb) : '—',
-                    'from baseCDF at τ='+fmt(s.target,1)+'d'] },
+          // ─── Col 4: stored per-task percentiles ───────────────────────────
+          { id:'scu', type:'stored', x:x(4), y:y(3.3),
+            label:'condUnbench p50\n(per task)',
+            lines:[tasksP50('condUnbenchPercentiles')||'! run manual in single mode'] },
+          { id:'scb', type:'stored', x:x(4), y:y(4.1),
+            label:'condBench p50\n(per task)',
+            lines:[tasksP50('condBenchPercentiles')||'! run manual in single mode'] },
+          { id:'sop', type:'stored', x:x(4), y:y(5.0),
+            label:'optimized p50\n(per task)',
+            lines:[tasksP50('optimizedPercentiles')||'! run fixed variant'] },
+          { id:'sap', type:'stored', x:x(4), y:y(5.9),
+            label:'adaptive p50\n(per task)',
+            lines:[tasksP50('adaptivePercentiles')||'! run adaptive variant'] },
 
-          { id:'padj',  type:'prob', x:x(3), y:y(3), label:'Your Conditions P(≤τ)',
-            lines: [s.adjustedProb != null ? pct(s.adjustedProb) : '—',
-                    s.manualBenchmarkedProb != null ? 'Bench ceiling: '+pct(s.manualBenchmarkedProb) : ''] },
+          // ─── Col 5: CPM scenario duration inputs ──────────────────────────
+          { id:'cpm0', type:'cpm', x:x(5), y:y(0),
+            label:'CPM: Estimate',
+            lines:['dur = PERT mean','always available',cpmTaskCount+' tasks'] },
+          { id:'cpm1', type:'cpm', x:x(5), y:y(1.5),
+            label:'CPM: Opt · Bench',
+            lines:[tasksP50('adaptivePercentiles')?'adaptive p50':'! no data — run adaptive'] },
+          { id:'cpm2', type:'cpm', x:x(5), y:y(2.6),
+            label:'CPM: Opt · Not Bench',
+            lines:[tasksP50('optimizedPercentiles')?'optimized p50':'! no data — run fixed'] },
+          { id:'cpm3', type:'cpm', x:x(5), y:y(3.7),
+            label:'CPM: Cond · Not Bench',
+            lines:[tasksP50('condUnbenchPercentiles')?'condUnbench p50':'! need manual (single mode)'] },
+          { id:'cpm4', type:'cpm', x:x(5), y:y(4.8),
+            label:'CPM: Cond · Bench',
+            lines:[tasksP50('condBenchPercentiles')?'condBench p50':'! need manual (single mode)'] },
 
-          { id:'pfix',  type:'prob', x:x(3), y:y(4.5), label:'Opt·Not Bench P(≤τ)',
-            lines: [s.optimizedProb != null ? pct(s.optimizedProb) : '—'] },
+          // ─── Col 6: graph validation gates ───────────────────────────────
+          { id:'gbuild',  type:'engine', x:x(6), y:y(0),
+            label:'cpmBuildGraph()',
+            lines:[cpmTaskCount+' nodes',
+                   'edges from predecessors',
+                   'adjacency + reverseAdj built'] },
 
-          { id:'padap', type:'prob', x:x(3), y:y(5.8), label:'Opt·Bench P(≤τ)',
-            lines: [s.adaptiveProb != null ? pct(s.adaptiveProb) : '—'] },
+          { id:'gvalid',  type:'gate',   x:x(6), y:y(1.6),
+            label:'cpmValidateGraph()',
+            lines:validLines },
 
-          // ── Column 4: stored per-task percentiles ─────────────────────────
-          { id:'scu',  type:'stored', x:x(4), y:y(3), label:'condUnbench p50\n(per task)',
-            lines: [tasksP50('condUnbenchPercentiles') || '! Run manual (single mode)'] },
+          { id:'gcycles', type:'gate',   x:x(6), y:y(3.2),
+            label:'cpmDetectCycles()\nTarjan SCC',
+            lines:cycleLines },
 
-          { id:'scb',  type:'stored', x:x(4), y:y(3.9), label:'condBench p50\n(per task)',
-            lines: [tasksP50('condBenchPercentiles') || '! Run manual (single mode)'] },
+          { id:'gorphan', type:'gate',   x:x(6), y:y(5.0),
+            label:'cpmFindOrphans()',
+            lines:orphanLines },
 
-          { id:'sop',  type:'stored', x:x(4), y:y(4.8), label:'optimized p50\n(per task)',
-            lines: [tasksP50('optimizedPercentiles') || '! Run fixed variant'] },
+          { id:'ghasdeps',type:'gate',   x:x(6), y:y(6.6),
+            label:'hasDeps check',
+            lines:depsLines },
 
-          { id:'sap',  type:'stored', x:x(4), y:y(5.7), label:'adaptive p50\n(per task)',
-            lines: [tasksP50('adaptivePercentiles') || '! Run adaptive variant'] },
+          // ─── Col 7: topological sort + deterministic CPM ──────────────────
+          { id:'gtopo',   type:'engine', x:x(7), y:y(0),
+            label:'cpmTopologicalSort()\nKahn\'s algorithm',
+            lines:topoLines },
 
-          // ── Column 5: CPM scenario inputs ────────────────────────────────
-          { id:'cpm0', type:'cpm', x:x(5), y:y(0), label:'CPM: Estimate',
-            lines: ['dur = PERT mean per task',
-                    tm && tm.tasks ? tm.tasks.length+' tasks' : '—',
-                    'Always available'] },
+          { id:'gcpmdet', type:'out',    x:x(7), y:y(2.5),
+            label:'Deterministic CPM\nrunDeterministicCPM()',
+            lines:detLines },
 
-          { id:'cpm1', type:'cpm', x:x(5), y:y(1.6), label:'CPM: Opt · Bench',
-            lines: [tasksP50('adaptivePercentiles') ? 'dur = adaptive p50' : '! No adaptive data',
-                    'requires Step 2 adaptive'] },
+          // ─── Col 8: stochastic CPM ────────────────────────────────────────
+          { id:'gcpmsto', type:'out',    x:x(8), y:y(1.5),
+            label:'Stochastic CPM\nrunStochasticCPM()\n500 iterations',
+            lines:stochLines },
 
-          { id:'cpm2', type:'cpm', x:x(5), y:y(2.8), label:'CPM: Opt · Not Bench',
-            lines: [tasksP50('optimizedPercentiles') ? 'dur = optimized p50' : '! No optimized data',
-                    'requires Step 2 fixed'] },
-
-          { id:'cpm3', type:'cpm', x:x(5), y:y(4.0), label:'CPM: Cond · Not Bench',
-            lines: [tasksP50('condUnbenchPercentiles') ? 'dur = condUnbench p50' : '! No condUnbench data',
-                    'requires manual in single mode'] },
-
-          { id:'cpm4', type:'cpm', x:x(5), y:y(5.2), label:'CPM: Cond · Bench',
-            lines: [tasksP50('condBenchPercentiles') ? 'dur = condBench p50' : '! No condBench data',
-                    'requires manual in single mode'] },
-
-          // ── Column 6: CPM outputs ─────────────────────────────────────────
-          { id:'cpmout', type:'out', x:x(6), y:y(2.5), label:'CPM Outputs\n(per scenario)',
-            lines: ['For each task: ES · EF · LS · LF',
-                    'Total float · Free float',
-                    'Critical path (TF=0)',
-                    null,
-                    'Stochastic: p50 · p80 · p90',
-                    'SSI · CI · NCI per task',
-                    null,
-                    '→ 5 scenario cards',
-                    '→ 6 tabs (Overview, Network,',
-                    '   Gantt, Risk, Health, Corr)'] }
+          // ─── Col 9: final outputs ─────────────────────────────────────────
+          { id:'gfinal',  type:'out',    x:x(9), y:y(2.5),
+            label:'Final Outputs',
+            lines:['5 Scenario Cards',
+                   'Estimate · Opt·Bench',
+                   'Opt·Not Bench',
+                   'Cond·Not Bench · Cond·Bench',
+                   null,
+                   '6 Tabs:',
+                   'Overview · Network · Gantt',
+                   'Risk · Health · Correlation'] }
         ];
 
-        // ── edges [from, to] ─────────────────────────────────────────────────
+        // ── edges ─────────────────────────────────────────────────────────────
         var edges = [
-          ['omp','fetchdata'], ['tmode','fetchdata'], ['target','fetchdata'],
-          ['rcfinp','fetchdata'],
-          ['fetchdata','ctri'], ['fetchdata','cbet'], ['fetchdata','cbase'],
+          // Steps 1-2 inputs → engine
+          ['omp','fetchdata'],['tmode','fetchdata'],['target','fetchdata'],['rcfinp','fetchdata'],
+          // baseline outputs
+          ['fetchdata','ctri'],['fetchdata','cbet'],['fetchdata','cbase'],
           ['cbase','pbase'],
-          ['tmode','target'],   // prob mode derives target from baseCDF
-          ['cbase','target'],   // baseCDF used for interpX when in prob mode
-
-          ['sliders','vmanual'], ['rcfinp','vmanual'],
-          ['omp','vmanual'],    ['target','vmanual'],
-          ['vmanual','cadj'],   ['cadj','padj'],
-          ['cadj','scu'], ['cadj','scb'],
-
-          ['omp','vfixed'],     ['target','vfixed'], ['rcfinp','vfixed'],
-          ['vfixed','cfix'],    ['cfix','pfix'],      ['cfix','sop'],
-
-          ['omp','vadaptive'],  ['target','vadaptive'], ['rcfinp','vadaptive'],
-          ['vadaptive','cadap'],['cadap','padap'],       ['cadap','sap'],
-
+          // prob-mode feedback loop (cbase→target)
+          ['tmode','target'],['cbase','target'],
+          // manual variant
+          ['sliders','vmanual'],['omp','vmanual'],['target','vmanual'],['rcfinp','vmanual'],
+          ['vmanual','cadj'],['cadj','padj'],['cadj','scu'],['cadj','scb'],
+          // fixed variant
+          ['omp','vfixed'],['target','vfixed'],['rcfinp','vfixed'],
+          ['vfixed','cfix'],['cfix','pfix'],['cfix','sop'],
+          // adaptive variant
+          ['omp','vadaptive'],['target','vadaptive'],['rcfinp','vadaptive'],
+          ['vadaptive','cadap'],['cadap','padap'],['cadap','sap'],
+          // scenario duration inputs to graph build
           ['omp','cpm0'],
-          ['sap','cpm1'], ['sop','cpm2'], ['scu','cpm3'], ['scb','cpm4'],
-          ['cpm0','cpmout'],['cpm1','cpmout'],['cpm2','cpmout'],
-          ['cpm3','cpmout'],['cpm4','cpmout']
+          ['sap','cpm1'],['sop','cpm2'],['scu','cpm3'],['scb','cpm4'],
+          ['preds','gbuild'],
+          ['cpm0','gbuild'],['cpm1','gbuild'],['cpm2','gbuild'],
+          ['cpm3','gbuild'],['cpm4','gbuild'],
+          // graph validation chain
+          ['gbuild','gvalid'],['gvalid','gcycles'],['gcycles','gorphan'],['gorphan','ghasdeps'],
+          // validation passes → topo sort → deterministic
+          ['gvalid','gtopo'],['gcycles','gtopo'],
+          ['gtopo','gcpmdet'],
+          // hasDeps gates stochastic
+          ['ghasdeps','gcpmsto'],['gcpmdet','gcpmsto'],
+          // final
+          ['gcpmdet','gfinal'],['gcpmsto','gfinal']
         ];
 
-        // ── build node map for edge coord lookup ─────────────────────────────
+        // ── build & render ────────────────────────────────────────────────────
         var nodeMap = {};
-        nodes.forEach(function(n) { nodeMap[n.id] = n; });
-
-        // ── measure node heights (approx) ───────────────────────────────────
-        nodes.forEach(function(n) {
-          var linesCount = n.lines.filter(function(l) { return l !== null; }).length;
-          var sepCount   = n.lines.filter(function(l) { return l === null; }).length;
-          n.h = 34 + linesCount * 13 + sepCount * 8;
+        nodes.forEach(function(n){ nodeMap[n.id]=n; });
+        nodes.forEach(function(n){
+          var lc = n.lines.filter(function(l){return l!==null;}).length;
+          var sc = n.lines.filter(function(l){return l===null;}).length;
+          n.h = 34 + lc*13 + sc*8;
         });
 
-        // ── build HTML ───────────────────────────────────────────────────────
-        var totalW = x(6) + NW + 20;
+        var totalW = x(9)+NW+20;
         var totalH = 0;
-        nodes.forEach(function(n) { totalH = Math.max(totalH, n.y + n.h + 20); });
+        nodes.forEach(function(n){ totalH=Math.max(totalH,n.y+n.h+20); });
 
-        var html = '<div class="df-wrap" style="width:'+totalW+'px;height:'+totalH+'px;">';
+        var html = '<div style="font-size:9px;color:#6B7280;margin-bottom:8px;">'
+          + '⬅ scroll horizontally to see full flow &nbsp;·&nbsp; '
+          + (cc ? '✓ CPM last run — showing live values' : 'visit Step 3 (CPM) once to populate right-side values')
+          + '</div>';
+        html += '<div class="df-wrap" style="width:'+totalW+'px;height:'+totalH+'px;">';
         html += '<svg class="df-svg" width="'+totalW+'" height="'+totalH+'">';
-
-        // draw edges first (behind nodes)
-        edges.forEach(function(e) {
-          var src = nodeMap[e[0]], dst = nodeMap[e[1]];
-          if (!src || !dst) return;
-          var x1 = src.x + NW;
-          var y1 = src.y + src.h / 2;
-          var x2 = dst.x;
-          var y2 = dst.y + dst.h / 2;
-          var cx1 = x1 + (x2 - x1) * 0.45;
-          var cx2 = x2 - (x2 - x1) * 0.45;
-          // special: tmode→target and cbase→target are intra-column feedback
-          if (e[0] === 'tmode' && e[1] === 'target') {
-            x1 = src.x + NW/2; y1 = src.y + src.h;
-            x2 = dst.x + NW/2; y2 = dst.y;
-            cx1 = x1 + 30; cx2 = x2 + 30;
-          }
-          if (e[0] === 'cbase' && e[1] === 'target') {
-            x1 = src.x; y1 = src.y + src.h / 2;
-            x2 = dst.x + NW; y2 = dst.y + dst.h / 2;
-            cx1 = x1 - 30; cx2 = x2 + 30;
-          }
-          html += '<path d="M'+x1+','+y1+' C'+cx1+','+y1+' '+cx2+','+y2+' '+x2+','+y2+'"'
-               + ' fill="none" stroke="#CBD5E1" stroke-width="1.5" stroke-opacity=".8"'
-               + ' marker-end="url(#df-arrow)"/>';
-        });
-
-        // arrowhead marker
         html += '<defs><marker id="df-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">'
-             +  '<polygon points="0 0, 7 3.5, 0 7" fill="#94A3B8"/></marker></defs>';
-        html += '</svg>';
+             +  '<polygon points="0 0,7 3.5,0 7" fill="#94A3B8"/></marker></defs>';
 
-        // draw nodes
-        nodes.forEach(function(n) {
-          var t = TYPE[n.type] || TYPE.input;
-          html += '<div class="df-node '+t.cls+'" style="left:'+n.x+'px;top:'+n.y+'px;width:'+NW+'px;">';
-          html += '<div class="df-node-badge">'+t.badge+'</div>';
-          html += '<div class="df-node-label">'+n.label.replace('\n','<br>')+'</div>';
-          n.lines.forEach(function(line) {
-            if (line === null) {
-              html += '<hr class="df-node-sep">';
-            } else if (!line || line === '—') {
-              html += '<div class="df-node-val df-node-null">—</div>';
-            } else if (line.charAt(0) === '!') {
-              html += '<div class="df-node-val df-node-null">'+line.slice(1).trim()+'</div>';
-            } else {
-              html += '<div class="df-node-val">'+line+'</div>';
-            }
+        edges.forEach(function(e){
+          var src=nodeMap[e[0]], dst=nodeMap[e[1]];
+          if(!src||!dst) return;
+          var x1=src.x+NW, y1=src.y+src.h/2;
+          var x2=dst.x,     y2=dst.y+dst.h/2;
+          // feedback: tmode→target (same col, downward)
+          if(e[0]==='tmode'&&e[1]==='target'){
+            x1=src.x+NW/2; y1=src.y+src.h; x2=dst.x+NW/2; y2=dst.y;
+            var cx=x1+28;
+            html+='<path d="M'+x1+','+y1+' C'+cx+','+y1+' '+cx+','+y2+' '+x2+','+y2+'"'
+                +' fill="none" stroke="#CBD5E1" stroke-width="1.5" stroke-opacity=".7"'
+                +' stroke-dasharray="4 2" marker-end="url(#df-arrow)"/>';
+            return;
+          }
+          // feedback: cbase→target (right to left)
+          if(e[0]==='cbase'&&e[1]==='target'){
+            x1=src.x; y1=src.y+src.h/2; x2=dst.x+NW; y2=dst.y+dst.h/2;
+            html+='<path d="M'+x1+','+y1+' C'+(x1-32)+','+y1+' '+(x2+32)+','+y2+' '+x2+','+y2+'"'
+                +' fill="none" stroke="#F59E0B" stroke-width="1.5" stroke-opacity=".7"'
+                +' stroke-dasharray="4 2" marker-end="url(#df-arrow)"/>';
+            return;
+          }
+          var cx1=x1+(x2-x1)*0.45, cx2=x2-(x2-x1)*0.45;
+          html+='<path d="M'+x1+','+y1+' C'+cx1+','+y1+' '+cx2+','+y2+' '+x2+','+y2+'"'
+              +' fill="none" stroke="#CBD5E1" stroke-width="1.5" stroke-opacity=".8"'
+              +' marker-end="url(#df-arrow)"/>';
+        });
+        html+='</svg>';
+
+        nodes.forEach(function(n){
+          var t=TYPE[n.type]||TYPE.input;
+          html+='<div class="df-node '+t.cls+'" style="left:'+n.x+'px;top:'+n.y+'px;width:'+NW+'px;">';
+          html+='<div class="df-node-badge">'+t.badge+'</div>';
+          html+='<div class="df-node-label">'+n.label.replace(/\n/g,'<br>')+'</div>';
+          n.lines.forEach(function(line){
+            if(line===null){ html+='<hr class="df-node-sep">'; }
+            else if(!line||line==='—'){ html+='<div class="df-node-val df-node-null">—</div>'; }
+            else if(line.charAt(0)==='!'){ html+='<div class="df-node-val df-node-null">'+line.slice(1).trim()+'</div>'; }
+            else{ html+='<div class="df-node-val">'+line+'</div>'; }
           });
-          html += '</div>';
+          html+='</div>';
         });
+        html+='</div>';
 
-        html += '</div>';
-
-        // legend
-        html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;font-size:9px;">';
-        var legendItems = [
-          ['df-t-input','User Input'], ['df-t-rcf','Team History'],
-          ['df-t-engine','Engine Call'], ['df-t-computed','Computed Distribution'],
-          ['df-t-prob','Probability Output'], ['df-t-stored','Stored/Per-task'],
-          ['df-t-cpm','CPM Scenario'], ['df-t-out','Final Output']
-        ];
-        legendItems.forEach(function(li) {
-          html += '<span style="display:inline-flex;align-items:center;gap:4px;">'
-               + '<span style="display:inline-block;width:10px;height:10px;border-radius:3px;" class="df-node '+li[0]+'"></span>'
-               + '<span style="color:#6B7280;">'+li[1]+'</span></span>';
+        // legend + column headers
+        html+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:9px;padding-top:8px;border-top:1px solid #E5E7EB;">';
+        [['df-t-input','User Input'],['df-t-rcf','Team History'],
+         ['df-t-engine','Engine Call'],['df-t-computed','Computed Distribution'],
+         ['df-t-prob','Prob / Gate'],['df-t-stored','Stored Per-task'],
+         ['df-t-cpm','CPM Scenario'],['df-t-out','Output']
+        ].forEach(function(li){
+          html+='<span style="display:inline-flex;align-items:center;gap:4px;">'
+              +'<span style="display:inline-block;width:10px;height:10px;border-radius:3px;" class="df-node '+li[0]+'"></span>'
+              +'<span style="color:#6B7280;">'+li[1]+'</span></span>';
         });
-        html += '</div>';
+        html+='</div>';
 
         el.innerHTML = html;
       };
