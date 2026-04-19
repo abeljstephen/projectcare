@@ -68,7 +68,12 @@ function betaPdf(u, alpha, beta) {
   return Math.exp(logNum - logDen);
 }
 
-// Canonical PERT (λ=4) mapping: (O, M, P) → (α, β)
+// Asymmetry-adaptive PERT mapping: (O, M, P) → (α, β)
+// λ is derived from the modal fraction m=(M-O)/(P-O) via λ=1/(m(1-m)),
+// which recovers the canonical λ=4 when the mode is centred (m=0.5) and
+// rises for asymmetric estimates, reflecting that an off-centre mode is a
+// stronger signal about the distribution shape.
+// Basis: Golenko-Ginzburg (1988); Herrerías-Velasco et al. (2003).
 function computeBetaMoments(params) {
   Logger.log('computeBetaMoments: Starting', { params });
   try {
@@ -82,7 +87,15 @@ function computeBetaMoments(params) {
     const r = P - O;
     if (!(r > 0)) throw new Error('Degenerate case: zero range');
 
-    const lambda = 4;
+    // Asymmetry-adaptive λ: 1/(m(1-m)), clamped to [2, 8].
+    // m(1-m) has its maximum (0.25) at m=0.5, giving λ=4 (the canonical value).
+    // As m departs from centre, m(1-m) falls, λ rises — up to the cap of 8.
+    const m    = (M - O) / r;                     // modal fraction ∈ (0, 1)
+    const mVar = m * (1 - m);                      // max 0.25 at m=0.5
+    const lambda = mVar > 1e-9
+      ? Math.max(2, Math.min(8, 1 / mVar))         // adaptive: λ=4 at m=0.5
+      : 8;                                         // near-degenerate mode: cap at 8
+
     let alpha = 1 + lambda * (M - O) / r;
     let beta  = 1 + lambda * (P - M) / r;
 
@@ -93,8 +106,8 @@ function computeBetaMoments(params) {
     if (alpha < 1) alpha = 1 + EPS;
     if (beta  < 1) beta  = 1 + EPS;
 
-    Logger.log('computeBetaMoments: Completed', { alpha, beta, lambda });
-    return { alpha, beta };
+    Logger.log('computeBetaMoments: Completed', { alpha, beta, lambda, m });
+    return { alpha, beta, lambda };
   } catch (error) {
     console.error('computeBetaMoments: Error', { message: error.message, stack: error.stack });
     return { alpha: null, beta: null, error: error.message };
@@ -120,7 +133,7 @@ function generatePertPoints(params) {
       throw new Error('Invalid numSamples: must be a number >= 2');
     }
 
-    // Compute alpha/beta using canonical PERT (λ=4)
+    // Compute alpha/beta using asymmetry-adaptive PERT λ
     const { alpha, beta, error: abErr } = computeBetaMoments({ optimistic, mostLikely, pessimistic });
     if (abErr) {
       throw new Error(`computeBetaMoments error: ${abErr}`);
