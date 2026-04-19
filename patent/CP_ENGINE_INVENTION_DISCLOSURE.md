@@ -5,6 +5,7 @@
 **Organization:** iCareNOW.io
 **Date of Original Disclosure:** March 27, 2026
 **Date of Amendment:** April 9, 2026
+**Date of Amendment (Contribution 1 — adaptive λ note; Reduction to Practice):** April 19, 2026
 **Related Application:** SACO Provisional Patent Application (filed March 2, 2026;
   amended April 9, 2026 — Claims 16–21, Sections VII-D, X-A, X-B)
 **Disclosure Type:** New Subject Matter — Intended for Non-Provisional Filing and/or Continuation-in-Part
@@ -101,6 +102,18 @@ distributions.
    each task three distinct probability distributions: the PERT baseline
    distribution, the management-stance-adjusted distribution, and the
    SACO-optimized distribution.
+
+   The PERT baseline is parameterised using an asymmetry-adaptive λ derived
+   from the task's modal fraction m = (M−O)/(P−O):
+
+       λ = clamp(1 / (m × (1−m)),  2,  8)
+
+   This recovers the canonical λ=4 for symmetric tasks (m=0.5) and
+   increases λ for asymmetric tasks, improving distributional calibration
+   before any management-stance adjustment is applied. The result is that
+   even the baseline input to the CPM pipeline better represents the true
+   duration uncertainty of each individual task than a fixed-λ PERT
+   baseline would. (Basis: Golenko-Ginzburg 1988; Herrerías-Velasco et al. 2011.)
 
 2. The practitioner selects a target percentile (default P80) to extract a
    single duration value per task from the SACO-optimized distribution. This
@@ -498,6 +511,7 @@ published research.
 ## REDUCTION TO PRACTICE
 
 All contributions have been fully implemented as of April 9, 2026.
+Asymmetry-adaptive λ in SACO baseline generation implemented April 19, 2026.
 
 **Fully implemented (complete reduction to practice):**
 
@@ -684,4 +698,7 @@ intended for non-provisional patent protection. Do not distribute externally.
 *Original disclosure date: March 27, 2026*
 *Amendment date: April 9, 2026 (Contributions 2 expanded, Contribution 5 added,*
 *SHS formula corrected, Reduction to Practice updated, Claims E–H added)*
+*Amendment date: April 19, 2026 (Contribution 1 — asymmetry-adaptive λ note added;*
+*Reduction to Practice updated; Golenko-Ginzburg 1988 and Herrerías-Velasco et al.*
+*2011 cited as basis for adaptive λ formula λ = 1/(m(1−m)))*
 *iCareNOW.io*
