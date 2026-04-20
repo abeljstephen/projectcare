@@ -55,37 +55,37 @@
   <script defer src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
 
   <!-- SACO computation engine — load order matters -->
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/helpers/rng.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/helpers/validation.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/helpers/metrics.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/baseline/utilis.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/baseline/triangle-points.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/baseline/beta-points.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/baseline/pert-points.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/baseline/monte-carlo-raw.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/baseline/monte-carlo-smoothed.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/baseline/coordinator.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/optimization/kl-divergence.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/optimization/matrix-utils.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/reshaping/copula-utils.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/reshaping/slider-normalization.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/reshaping/slider-adjustments.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/optimization/sensitivity-analysis.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/optimization/optimizer.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/reshaping/outcome-summary.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/variable_map/adapter.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/report/playbooks.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/report/reshaping_report.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/visuals/annotations.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/visuals/heatmap-data.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/visuals/sankey-flow.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/saco-browser/main.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/helpers/rng.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/helpers/validation.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/helpers/metrics.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/baseline/utilis.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/baseline/triangle-points.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/baseline/beta-points.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/baseline/pert-points.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/baseline/monte-carlo-raw.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/baseline/monte-carlo-smoothed.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/baseline/coordinator.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/optimization/kl-divergence.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/optimization/matrix-utils.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/reshaping/copula-utils.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/reshaping/slider-normalization.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/reshaping/slider-adjustments.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/optimization/sensitivity-analysis.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/optimization/optimizer.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/reshaping/outcome-summary.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/variable_map/adapter.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/report/playbooks.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/report/reshaping_report.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/visuals/annotations.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/visuals/heatmap-data.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/visuals/sankey-flow.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/saco/main.js"></script>
 
   <!-- CPM browser engine — deterministic critical path for inline badges and CPM step -->
-  <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/graph.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/cpm-engine.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/stochastic-cpm.js"></script>
-  <script src="https://abeljstephen.github.io/projectcare/engines/cpm-browser/cpm-adapter.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/cpm/graph.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/cpm/cpm-engine.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/cpm/stochastic-cpm.js"></script>
+  <script src="https://abeljstephen.github.io/projectcare/engines/shared/cpm/cpm-adapter.js"></script>
 
   <style>
     :root {
@@ -7295,7 +7295,8 @@
         // ── Active scenario ───────────────────────────────────────────────────
         var selId = window._cpmSelectedScenario;
         if (selId && !scenarioResults.some(function(s) { return s.sc.id === selId; })) selId = null;
-        if (!selId && scenarioResults.length > 0) selId = scenarioResults[0].sc.id;
+        // Only auto-select if user has NOT explicitly clicked the Estimate (baseline) card
+        if (!selId && scenarioResults.length > 0 && !window._cpmBaselineOnly) selId = scenarioResults[0].sc.id;
         window._cpmSelectedScenario = selId;
 
         var selSR = selId ? scenarioResults.find(function(s) { return s.sc.id === selId; }) : null;
@@ -7366,8 +7367,16 @@
         html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
 
         // ── Estimate reference card ─────────────────────────────────────────
-        html += '<div style="flex:0 0 auto;min-width:142px;max-width:175px;padding:12px 14px;border-radius:10px;border:2px solid #E5E7EB;background:#F9FAFB;">';
-        html += '<div style="font-size:9px;font-weight:800;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Estimate</div>';
+        var estIsActive = !selId; // baseline-only mode: no scenario selected
+        var estBorder   = estIsActive ? '#374151' : '#E5E7EB';
+        var estBg       = estIsActive ? '#F3F4F6' : '#F9FAFB';
+        html += '<div style="flex:0 0 auto;min-width:142px;max-width:175px;padding:12px 14px;border-radius:10px;'
+              + 'border:2px solid ' + estBorder + ';background:' + estBg + ';cursor:pointer;"'
+              + ' onclick="window._cpmBaselineOnly=true;window._cpmSelectedScenario=null;window._renderCpmStep();">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+        html += '<div style="font-size:9px;font-weight:800;color:' + (estIsActive ? '#374151' : '#9CA3AF') + ';text-transform:uppercase;letter-spacing:.06em;">Estimate</div>';
+        if (estIsActive) html += '<div style="font-size:8px;font-weight:700;background:#374151;color:#fff;padding:1px 5px;border-radius:4px;white-space:nowrap;">ACTIVE</div>';
+        html += '</div>';
         html += '<div style="font-size:26px;font-weight:800;color:#111827;line-height:1;margin-bottom:3px;">'
               + (Number.isFinite(estDur) ? estDur.toFixed(1) : '—')
               + '<span style="font-size:12px;font-weight:600;color:#6B7280;">d</span></div>';
@@ -7398,7 +7407,7 @@
           html += '<div style="flex:0 0 auto;min-width:142px;max-width:175px;padding:12px 14px;border-radius:10px;'
                 + 'border:2px solid ' + borderColor + ';background:' + bgCard + ';'
                 + (hasData ? 'cursor:pointer;' : 'cursor:default;') + '"'
-                + (hasData ? ' onclick="window._cpmSelectedScenario=\'' + sc.id + '\';window._renderCpmStep();"' : '') + '>';
+                + (hasData ? ' onclick="window._cpmBaselineOnly=false;window._cpmSelectedScenario=\'' + sc.id + '\';window._renderCpmStep();"' : '') + '>';
 
           // Header: label + ACTIVE badge
           html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';

@@ -239,9 +239,9 @@ function scale01To100_(v) {
 
 // SINGLE NORMALIZATION FUNCTION - renamed to plain normalizePoints
 function normalizePoints(arr) {
-  Logger.log('normalizePoints LOADED - starting normalization');
+  console.log('normalizePoints LOADED - starting normalization');
   if (!Array.isArray(arr)) {
-    Logger.log('normalizePoints: received non-array');
+    console.log('normalizePoints: received non-array');
     return [];
   }
   const out = [];
@@ -259,19 +259,19 @@ function normalizePoints(arr) {
     let y = yNumeric;
     if (!isNumber(yNumeric)) {
       y = p.y != null ? String(p.y) : "0";
-      Logger.log('normalizePoints fallback: y = "' + y + '" (type: ' + typeof y + ') at point #' + (i+1));
+      console.log('normalizePoints fallback: y = "' + y + '" (type: ' + typeof y + ') at point #' + (i+1));
     }
 
     if (isNumber(x)) {
       out.push({ x, y });
       kept++;
-      Logger.log('normalizePoints KEPT #' + (i+1) + ': x=' + x + ', y=' + y + ' (y type: ' + typeof y + ')');
+      console.log('normalizePoints KEPT #' + (i+1) + ': x=' + x + ', y=' + y + ' (y type: ' + typeof y + ')');
     } else {
       dropped++;
-      Logger.log('normalizePoints DROPPED (bad x) #' + (i+1) + ': ' + JSON.stringify(p));
+      console.log('normalizePoints DROPPED (bad x) #' + (i+1) + ': ' + JSON.stringify(p));
     }
   }
-  Logger.log('normalizePoints COMPLETE: processed ' + arr.length + ' → kept ' + kept + ', dropped ' + dropped);
+  console.log('normalizePoints COMPLETE: processed ' + arr.length + ' → kept ' + kept + ', dropped ' + dropped);
   return out;
 }
 
@@ -447,10 +447,10 @@ function callEstimatorAPI_(payloadObj, label) {
   try {
     const tasks = Array.isArray(payloadObj) ? payloadObj : (payloadObj.tasks || [payloadObj]);
     const result = projectcareAPI(tasks);
-    Logger.log(`Local core call (${label}): Success`);
+    console.log(`Local core call (${label}): Success`);
     return { ok: true, code: 200, body: result };
   } catch (e) {
-    Logger.log(`Local core call (${label}): Error - ${e.message}`);
+    console.log(`Local core call (${label}): Error - ${e.message}`);
     return { ok: false, code: 0, body: null, error: e.message || 'Local execution failed' };
   }
 }
@@ -475,7 +475,7 @@ function buildTaskPayload_(task, options) {
   const mostLikely = Number(num(task.mostLikely));
   const pessimistic = Number(num(task.pessimistic));
 
-  Logger.log('Payload types BEFORE core: optimistic=' + typeof optimistic + ' (' + optimistic + '), mostLikely=' + typeof mostLikely + ' (' + mostLikely + '), pessimistic=' + typeof pessimistic + ' (' + pessimistic + ')');
+  console.log('Payload types BEFORE core: optimistic=' + typeof optimistic + ' (' + optimistic + '), mostLikely=' + typeof mostLikely + ' (' + mostLikely + '), pessimistic=' + typeof pessimistic + ' (' + pessimistic + ')');
 
   const t = {
     task: task.task || task.name || '',
@@ -593,23 +593,23 @@ function getAnyPath_(obj, paths) {
 
 function parseBaseline_(resObj) {
   if (!resObj) {
-    Logger.log('parseBaseline_: No resObj at all');
+    console.log('parseBaseline_: No resObj at all');
     return { pert: null, ciL: null, ciU: null, baseProb: null, kld: null, basePDF: [], baseCDF: [] };
   }
 
-  Logger.log('parseBaseline_: resObj top keys = ' + Object.keys(resObj).join(', '));
+  console.log('parseBaseline_: resObj top keys = ' + Object.keys(resObj).join(', '));
   if (resObj.baseline) {
-    Logger.log('parseBaseline_: baseline exists — keys = ' + Object.keys(resObj.baseline).join(', '));
+    console.log('parseBaseline_: baseline exists — keys = ' + Object.keys(resObj.baseline).join(', '));
   }
 
   let pertRaw = getAnyPath_(resObj, ['baseline.pert']);
   let pertValue = null;
 
   if (pertRaw) {
-    Logger.log('PERT raw type = ' + typeof pertRaw + ', raw content = ' + JSON.stringify(pertRaw));
+    console.log('PERT raw type = ' + typeof pertRaw + ', raw content = ' + JSON.stringify(pertRaw));
     if (typeof pertRaw === 'object' && pertRaw !== null && 'value' in pertRaw) {
       pertValue = pertRaw.value;
-      Logger.log('PERT .value found, type = ' + typeof pertValue + ', raw = ' + pertValue);
+      console.log('PERT .value found, type = ' + typeof pertValue + ', raw = ' + pertValue);
     }
   }
 
@@ -687,28 +687,28 @@ function parseBaseline_(resObj) {
     ]) || []
   );
 
-  Logger.log('===== parseBaseline_ DEBUG =====');
-  Logger.log('PERT extracted = ' + (isNumber(pert) ? pert : 'NULL — FAILED'));
-  Logger.log('CI Lower = ' + (ciL || 'NULL'));
-  Logger.log('CI Upper = ' + (ciU || 'NULL'));
-  Logger.log('Baseline Prob = ' + (baseProb || 'NULL'));
-  Logger.log('KL = ' + (kld || 'NULL'));
-  Logger.log('PDF points length = ' + basePDF.length);
-  Logger.log('CDF points length = ' + baseCDF.length);
-  Logger.log('===== END DEBUG =====');
+  console.log('===== parseBaseline_ DEBUG =====');
+  console.log('PERT extracted = ' + (isNumber(pert) ? pert : 'NULL — FAILED'));
+  console.log('CI Lower = ' + (ciL || 'NULL'));
+  console.log('CI Upper = ' + (ciU || 'NULL'));
+  console.log('Baseline Prob = ' + (baseProb || 'NULL'));
+  console.log('KL = ' + (kld || 'NULL'));
+  console.log('PDF points length = ' + basePDF.length);
+  console.log('CDF points length = ' + baseCDF.length);
+  console.log('===== END DEBUG =====');
 
   return { pert, ciL, ciU, baseProb, kld, basePDF, baseCDF };
 }
 
 function parseOptimized_(resObj) {
   if (!resObj) {
-    Logger.log('parseOptimized_: No resObj at all');
+    console.log('parseOptimized_: No resObj at all');
     return { sliders: null, optProb: null, sensChange: null, optPDF: [], optCDF: [] };
   }
 
-  Logger.log('parseOptimized_: resObj top keys = ' + Object.keys(resObj).join(', '));
+  console.log('parseOptimized_: resObj top keys = ' + Object.keys(resObj).join(', '));
   if (resObj.optimize) {
-    Logger.log('parseOptimized_: optimize exists — keys = ' + Object.keys(resObj.optimize).join(', '));
+    console.log('parseOptimized_: optimize exists — keys = ' + Object.keys(resObj.optimize).join(', '));
   }
 
   let slidersRaw = getAnyPath_(resObj, ['optimize.revertedSliders']) ||
@@ -721,9 +721,9 @@ function parseOptimized_(resObj) {
   if (slidersRaw) {
     if (slidersRaw.value && typeof slidersRaw.value === 'object') {
       slidersRaw = slidersRaw.value;
-      Logger.log('parseOptimized_: unwrapped nested "value" in sliders');
+      console.log('parseOptimized_: unwrapped nested "value" in sliders');
     }
-    Logger.log('parseOptimized_: raw sliders (after unwrap/reversion) = ' + JSON.stringify(slidersRaw));
+    console.log('parseOptimized_: raw sliders (after unwrap/reversion) = ' + JSON.stringify(slidersRaw));
     Object.keys(slidersRaw).forEach(k => {
       const val = slidersRaw[k];
       if (val !== undefined) {
@@ -736,7 +736,7 @@ function parseOptimized_(resObj) {
       }
     });
     if (Object.keys(sliders).length === 0) {
-      Logger.log('Slider copy fallback triggered - no keys matched');
+      console.log('Slider copy fallback triggered - no keys matched');
       SLIDER_KEYS.forEach(k => {
         const val = slidersRaw[k];
         if (val !== undefined) {
@@ -778,13 +778,13 @@ function parseOptimized_(resObj) {
     getAnyPath_(resObj, ['monteCarloSmoothedPoints.cdfPoints'])
   );
 
-  Logger.log('===== parseOptimized_ DEBUG =====');
-  Logger.log('Opt Prob = ' + (optProb || 'NULL'));
-  Logger.log('Sensitivity Change = ' + (sensChange || 'NULL'));
-  Logger.log('Opt PDF length = ' + optPDF.length);
-  Logger.log('Opt CDF length = ' + optCDF.length);
-  Logger.log('Sliders = ' + JSON.stringify(sliders));
-  Logger.log('===== END DEBUG =====');
+  console.log('===== parseOptimized_ DEBUG =====');
+  console.log('Opt Prob = ' + (optProb || 'NULL'));
+  console.log('Sensitivity Change = ' + (sensChange || 'NULL'));
+  console.log('Opt PDF length = ' + optPDF.length);
+  console.log('Opt CDF length = ' + optCDF.length);
+  console.log('Sliders = ' + JSON.stringify(sliders));
+  console.log('===== END DEBUG =====');
 
   return { sliders, optProb, sensChange, optPDF, optCDF };
 }
@@ -825,7 +825,7 @@ function normalizePlotResponseForUI_(resp) {
 
     return first;
   } catch (e) {
-    Logger.log(`normalizePlotResponseForUI error: ${e.message}`);
+    console.log(`normalizePlotResponseForUI error: ${e.message}`);
     return firstResult_(resp) || resp || {};
   }
 }
@@ -1054,29 +1054,29 @@ function getAllTasks(params) {
   }
 
   try {
-    Logger.log('getAllTasks() started @ ' + new Date().toISOString());
+    console.log('getAllTasks() started @ ' + new Date().toISOString());
 
     const sh = getSourceSheet_();
     if (!sh) {
-      Logger.log('ERROR: No source sheet found');
+      console.log('ERROR: No source sheet found');
       return [{ task:'(No source sheet found)', optimistic:null, mostLikely:null, pessimistic:null }];
     }
-    Logger.log('Source sheet found: ' + sh.getName() + ' (ID: ' + sh.getSheetId() + ')');
+    console.log('Source sheet found: ' + sh.getName() + ' (ID: ' + sh.getSheetId() + ')');
 
     const lastRow = sh.getLastRow();
-    Logger.log('Last row in sheet: ' + lastRow);
+    console.log('Last row in sheet: ' + lastRow);
     if (lastRow < 2) {
-      Logger.log('ERROR: Sheet empty (lastRow < 2)');
+      console.log('ERROR: Sheet empty (lastRow < 2)');
       return [{ task:'(Source sheet empty: add rows under headers)', optimistic:null, mostLikely:null, pessimistic:null }];
     }
 
     const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-    Logger.log('Raw headers: ' + headers.map(h => JSON.stringify(h)).join(' | '));
+    console.log('Raw headers: ' + headers.map(h => JSON.stringify(h)).join(' | '));
 
     let nameCol = -1, optCol = -1, mostCol = -1, pessCol = -1;
     for (let c = 0; c < headers.length; c++) {
       const h = String(headers[c] || '').trim().toLowerCase().replace(/[-_ ]+/g, '');
-      Logger.log('Header ' + (c+1) + ': "' + h + '"');
+      console.log('Header ' + (c+1) + ': "' + h + '"');
 
       if (h.includes('name') || h.includes('task') || h.includes('title')) nameCol = c + 1;
       if (h.includes('bestcase') || h.includes('optimistic') || h.includes('best') ) optCol = c + 1;
@@ -1084,15 +1084,15 @@ function getAllTasks(params) {
       if (h.includes('worstcase') || h.includes('pessimistic') || h.includes('worst')) pessCol = c + 1;
     }
 
-    Logger.log('Detected columns (1-based): Name=' + nameCol + ', Best=' + optCol + ', Most=' + mostCol + ', Worst=' + pessCol);
+    console.log('Detected columns (1-based): Name=' + nameCol + ', Best=' + optCol + ', Most=' + mostCol + ', Worst=' + pessCol);
 
     if (nameCol === -1 || optCol === -1 || mostCol === -1 || pessCol === -1) {
-      Logger.log('ERROR: Missing required columns');
+      console.log('ERROR: Missing required columns');
       return [{ task:'(Missing required headers - check sheet row 1)', optimistic:null, mostLikely:null, pessimistic:null }];
     }
 
     const values = sh.getRange(2, 1, lastRow - 1, sh.getLastColumn()).getValues();
-    Logger.log('Raw data from sheet (first 5 rows): ' + JSON.stringify(values.slice(0, 5)));
+    console.log('Raw data from sheet (first 5 rows): ' + JSON.stringify(values.slice(0, 5)));
 
     const out = [];
     for (let i = 0; i < values.length; i++) {
@@ -1101,7 +1101,7 @@ function getAllTasks(params) {
       const name = (nameRaw != null && String(nameRaw).trim()) || '';
 
       if (!name) {
-        Logger.log('Row ' + (i+2) + ': Skipped (empty name)');
+        console.log('Row ' + (i+2) + ': Skipped (empty name)');
         continue;
       }
 
@@ -1109,28 +1109,28 @@ function getAllTasks(params) {
       const rawM = r[mostCol - 1];
       const rawP = r[pessCol - 1];
 
-      Logger.log('Row ' + (i+2) + ': Name="' + name + '", Raw Best=' + rawO + ' (type: ' + typeof rawO + '), Raw Most=' + rawM + ' (type: ' + typeof rawM + '), Raw Worst=' + rawP + ' (type: ' + typeof rawP + ')');
+      console.log('Row ' + (i+2) + ': Name="' + name + '", Raw Best=' + rawO + ' (type: ' + typeof rawO + '), Raw Most=' + rawM + ' (type: ' + typeof rawM + '), Raw Worst=' + rawP + ' (type: ' + typeof rawP + ')');
 
       let O = (typeof rawO === 'number') ? rawO : num(rawO);
       let M = (typeof rawM === 'number') ? rawM : num(rawM);
       let P = (typeof rawP === 'number') ? rawP : num(rawP);
 
-      Logger.log('Row ' + (i+2) + ': Parsed O=' + O + ', M=' + M + ', P=' + P);
+      console.log('Row ' + (i+2) + ': Parsed O=' + O + ', M=' + M + ', P=' + P);
 
       if (isNumber(O) && isNumber(M) && isNumber(P)) {
-        Logger.log('Row ' + (i+2) + ': VALID TASK ADDED');
+        console.log('Row ' + (i+2) + ': VALID TASK ADDED');
         out.push({ task: name, optimistic: O, mostLikely: M, pessimistic: P });
       } else {
-        Logger.log('Row ' + (i+2) + ': Skipped (invalid parsed numbers)');
+        console.log('Row ' + (i+2) + ': Skipped (invalid parsed numbers)');
       }
     }
 
     if (!out.length) {
-      Logger.log('No valid tasks found after processing all rows');
+      console.log('No valid tasks found after processing all rows');
       return [{ task:'(No valid tasks found - check sheet data)', optimistic:null, mostLikely:null, pessimistic:null }];
     }
 
-    Logger.log('Found ' + out.length + ' valid tasks');
+    console.log('Found ' + out.length + ' valid tasks');
 
     // Return enriched object so client can also get sheet tab list without
     // needing a separately-deployed listSheetTabs() function.
@@ -1144,7 +1144,7 @@ function getAllTasks(params) {
     return { tasks: out, sheetTabs: sheetTabs };
 
   } catch (e) {
-    Logger.log('ERROR in getAllTasks: ' + e.message + ' (stack: ' + e.stack + ')');
+    console.log('ERROR in getAllTasks: ' + e.message + ' (stack: ' + e.stack + ')');
     return { tasks: [{ task:`(Error reading source: ${e.message})`, optimistic:null, mostLikely:null, pessimistic:null }], sheetTabs: [] };
   }
 }
@@ -1249,23 +1249,23 @@ function doMaterialize_(task, pert, sliders, row, out) {
   const matPayload = payloadMaterialize_(task, pert, sliders, extraFlags);
   const matRes = callEstimatorAPI_(matPayload, `materialize-${task.task}`);
   if (!matRes.ok) {
-    Logger.log(`Materialize call failed: ${matRes.error}`);
+    console.log(`Materialize call failed: ${matRes.error}`);
     return { ok: false, error: matRes.error };
   }
   const body = firstResult_(matRes.body);
   if (!body) {
-    Logger.log('Materialize: Empty response body');
+    console.log('Materialize: Empty response body');
     return { ok: false, error: 'Empty response body' };
   }
   const parsedBase = parseBaseline_(body);
   const parsedOpt = parseOptimized_(body);
 
   if (!isNumber(parsedBase.pert)) {
-    Logger.log('No PERT in materialize response');
+    console.log('No PERT in materialize response');
     return { ok: false, error: 'No PERT in materialize response' };
   }
 
-  Logger.log(`Starting writes for row ${row}`);
+  console.log(`Starting writes for row ${row}`);
   out.getRange(row, 5).setValue(toFixed6(parsedBase.pert));
   SpreadsheetApp.flush();
   if (isNumber(parsedBase.ciL)) {
@@ -1283,7 +1283,7 @@ function doMaterialize_(task, pert, sliders, row, out) {
 
   let col = 9;
   if (parsedOpt.sliders && typeof parsedOpt.sliders === 'object' && Object.keys(parsedOpt.sliders).length > 0) {
-    Logger.log('Writing sliders: ' + JSON.stringify(parsedOpt.sliders));
+    console.log('Writing sliders: ' + JSON.stringify(parsedOpt.sliders));
     SLIDER_KEYS.forEach(k => {
       const rawV = parsedOpt.sliders[k];
       let v = num(rawV);
@@ -1295,12 +1295,12 @@ function doMaterialize_(task, pert, sliders, row, out) {
         displayV = (v * 100).toFixed(2);
       }
       out.getRange(row, col).setValue(displayV);
-      Logger.log(`Slider ${k} → col ${col} (${String.fromCharCode(64 + col)}): raw=${rawV} → written=${displayV}`);
+      console.log(`Slider ${k} → col ${col} (${String.fromCharCode(64 + col)}): raw=${rawV} → written=${displayV}`);
       SpreadsheetApp.flush();
       col++;
     });
   } else {
-    Logger.log('No valid sliders object in parsedOpt - writing defaults/empty');
+    console.log('No valid sliders object in parsedOpt - writing defaults/empty');
     SLIDER_KEYS.forEach(() => {
       out.getRange(row, col).setValue('—');
       SpreadsheetApp.flush();
@@ -1314,7 +1314,7 @@ function doMaterialize_(task, pert, sliders, row, out) {
   }
   out.getRange(row, 16).setValue(optPct);
   SpreadsheetApp.flush();
-  Logger.log(`Optimized % written to col 16: ${optPct || '(empty)'}`);
+  console.log(`Optimized % written to col 16: ${optPct || '(empty)'}`);
 
   let sens = '—';
   if (isNumber(parsedOpt.sensChange)) {
@@ -1324,7 +1324,7 @@ function doMaterialize_(task, pert, sliders, row, out) {
   }
   out.getRange(row, 17).setValue(sens);
   SpreadsheetApp.flush();
-  Logger.log(`Sensitivity Change written to col 17: ${sens}`);
+  console.log(`Sensitivity Change written to col 17: ${sens}`);
 
   const kl = isNumber(parsedBase.kld) ? parsedBase.kld.toFixed(4) : '—';
   out.getRange(row, 18).setValue(kl);
@@ -1334,17 +1334,17 @@ function doMaterialize_(task, pert, sliders, row, out) {
   const pointsList = [parsedBase.basePDF, parsedBase.baseCDF, parsedOpt.optPDF, parsedOpt.optCDF];
   pointsList.forEach((pts, idx) => {
     const jsonCol = COL.BASE_PDF + idx;
-    Logger.log(`Writing points to col ${jsonCol} (type=${typeof pts}, length=${pts?.length || 'undefined'})`);
+    console.log(`Writing points to col ${jsonCol} (type=${typeof pts}, length=${pts?.length || 'undefined'})`);
     const clipped = clipArray(pts || [], clip);
     const jsonStr = JSON.stringify(clipped);
-    Logger.log(`  JSON length before write: ${jsonStr.length} chars`);
+    console.log(`  JSON length before write: ${jsonStr.length} chars`);
     out.getRange(row, jsonCol).setValue(jsonStr);
     SpreadsheetApp.flush();
-    Logger.log(`Points written to col ${jsonCol}: length=${clipped.length}`);
+    console.log(`Points written to col ${jsonCol}: length=${clipped.length}`);
   });
 
   shadeConfidenceColumns_(out);
-  Logger.log(`Materialize complete for row ${row}`);
+  console.log(`Materialize complete for row ${row}`);
   return { ok: true };
 }
 
@@ -1730,7 +1730,7 @@ function doSingleTask_(task, row, out, logSheet) {
     const baseRes = callEstimatorAPI_(baselinePayload, `baseline-${task.task}`);
     if (baseRes.ok) {
       const body = firstResult_(baseRes.body);
-      Logger.log('Baseline response body keys: ' + Object.keys(body || {}).join(', '));
+      console.log('Baseline response body keys: ' + Object.keys(body || {}).join(', '));
 
       baseParsed = parseBaseline_(body);
       if (isNumber(baseParsed.pert)) {
@@ -1782,15 +1782,15 @@ function doSingleTask_(task, row, out, logSheet) {
         const clip = CFG.MAX_POINTS;
         [baseParsed.basePDF, baseParsed.baseCDF].forEach((pts, idx) => {
           const jsonCol = COL.BASE_PDF + idx;
-          Logger.log(`Writing baseline points to col ${jsonCol} (length=${pts?.length || '0'})`);
+          console.log(`Writing baseline points to col ${jsonCol} (length=${pts?.length || '0'})`);
           const jsonStr = JSON.stringify(clipArray(pts || [], clip));
           out.getRange(row, jsonCol).setValue(jsonStr);
           SpreadsheetApp.flush();
-          Logger.log(`Baseline points written to col ${jsonCol}: length=${pts?.length || '0'}`);
+          console.log(`Baseline points written to col ${jsonCol}: length=${pts?.length || '0'}`);
         });
 
         hasBaseline = true;
-        Logger.log(`Baseline written row ${row}: PERT=${baseParsed.pert}, Prob=${baseParsed.baseProb}`);
+        console.log(`Baseline written row ${row}: PERT=${baseParsed.pert}, Prob=${baseParsed.baseProb}`);
       } else {
         logSheet.appendRow([tsMsg(`Task "${task.task}": No PERT from baseline`)]);
       }
@@ -1810,14 +1810,14 @@ function doSingleTask_(task, row, out, logSheet) {
       const optRes = callEstimatorAPI_(optPayload, `opt-${task.task}`);
       if (optRes.ok) {
         const body = firstResult_(optRes.body);
-        Logger.log('Optimize response body keys: ' + Object.keys(body || {}).join(', '));
+        console.log('Optimize response body keys: ' + Object.keys(body || {}).join(', '));
 
         const optParsed = parseOptimized_(body);
 
         let col = 9;
 
         if (optParsed.sliders && typeof optParsed.sliders === 'object') {
-          Logger.log('Writing sliders: ' + JSON.stringify(optParsed.sliders));
+          console.log('Writing sliders: ' + JSON.stringify(optParsed.sliders));
           SLIDER_KEYS.forEach(k => {
             const rawV = optParsed.sliders[k];
             let v = num(rawV);
@@ -1829,7 +1829,7 @@ function doSingleTask_(task, row, out, logSheet) {
               displayV = (v * 100).toFixed(2);
             }
             out.getRange(row, col).setValue(displayV);
-            Logger.log(`Slider ${k} → col ${col} (${String.fromCharCode(64 + col)}): raw=${rawV} → written=${displayV}`);
+            console.log(`Slider ${k} → col ${col} (${String.fromCharCode(64 + col)}): raw=${rawV} → written=${displayV}`);
             SpreadsheetApp.flush();
             col++;
           });
@@ -1840,13 +1840,13 @@ function doSingleTask_(task, row, out, logSheet) {
           const sliderVals = SLIDER_KEYS.map(k => num(optParsed.sliders[k]));
           const allZero = sliderVals.every(v => isNumber(v) && v === 0);
           if (allZero) {
-            Logger.log(`⚠ Task "${task.task}": all optimal slider values are 0 — API may have returned defaults. Check API logs for details.`);
+            console.log(`⚠ Task "${task.task}": all optimal slider values are 0 — API may have returned defaults. Check API logs for details.`);
             logSheet.appendRow([tsMsg(`⚠ Task "${task.task}": all optimal sliders are 0 — optimizer returned no adjustments. Probability still changed (baseline→opt), so baseline distribution is being used as-is.`)]);
           }
 
           hasOpt = true;
         } else {
-          Logger.log('No valid sliders object in parsedOpt - writing defaults/empty');
+          console.log('No valid sliders object in parsedOpt - writing defaults/empty');
           SLIDER_KEYS.forEach(() => {
             out.getRange(row, col).setValue('—');
             SpreadsheetApp.flush();
@@ -1860,7 +1860,7 @@ function doSingleTask_(task, row, out, logSheet) {
         }
         out.getRange(row, 16).setValue(optPct);
         SpreadsheetApp.flush();
-        Logger.log(`Optimized % written to col 16: ${optPct || '(empty)'}`);
+        console.log(`Optimized % written to col 16: ${optPct || '(empty)'}`);
 
         let sens = '—';
         if (isNumber(optParsed.sensChange)) {
@@ -1870,7 +1870,7 @@ function doSingleTask_(task, row, out, logSheet) {
         }
         out.getRange(row, 17).setValue(sens);
         SpreadsheetApp.flush();
-        Logger.log(`Sensitivity Change written to col 17: ${sens}`);
+        console.log(`Sensitivity Change written to col 17: ${sens}`);
 
         const kl = isNumber(baseParsed.kld) ? baseParsed.kld.toFixed(4) : '—';
         out.getRange(row, 18).setValue(kl);
@@ -1887,13 +1887,13 @@ function doSingleTask_(task, row, out, logSheet) {
         const pointsList = [baseParsed.basePDF, baseParsed.baseCDF, optParsed.optPDF, optParsed.optCDF];
         pointsList.forEach((pts, idx) => {
           const jsonCol = COL.BASE_PDF + idx;
-          Logger.log(`Writing points to col ${jsonCol} (type=${typeof pts}, length=${pts?.length || 'undefined'})`);
+          console.log(`Writing points to col ${jsonCol} (type=${typeof pts}, length=${pts?.length || 'undefined'})`);
           const clipped = clipArray(pts || [], clip);
           const jsonStr = JSON.stringify(clipped);
-          Logger.log(`  JSON length before write: ${jsonStr.length} chars`);
+          console.log(`  JSON length before write: ${jsonStr.length} chars`);
           out.getRange(row, jsonCol).setValue(jsonStr);
           SpreadsheetApp.flush();
-          Logger.log(`Points written to col ${jsonCol}: length=${clipped.length}`);
+          console.log(`Points written to col ${jsonCol}: length=${clipped.length}`);
         });
 
         if (optParsed.status && optParsed.status !== 'error') {
@@ -1921,12 +1921,12 @@ function doSingleTask_(task, row, out, logSheet) {
           rcfApplied:         false
         };
 
-        Logger.log(`Optimize processing complete for row ${row}: Prob=${optPct || 'N/A'}, Sliders written=${optParsed.sliders ? 'YES' : 'NO'}`);
+        console.log(`Optimize processing complete for row ${row}: Prob=${optPct || 'N/A'}, Sliders written=${optParsed.sliders ? 'YES' : 'NO'}`);
       } else {
         logSheet.appendRow([tsMsg(`Task "${task.task}": Opt call failed - ${optRes.error}`)]);
       }
     } catch (e) {
-      Logger.log(`Opt phase exception: ${e.message}`);
+      console.log(`Opt phase exception: ${e.message}`);
       logSheet.appendRow([tsMsg(`Task "${task.task}": Opt exception - ${e.message}`)]);
     }
   } else {
@@ -2006,9 +2006,9 @@ function testCoreCall() {
   
   try {
     const result = projectcareAPI(payload);
-    Logger.log('TEST CORE CALL RESULT: ' + JSON.stringify(result, null, 2));
+    console.log('TEST CORE CALL RESULT: ' + JSON.stringify(result, null, 2));
   } catch (e) {
-    Logger.log('TEST CORE CALL ERROR: ' + e.message + ' (stack: ' + e.stack + ')');
+    console.log('TEST CORE CALL ERROR: ' + e.message + ' (stack: ' + e.stack + ')');
   }
 }
 
@@ -2019,11 +2019,11 @@ function testPointNormalization() {
     {x: 20, y: "0.5"},
     {x: 30, y: "1"}
   ];
-  Logger.log('Starting normalizePoints test...');
+  console.log('Starting normalizePoints test...');
   const normalized = normalizePoints(testData);
-  Logger.log('Test result: processed ' + testData.length + ' → kept ' + normalized.length);
+  console.log('Test result: processed ' + testData.length + ' → kept ' + normalized.length);
   normalized.forEach((p, i) => {
-    Logger.log('Test point #' + (i+1) + ': x=' + p.x + ', y=' + p.y + ' (type: ' + typeof p.y + ')');
+    console.log('Test point #' + (i+1) + ': x=' + p.x + ', y=' + p.y + ' (type: ' + typeof p.y + ')');
   });
 }
 

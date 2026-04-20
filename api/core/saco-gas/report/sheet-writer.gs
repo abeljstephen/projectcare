@@ -633,7 +633,7 @@ function pcWriteBatchSnapshotTab_(payloads, taskCount, runDate) {
     ss.setActiveSheet(sheet);
     return { ok: true, tabName: tabName };
   } catch(e) {
-    Logger.log('pcWriteBatchSnapshotTab_ error: ' + e.message);
+    console.log('pcWriteBatchSnapshotTab_ error: ' + e.message);
     return { ok: false, error: e.message };
   }
 }
@@ -790,7 +790,7 @@ function pcWriteBatchReportTab_(payloads, taskCount, runDate) {
     ss.setActiveSheet(sheet);
     return { ok: true, tabName: tabName };
   } catch(e) {
-    Logger.log('pcWriteBatchReportTab_ error: ' + e.message);
+    console.log('pcWriteBatchReportTab_ error: ' + e.message);
     return { ok: false, error: e.message };
   }
 }

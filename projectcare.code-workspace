@@ -1,36 +1,48 @@
 {
 	"folders": [
 		{
-			"name": "ProjectCare (root)",
+			"name": "ProjectCare Master (root)",
 			"path": "."
 		},
 		{
-			"name": "API (Google Apps Script)",
+			"name": "Master — Shared Engines",
+			"path": "engines/shared"
+		},
+		{
+			"name": "Child — GAS (Google Sheets Add-on)",
 			"path": "api"
+		},
+		{
+			"name": "Child — GPT / Browser (saco/plot)",
+			"path": "saco/plot"
 		},
 		{
 			"name": "Agents",
 			"path": "agents"
 		},
 		{
-			"name": "Engines",
-			"path": "engines"
+			"name": "Patent & IP",
+			"path": "patent"
 		},
 		{
-			"name": "Tools",
-			"path": "tools"
+			"name": "Custom GPT",
+			"path": "custom-gpt"
 		},
 		{
 			"name": "Docs",
 			"path": "docs"
 		},
 		{
-			"name": "Report",
-			"path": "report"
+			"name": "Tools",
+			"path": "tools"
 		},
 		{
-			"name": "Plot",
-			"path": "plot"
+			"name": "Scripts",
+			"path": "scripts"
+		},
+		{
+			"name": "Report",
+			"path": "report"
 		}
 	],
 	"settings": {}

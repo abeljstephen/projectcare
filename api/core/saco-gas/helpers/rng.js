@@ -1,3 +1,7 @@
+// AUTO-GENERATED — do not edit directly.
+// Source: engines/shared/saco/helpers/rng.js
+// Run: bash scripts/sync-gas.sh before clasp push.
+// Ported from system-google-sheets-addon/core/helpers/rng.js
 // File: helpers/rng.gs
 // Lightweight deterministic RNG helpers for reproducibility (pure Apps Script - global)
 // Force sync - Jan 16 2026 - Node.js removed
