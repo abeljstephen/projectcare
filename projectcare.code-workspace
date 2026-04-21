@@ -1,10 +1,6 @@
 {
 	"folders": [
 		{
-			"name": "ProjectCare Master (root)",
-			"path": "."
-		},
-		{
 			"name": "Master — Shared Engines",
 			"path": "engines/shared"
 		},
@@ -13,7 +9,7 @@
 			"path": "api"
 		},
 		{
-			"name": "Child — GPT / Browser (saco/plot)",
+			"name": "Child — GPT / Browser",
 			"path": "saco/plot"
 		},
 		{
@@ -25,8 +21,8 @@
 			"path": "patent"
 		},
 		{
-			"name": "Custom GPT",
-			"path": "custom-gpt"
+			"name": "Integrations",
+			"path": "integrations"
 		},
 		{
 			"name": "Docs",

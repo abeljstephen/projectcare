@@ -58,7 +58,7 @@
 </head>
 <body>
   <h1>SACO Engine — Browser Test Suite</h1>
-  <div class="subtitle">saco-engine/test.html &mdash; file:// protocol, no network required</div>
+  <div class="subtitle">tools/saco-test.html &mdash; file:// protocol, no network required</div>
 
   <div id="summary-bar" class="summary-bar">
     <span class="total" id="total-label">Loading&hellip;</span>
@@ -74,33 +74,33 @@
   </div>
 
   <!-- ================================================================
-       Engine scripts — loaded in dependency order, all relative paths
+       Engine scripts — loaded in dependency order from engines/shared/saco
        ================================================================ -->
-  <script src="helpers/rng.js"></script>
-  <script src="helpers/validation.js"></script>
-  <script src="helpers/metrics.js"></script>
-  <script src="baseline/utilis.js"></script>
-  <script src="baseline/triangle-points.js"></script>
-  <script src="baseline/beta-points.js"></script>
-  <script src="baseline/pert-points.js"></script>
-  <script src="baseline/monte-carlo-raw.js"></script>
-  <script src="baseline/monte-carlo-smoothed.js"></script>
-  <script src="baseline/coordinator.js"></script>
-  <script src="optimization/kl-divergence.js"></script>
-  <script src="optimization/matrix-utils.js"></script>
-  <script src="reshaping/copula-utils.js"></script>
-  <script src="reshaping/slider-normalization.js"></script>
-  <script src="reshaping/slider-adjustments.js"></script>
-  <script src="optimization/sensitivity-analysis.js"></script>
-  <script src="optimization/optimizer.js"></script>
-  <script src="reshaping/outcome-summary.js"></script>
-  <script src="variable_map/adapter.js"></script>
-  <script src="report/playbooks.js"></script>
-  <script src="report/reshaping_report.js"></script>
-  <script src="visuals/annotations.js"></script>
-  <script src="visuals/heatmap-data.js"></script>
-  <script src="visuals/sankey-flow.js"></script>
-  <script src="main.js"></script>
+  <script src="../engines/shared/saco/helpers/rng.js"></script>
+  <script src="../engines/shared/saco/helpers/validation.js"></script>
+  <script src="../engines/shared/saco/helpers/metrics.js"></script>
+  <script src="../engines/shared/saco/baseline/utilis.js"></script>
+  <script src="../engines/shared/saco/baseline/triangle-points.js"></script>
+  <script src="../engines/shared/saco/baseline/beta-points.js"></script>
+  <script src="../engines/shared/saco/baseline/pert-points.js"></script>
+  <script src="../engines/shared/saco/baseline/monte-carlo-raw.js"></script>
+  <script src="../engines/shared/saco/baseline/monte-carlo-smoothed.js"></script>
+  <script src="../engines/shared/saco/baseline/coordinator.js"></script>
+  <script src="../engines/shared/saco/optimization/kl-divergence.js"></script>
+  <script src="../engines/shared/saco/optimization/matrix-utils.js"></script>
+  <script src="../engines/shared/saco/reshaping/copula-utils.js"></script>
+  <script src="../engines/shared/saco/reshaping/slider-normalization.js"></script>
+  <script src="../engines/shared/saco/reshaping/slider-adjustments.js"></script>
+  <script src="../engines/shared/saco/optimization/sensitivity-analysis.js"></script>
+  <script src="../engines/shared/saco/optimization/optimizer.js"></script>
+  <script src="../engines/shared/saco/reshaping/outcome-summary.js"></script>
+  <script src="../engines/shared/saco/variable_map/adapter.js"></script>
+  <script src="../engines/shared/saco/report/playbooks.js"></script>
+  <script src="../engines/shared/saco/report/reshaping_report.js"></script>
+  <script src="../engines/shared/saco/visuals/annotations.js"></script>
+  <script src="../engines/shared/saco/visuals/heatmap-data.js"></script>
+  <script src="../engines/shared/saco/visuals/sankey-flow.js"></script>
+  <script src="../engines/shared/saco/main.js"></script>
 
   <!-- ================================================================
        Test harness
