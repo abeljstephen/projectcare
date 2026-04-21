@@ -298,6 +298,16 @@ var PlotApp = (function () {
       });
     });
 
+    if (!datasets.length) {
+      var ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No series selected', canvas.width / 2, canvas.height / 2);
+      return;
+    }
+
     var annotations = {};
     if (data.target != null && type === 'pdf') {
       annotations.target = {
@@ -381,6 +391,10 @@ var PlotApp = (function () {
       });
     }
 
+    if (typeof Plotly === 'undefined') {
+      div.innerHTML = '<p style="padding:40px;text-align:center;color:#9ca3af">3D view unavailable</p>';
+      return;
+    }
     Plotly.newPlot(div, traces, {
       margin: { t: 10, l: 10, r: 10, b: 10 },
       scene: {
@@ -677,7 +691,10 @@ var PlotApp = (function () {
         setTimeout(function () { if (status) status.textContent = ''; }, 2000);
       } catch (e) {
         console.error('[PMC plot] SACO recompute error:', e);
-        if (status) status.textContent = 'Error: ' + e.message;
+        if (status) {
+          status.textContent = 'Error: ' + e.message;
+          setTimeout(function () { if (status) status.textContent = ''; }, 4000);
+        }
       }
       if (btn) btn.disabled = false;
     }, 10);

@@ -1,10 +1,9 @@
-// AUTO-GENERATED — do not edit directly.
-// Source: engines/shared/saco/reshaping/slider-adjustments.js
-// Run: bash scripts/sync-gas.sh before clasp push.
 // Ported from system-google-sheets-addon/core/reshaping/slider-adjustments.gs
 // File: reshaping/slider-adjustments.gs
 // Slider-based reshaping and manual adjustment
 // Cleaned for pure Apps Script - global scope, no Node.js
+
+if (typeof _SACO_DEBUG === 'undefined') var _SACO_DEBUG = false;
 
 function _sa_isValidPdfArray(arr) {
   return Array.isArray(arr) && arr.length >= 2 &&
@@ -659,7 +658,7 @@ function computeSliderProbability({
 
   if (!Number.isFinite(finalProb)) finalProb = 0.5;
 
-  try {
+  if (_SACO_DEBUG) try {
     console.log('RESHAPE OUTPUT:', JSON.stringify({
       baseLen: baseCdf.length,
       newCdfLen: newCdf.length,

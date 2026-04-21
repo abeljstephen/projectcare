@@ -1,12 +1,9 @@
-// AUTO-GENERATED — do not edit directly.
-// Source: engines/shared/saco/optimization/sensitivity-analysis.js
-// Run: bash scripts/sync-gas.sh before clasp push.
 // Ported from system-google-sheets-addon/core/optimization/sensitivity-analysis.gs
 // File: optimization/sensitivity-analysis.gs
 // Finite-difference sensitivity of P(target) to each slider near current s. v1.9.24
 // Cleaned for pure Apps Script - global scope, no Node.js
 
-async function computeSensitivity(params) {
+function computeSensitivity(params) {
   try {
     const {
       originalPoints, targetValue,
@@ -29,9 +26,9 @@ async function computeSensitivity(params) {
     const v = validateSliders(sliderValues);
     if (!v.valid) throw createErrorResponse(v.message, { sliderValues });
 
-    const baseRes = await probabilityAtTargetFast({
-      points: originalPoints, optimistic, mostLikely, pessimistic, targetValue, sliderValues
-    }, true);
+    const baseRes = computeSliderProbability({
+      points: originalPoints, optimistic, mostLikely, pessimistic, targetValue, sliderValues, probeLevel: 1
+    });
     if (baseRes.error || !Number.isFinite(baseRes.probability?.value)) {
       throw createErrorResponse(`Failed to compute baseline probability: ${baseRes.error || 'Invalid value'}`);
     }
@@ -41,17 +38,26 @@ async function computeSensitivity(params) {
     const h = 2; // slider points
     const sensitivity = {};
     for (const k of keys) {
-      const minV = 0, maxV = (k === 'reworkPercentage') ? 50 : 100;
-      const right = Math.min(maxV, (sliderValues[k] ?? 0) + h);
-      const pert = { ...sliderValues, [k]: right };
-      const r = await probabilityAtTargetFast({
-        points: originalPoints, optimistic, mostLikely, pessimistic, targetValue, sliderValues: pert
-      }, true);
+      const maxV = (k === 'reworkPercentage') ? 50 : 100;
+      const cur   = sliderValues[k] ?? 0;
+      const right = Math.min(maxV, cur + h);
+      const left  = Math.max(0,    cur - h);
+      // Use forward difference when possible; fall back to backward when slider is at max
+      const useRight  = right > cur;
+      const pertVal   = useRight ? right : left;
+      const actualH   = useRight ? (right - cur) : (cur - left);
+      if (actualH <= 0) { sensitivity[k] = 0; continue; }
+      const pert = { ...sliderValues, [k]: pertVal };
+      const r = computeSliderProbability({
+        points: originalPoints, optimistic, mostLikely, pessimistic, targetValue, sliderValues: pert, probeLevel: 1
+      });
       if (r.error || !Number.isFinite(r.probability?.value)) {
         throw createErrorResponse(`Failed to compute perturbed probability for ${k}: ${r.error || 'Invalid value'}`);
       }
-      const denom = (right - (sliderValues[k] ?? 0)) || 1;
-      sensitivity[k] = (r.probability.value - baselineProbability) / denom;
+      // Forward: (P(s+h) - P(s)) / h  |  Backward: (P(s) - P(s-h)) / h
+      sensitivity[k] = useRight
+        ? (r.probability.value - baselineProbability) / actualH
+        : (baselineProbability - r.probability.value) / actualH;
     }
 
     // Build an interactions matrix (outer-product of changes) for heatmap;

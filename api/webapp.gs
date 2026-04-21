@@ -1139,17 +1139,20 @@ function computeSensitivityBlock(task, basePoints) {
 
   var entries = [];
   for (var ki = 0; ki < KEYS.length; ki++) {
-    var k      = KEYS[ki];
-    var maxV   = MAX_VAL[k] || 100;
-    var h      = STEP[k]    || 10;
-    var cur    = base[k];
-    var right  = Math.min(maxV, cur + h);
-    var actualH = right - cur;
+    var k        = KEYS[ki];
+    var maxV     = MAX_VAL[k] || 100;
+    var h        = STEP[k]    || 10;
+    var cur      = base[k];
+    var right    = Math.min(maxV, cur + h);
+    var left     = Math.max(0,    cur - h);
+    var useRight = right > cur;
+    var pertVal  = useRight ? right : left;
+    var actualH  = useRight ? (right - cur) : (cur - left);
     if (actualH <= 0) { entries.push({ slider: k, gain: 0, direction: 'neutral' }); continue; }
 
     var pert = {};
     for (var pk in base) { if (Object.prototype.hasOwnProperty.call(base, pk)) pert[pk] = base[pk]; }
-    pert[k] = right;
+    pert[k] = pertVal;
 
     var pRes = computeSliderProbability({
       points: basePoints,
@@ -1164,7 +1167,10 @@ function computeSensitivityBlock(task, basePoints) {
       ? pRes.probability.value : null;
     if (pProb === null) { entries.push({ slider: k, gain: 0, direction: 'neutral' }); continue; }
 
-    var dPdS = (pProb - baseProb) / actualH;
+    // Forward: (P(s+h)−P(s))/h  |  Backward: (P(s)−P(s−h))/h
+    var dPdS = useRight
+      ? (pProb - baseProb) / actualH
+      : (baseProb - pProb) / actualH;
     entries.push({
       slider:    k,
       gain:      Math.round(dPdS * 1e6) / 1e6,
